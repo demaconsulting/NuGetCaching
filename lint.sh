@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run all linters for Template DotNet Library
+# Run all linters for DemaConsulting NuGet Caching
 
 set -e  # Exit on error
 

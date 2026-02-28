@@ -43,7 +43,7 @@
 
   <!-- Project References -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\TemplateDotNetLibrary\TemplateDotNetLibrary.csproj" />
+    <ProjectReference Include="..\..\src\DemaConsulting.NuGet.Caching\DemaConsulting.NuGet.Caching.csproj" />
   </ItemGroup>
 
 </Project>

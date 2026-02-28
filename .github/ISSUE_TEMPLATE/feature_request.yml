@@ -1,6 +1,6 @@
 ---
 name: ✨ Feature Request
-description: Suggest a new feature or enhancement for the TemplateDotNetLibrary
+description: Suggest a new feature or enhancement for the NuGetCaching
 title: "[Feature]: "
 labels: ["enhancement"]
 assignees: []
@@ -52,7 +52,7 @@ body:
     id: benefits
     attributes:
       label: Benefits
-      description: Explain why this enhancement would be useful to TemplateDotNetLibrary users
+      description: Explain why this enhancement would be useful to NuGetCaching users
       placeholder: This would be useful because...
     validations:
       required: true

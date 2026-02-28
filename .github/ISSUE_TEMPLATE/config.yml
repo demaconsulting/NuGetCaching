@@ -2,8 +2,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: 📚 Documentation
-    url: https://github.com/demaconsulting/TemplateDotNetLibrary
-    about: Read the documentation for TemplateDotNetLibrary
+    url: https://github.com/demaconsulting/NuGetCaching
+    about: Read the documentation for NuGetCaching
   - name: 💬 Discussions
-    url: https://github.com/demaconsulting/TemplateDotNetLibrary/discussions
+    url: https://github.com/demaconsulting/NuGetCaching/discussions
     about: Ask questions and discuss with the community

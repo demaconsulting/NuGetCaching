@@ -1,11 +1,11 @@
 # Introduction
 
-This document contains the justifications for the requirements of the Template DotNet Library project.
+This document contains the justifications for the requirements of the DemaConsulting NuGet Caching project.
 
 ## Purpose
 
-This justifications document provides the rationale behind each requirement in the Template DotNet Library
-project. Each requirement justification explains why the requirement exists, what problem it
+This justifications document provides the rationale behind each requirement in the DemaConsulting NuGet
+Caching project. Each requirement justification explains why the requirement exists, what problem it
 solves, and how it contributes to the overall value of the library.
 
 ## Scope

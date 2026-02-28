@@ -1,4 +1,4 @@
-namespace TemplateDotNetLibrary.Tests;
+namespace DemaConsulting.NuGet.Caching.Tests;
 
 /// <summary>
 ///     Unit tests for the DemoClass.

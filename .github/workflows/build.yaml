@@ -104,7 +104,7 @@ jobs:
         run: >
           dotnet dotnet-sonarscanner
           begin
-          /k:"demaconsulting_TemplateDotNetLibrary"
+          /k:"demaconsulting_NuGetCaching"
           /o:"demaconsulting"
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.host.url="https://sonarcloud.io"
@@ -171,8 +171,8 @@ jobs:
         with:
           name: artifacts-${{ matrix.os }}
           path: |
-            src/TemplateDotNetLibrary/bin/Release/*.nupkg
-            src/TemplateDotNetLibrary/bin/Release/*.snupkg
+            src/DemaConsulting.NuGet.Caching/bin/Release/*.nupkg
+            src/DemaConsulting.NuGet.Caching/bin/Release/*.snupkg
 
   # Runs CodeQL security and quality analysis, gathering results to include
   # in the code quality report.
@@ -322,7 +322,7 @@ jobs:
           dotnet sarifmark
           --sarif codeql-results/csharp.sarif
           --report docs/quality/codeql-quality.md
-          --heading "Template DotNet Library CodeQL Analysis"
+          --heading "DemaConsulting NuGet Caching CodeQL Analysis"
           --report-depth 1
 
       - name: Display CodeQL Quality Report
@@ -338,7 +338,7 @@ jobs:
         run: >
           dotnet sonarmark
           --server https://sonarcloud.io
-          --project-key demaconsulting_TemplateDotNetLibrary
+          --project-key demaconsulting_NuGetCaching
           --branch ${{ github.ref_name }}
           --token "$SONAR_TOKEN"
           --report docs/quality/sonar-quality.md
@@ -453,42 +453,42 @@ jobs:
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/buildnotes/buildnotes.html
-          "docs/TemplateDotNetLibrary Build Notes.pdf"
+          "docs/DemaConsulting NuGet Caching Build Notes.pdf"
 
       - name: Generate Guide PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/guide/guide.html
-          "docs/TemplateDotNetLibrary User Guide.pdf"
+          "docs/DemaConsulting NuGet Caching User Guide.pdf"
 
       - name: Generate Code Quality PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/quality/quality.html
-          "docs/TemplateDotNetLibrary Code Quality.pdf"
+          "docs/DemaConsulting NuGet Caching Code Quality.pdf"
 
       - name: Generate Requirements PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/requirements/requirements.html
-          "docs/TemplateDotNetLibrary Requirements.pdf"
+          "docs/DemaConsulting NuGet Caching Requirements.pdf"
 
       - name: Generate Requirements Justifications PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/justifications/justifications.html
-          "docs/TemplateDotNetLibrary Requirements Justifications.pdf"
+          "docs/DemaConsulting NuGet Caching Requirements Justifications.pdf"
 
       - name: Generate Trace Matrix PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/tracematrix/tracematrix.html
-          "docs/TemplateDotNetLibrary Trace Matrix.pdf"
+          "docs/DemaConsulting NuGet Caching Trace Matrix.pdf"
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated documentation artifacts.

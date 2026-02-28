@@ -1,7 +1,7 @@
 # Agent Quick Reference
 
-Project-specific guidance for agents working on Template DotNet Library - a reference
-implementation demonstrating best practices for DEMA Consulting .NET libraries.
+Project-specific guidance for agents working on DemaConsulting NuGet Caching - a library
+for caching NuGet packages on the local PC.
 
 ## Available Specialized Agents
 
@@ -58,8 +58,8 @@ ensures the CI evidence comes specifically from the required environment.
 
 ## Project Structure
 
-- **DemoClass.cs**: Example library class demonstrating API patterns
-- **TemplateDotNetLibrary.csproj**: Project configuration with NuGet package settings
+- **DemoClass.cs**: Placeholder class (NuGet caching API will be added here)
+- **DemaConsulting.NuGet.Caching.csproj**: Project configuration with NuGet package settings
 
 ## Build and Test
 

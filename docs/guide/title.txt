@@ -1,13 +1,13 @@
 ---
-title: Template DotNet Library User Guide
-subtitle: A .NET Reference Implementation for Libraries
+title: DemaConsulting NuGet Caching User Guide
+subtitle: A Library for Caching NuGet Packages
 author: DEMA Consulting
-description: A .NET Reference Implementation for Libraries
+description: A Library for Caching NuGet Packages
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - DemaConsulting NuGet Caching
   - .NET
   - Library
   - Documentation
-  - Best Practices
+  - NuGet
 ---

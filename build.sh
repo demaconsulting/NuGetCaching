@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build and test Template DotNet Library
+# Build and test DemaConsulting NuGet Caching
 
 set -e  # Exit on error
 
-echo "🔧 Building Template DotNet Library..."
+echo "🔧 Building DemaConsulting NuGet Caching..."
 dotnet build --configuration Release
 
 echo "🧪 Running unit tests..."

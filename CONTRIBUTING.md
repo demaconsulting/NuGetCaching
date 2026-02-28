@@ -1,7 +1,7 @@
-# Contributing to Template DotNet Library
+# Contributing to DemaConsulting NuGet Caching
 
-Thank you for your interest in contributing to Template DotNet Library! We welcome contributions from the community and
-appreciate your help in making this project better.
+Thank you for your interest in contributing to DemaConsulting NuGet Caching!
+We welcome contributions from the community and appreciate your help in making this project better.
 
 ## Code of Conduct
 
@@ -18,7 +18,7 @@ If you find a bug, please create an issue on GitHub with the following informati
 - **Steps to Reproduce**: Detailed steps to reproduce the issue
 - **Expected Behavior**: What you expected to happen
 - **Actual Behavior**: What actually happened
-- **Environment**: Operating system, .NET version, Template DotNet Library version
+- **Environment**: Operating system, .NET version, DemaConsulting NuGet Caching version
 - **Logs**: Any relevant error messages or logs
 
 ### Suggesting Features
@@ -56,8 +56,8 @@ We follow a standard GitHub workflow for contributions:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/demaconsulting/TemplateDotNetLibrary.git
-   cd TemplateDotNetLibrary
+   git clone https://github.com/demaconsulting/NuGetCaching.git
+   cd NuGetCaching
    ```
 
 2. Restore dependencies:
@@ -260,7 +260,7 @@ When creating a pull request, include:
 
 ## Requirements Management
 
-Template DotNet Library uses [DemaConsulting.ReqStream][reqstream] for requirements traceability:
+DemaConsulting NuGet Caching uses [DemaConsulting.ReqStream][reqstream] for requirements traceability:
 
 - All requirements are defined in `requirements.yaml`
 - Each requirement should be linked to test cases
@@ -285,14 +285,14 @@ Releases are managed by project maintainers. The process includes:
 
 ## License
 
-By contributing to Template DotNet Library, you agree that your contributions will be licensed under the MIT License.
+By contributing to DemaConsulting NuGet Caching, you agree that your contributions will be licensed under the MIT License.
 
-Thank you for contributing to Template DotNet Library!
+Thank you for contributing to DemaConsulting NuGet Caching!
 
-[code-of-conduct]: https://github.com/demaconsulting/TemplateDotNetLibrary/blob/main/CODE_OF_CONDUCT.md
+[code-of-conduct]: https://github.com/demaconsulting/NuGetCaching/blob/main/CODE_OF_CONDUCT.md
 [dotnet-download]: https://dotnet.microsoft.com/download
 [csharp-conventions]: https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions
 [reqstream]: https://github.com/demaconsulting/ReqStream
-[discussions]: https://github.com/demaconsulting/TemplateDotNetLibrary/discussions
-[issues]: https://github.com/demaconsulting/TemplateDotNetLibrary/issues
-[security]: https://github.com/demaconsulting/TemplateDotNetLibrary/blob/main/SECURITY.md
+[discussions]: https://github.com/demaconsulting/NuGetCaching/discussions
+[issues]: https://github.com/demaconsulting/NuGetCaching/issues
+[security]: https://github.com/demaconsulting/NuGetCaching/blob/main/SECURITY.md

@@ -3,7 +3,7 @@ name: Test Developer
 description: Writes unit and integration tests following AAA pattern - clear documentation of what's tested and proved
 ---
 
-# Test Developer - Template DotNet Library
+# Test Developer - DemaConsulting NuGet Caching
 
 Develop comprehensive unit tests following best practices.
 
@@ -77,7 +77,7 @@ evidence. These filters are critical for platform and framework requirements - *
 Removing a source filter means a test result from any environment can satisfy the requirement, which invalidates
 the evidence-based proof that the library works on a specific platform or framework.
 
-### Template DotNet Library-Specific
+### DemaConsulting NuGet Caching-Specific
 
 - Unit tests live in `test/` directory
 - Use MSTest V4 testing framework
