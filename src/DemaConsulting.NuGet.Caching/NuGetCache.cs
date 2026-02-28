@@ -69,9 +69,18 @@ public static class NuGetCache
         // Get the core V3 providers needed to communicate with NuGet v3 and v2 feeds
         var providers = Repository.Provider.GetCoreV3();
 
-        // Enumerate every enabled source from the NuGet configuration and try each in order
+        // Load package source mapping; when enabled, only sources explicitly mapped to the
+        // package ID are permitted - this mirrors nuget.config <packageSourceMapping> behavior
+        var packageSourceMapping = PackageSourceMapping.GetPackageSourceMapping(settings);
         var sourceProvider = new PackageSourceProvider(settings);
-        foreach (var packageSource in sourceProvider.LoadPackageSources().Where(s => s.IsEnabled))
+        var enabledSources = sourceProvider.LoadPackageSources().Where(s => s.IsEnabled);
+
+        // Filter sources by package source mapping when it is configured
+        var allowedSources = packageSourceMapping.IsEnabled
+            ? enabledSources.Where(s => packageSourceMapping.GetConfiguredPackageSources(packageId).Contains(s.Name))
+            : enabledSources;
+
+        foreach (var packageSource in allowedSources)
         {
             // Build a source repository for this feed using the V3 provider chain
             var sourceRepository = new SourceRepository(packageSource, providers);
