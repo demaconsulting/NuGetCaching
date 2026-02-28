@@ -1,11 +1,11 @@
 ---
-title: DemaConsulting NuGet Caching Requirements
-subtitle: Requirements Specification for DemaConsulting NuGet Caching
+title: NuGetCaching Requirements
+subtitle: Requirements Specification for NuGetCaching
 author: DEMA Consulting
-description: Requirements Specification for DemaConsulting NuGet Caching
+description: Requirements Specification for NuGetCaching
 lang: en-US
 keywords:
-  - DemaConsulting NuGet Caching
+  - NuGetCaching
   - Requirements
   - Specification
   - .NET

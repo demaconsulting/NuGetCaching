@@ -1,11 +1,11 @@
 ---
-title: DemaConsulting NuGet Caching Trace Matrix
-subtitle: Requirements Traceability Matrix for DemaConsulting NuGet Caching
+title: NuGetCaching Trace Matrix
+subtitle: Requirements Traceability Matrix for NuGetCaching
 author: DEMA Consulting
-description: Requirements Traceability Matrix for DemaConsulting NuGet Caching
+description: Requirements Traceability Matrix for NuGetCaching
 lang: en-US
 keywords:
-  - DemaConsulting NuGet Caching
+  - NuGetCaching
   - Trace Matrix
   - Traceability
   - Requirements

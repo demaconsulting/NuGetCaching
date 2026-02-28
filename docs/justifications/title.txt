@@ -1,11 +1,11 @@
 ---
-title: DemaConsulting NuGet Caching Requirements Justifications
-subtitle: Requirements Justifications for DemaConsulting NuGet Caching
+title: NuGetCaching Requirements Justifications
+subtitle: Requirements Justifications for NuGetCaching
 author: DEMA Consulting
-description: Requirements Justifications for DemaConsulting NuGet Caching
+description: Requirements Justifications for NuGetCaching
 lang: en-US
 keywords:
-  - DemaConsulting NuGet Caching
+  - NuGetCaching
   - Requirements
   - Justifications
   - .NET

@@ -453,42 +453,42 @@ jobs:
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/buildnotes/buildnotes.html
-          "docs/DemaConsulting NuGet Caching Build Notes.pdf"
+          "docs/NuGetCaching Build Notes.pdf"
 
       - name: Generate Guide PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/guide/guide.html
-          "docs/DemaConsulting NuGet Caching User Guide.pdf"
+          "docs/NuGetCaching User Guide.pdf"
 
       - name: Generate Code Quality PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/quality/quality.html
-          "docs/DemaConsulting NuGet Caching Code Quality.pdf"
+          "docs/NuGetCaching Code Quality.pdf"
 
       - name: Generate Requirements PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/requirements/requirements.html
-          "docs/DemaConsulting NuGet Caching Requirements.pdf"
+          "docs/NuGetCaching Requirements.pdf"
 
       - name: Generate Requirements Justifications PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/justifications/justifications.html
-          "docs/DemaConsulting NuGet Caching Requirements Justifications.pdf"
+          "docs/NuGetCaching Requirements Justifications.pdf"
 
       - name: Generate Trace Matrix PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
           docs/tracematrix/tracematrix.html
-          "docs/DemaConsulting NuGet Caching Trace Matrix.pdf"
+          "docs/NuGetCaching Trace Matrix.pdf"
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated documentation artifacts.

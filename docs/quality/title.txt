@@ -1,11 +1,11 @@
 ---
-title: DemaConsulting NuGet Caching Code Quality Report
+title: NuGetCaching Code Quality Report
 subtitle: Code Quality Analysis Report
 author: DEMA Consulting
-description: Code Quality Analysis Report for DemaConsulting NuGet Caching
+description: Code Quality Analysis Report for NuGetCaching
 lang: en-US
 keywords:
-  - DemaConsulting NuGet Caching
+  - NuGetCaching
   - Code Quality
   - Analysis
   - .NET
