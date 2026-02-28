@@ -55,4 +55,9 @@
     <ProjectReference Include="..\..\src\DemaConsulting.NuGet.Caching\DemaConsulting.NuGet.Caching.csproj" />
   </ItemGroup>
 
+  <!-- Implicit Usings -->
+  <ItemGroup>
+    <Using Include="Polyfills" />
+  </ItemGroup>
+
 </Project>
