@@ -39,8 +39,13 @@ public static class NuGetCache
         CancellationToken cancellationToken = default)
     {
         // Validate input parameters before performing any I/O
+#if NET6_0_OR_GREATER
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(version);
+#else
+        if (packageId is null) { throw new ArgumentNullException(nameof(packageId)); }
+        if (version is null) { throw new ArgumentNullException(nameof(version)); }
+#endif
 
         // Load the default NuGet settings from the machine / user configuration files
         var settings = Settings.LoadDefaultSettings(null);

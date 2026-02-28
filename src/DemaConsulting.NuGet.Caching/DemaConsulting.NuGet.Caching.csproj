@@ -1,11 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
     <LangVersion>12</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
+  </PropertyGroup>
+
+  <!-- Suppress NU1701 for netstandard2.0: NuGet.Protocol 7.x targets net472 and net8.0 only.
+       The net472 assets are fully compatible with netstandard2.0 consumers (including net481). -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <!-- NuGet Package Configuration -->
     <PackageId>DemaConsulting.NuGet.Caching</PackageId>
     <Version>0.0.0</Version>
