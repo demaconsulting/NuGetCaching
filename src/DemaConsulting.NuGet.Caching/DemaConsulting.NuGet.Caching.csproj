@@ -43,6 +43,14 @@
     <SBOMPackageSupplier>Organization: $(Company)</SBOMPackageSupplier>
   </PropertyGroup>
 
+  <!-- Runtime Dependencies -->
+  <ItemGroup>
+    <!-- NuGet.Configuration is a transitive dependency of NuGet.Protocol, but listed explicitly
+         here for clarity since it is directly referenced in the caching implementation. -->
+    <PackageReference Include="NuGet.Configuration" Version="7.3.0" />
+    <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
+  </ItemGroup>
+
   <!-- Build Tool Dependencies -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Sbom.Targets" Version="4.1.5" PrivateAssets="All" />

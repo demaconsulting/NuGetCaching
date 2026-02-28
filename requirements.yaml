@@ -22,6 +22,14 @@ sections:
             tests:
               - DemoMethod_ReturnsGreeting_WithDefaultPrefix
 
+          - id: CACH-REQ-007
+            title: The library shall provide a method to ensure a NuGet package is cached locally on the PC.
+            justification: |
+              Provides the core caching functionality of the library, allowing callers to ensure
+              a specific NuGet package version is available in the local cache before use.
+            tests:
+              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
+
       - title: Platform Support
         requirements:
           - id: CACH-REQ-002
