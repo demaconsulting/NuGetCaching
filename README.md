@@ -15,16 +15,14 @@ DEMA Consulting library for caching NuGet packages on the local PC.
 
 This library provides:
 
-- **NuGet Package Caching**: Cache NuGet packages locally for faster builds and offline access
+- **NuGet Package Caching**: Ensure NuGet packages are available in the local global packages cache
+- **NuGet Configuration Aware**: Reads sources and global packages folder from the default NuGet
+  settings, mirroring `dotnet` CLI behavior
+- **Package Source Mapping**: Supports NuGet package source mapping configuration
 - **Multi-Platform Support**: Builds and runs on Windows and Linux
 - **Multi-Runtime Support**: Targets .NET 8, 9, and 10
-- **MSTest V4**: Modern unit testing with MSTest framework version 4
-- **Comprehensive CI/CD**: GitHub Actions workflows with quality checks and builds
 - **Documentation Generation**: Automated build notes, user guide, code quality reports,
   requirements, justifications, and trace matrix
-
-> **Note**: Additional NuGet caching functionality will be added in future releases.
-> The current release includes the foundational library structure (DemoClass).
 
 ## Installation
 
@@ -39,8 +37,9 @@ dotnet add package DemaConsulting.NuGet.Caching
 ```csharp
 using DemaConsulting.NuGet.Caching;
 
-var demo = new DemoClass();
-var result = demo.DemoMethod("World");
+// Ensure a specific NuGet package version is available in the local global packages cache
+string packagePath = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
+Console.WriteLine($"Package cached at: {packagePath}");
 ```
 
 ## Documentation

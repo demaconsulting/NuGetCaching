@@ -2,8 +2,8 @@
 
 ## Purpose
 
-This document is the user guide for DemaConsulting NuGet Caching, a library for caching
-NuGet packages on the local PC.
+This document is the user guide for DemaConsulting NuGet Caching, a library for ensuring
+NuGet packages are available in the local global packages cache.
 
 ## Scope
 
@@ -28,113 +28,114 @@ dotnet add package DemaConsulting.NuGet.Caching
 ```csharp
 using DemaConsulting.NuGet.Caching;
 
-var demo = new DemoClass();
-var result = demo.DemoMethod("World");
-Console.WriteLine(result); // Output: Hello, World!
+// Ensure a specific NuGet package version is present in the local global packages cache
+string packagePath = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
+Console.WriteLine($"Package cached at: {packagePath}");
 ```
+
+The method reads NuGet configuration (sources and global packages folder) from the default NuGet
+settings on the local machine, mirroring the behavior of the `dotnet` CLI. Package source mapping
+is fully supported.
 
 ## API Reference
 
-> **Note**: `DemoClass` is placeholder functionality included in the current release.
-> Additional NuGet package caching APIs will be added in future releases.
+### NuGetCache
 
-### DemoClass
-
-The `DemoClass` provides demonstration functionality until the NuGet caching features
-are implemented.
-
-#### Constructors
-
-##### DemoClass()
-
-```csharp
-public DemoClass()
-```
-
-Initializes a new instance of the `DemoClass` class with the default prefix "Hello".
-
-##### DemoClass(string prefix)
-
-```csharp
-public DemoClass(string prefix)
-```
-
-Initializes a new instance of the `DemoClass` class with a custom prefix.
-
-**Parameters:**
-
-- `prefix` (string): The prefix to use in greetings. Must not be null.
-
-**Exceptions:**
-
-- `ArgumentNullException`: Thrown when `prefix` is null.
+The `NuGetCache` static class provides methods for ensuring NuGet packages are available in
+the local global packages cache.
 
 #### Methods
 
-##### DemoMethod
+##### EnsureCachedAsync
 
 ```csharp
-public string DemoMethod(string name)
+public static async Task<string> EnsureCachedAsync(
+    string packageId,
+    string version,
+    CancellationToken cancellationToken = default)
 ```
 
-Returns a greeting message for the specified name.
+Ensures a specific NuGet package version is available in the local global packages cache.
 
 **Parameters:**
 
-- `name` (string): The name to greet. Must not be null.
+- `packageId` (string): The NuGet package identifier (e.g. `Newtonsoft.Json`). Must not be null.
+
+- `version` (string): The exact version string (e.g. `13.0.3`). Must not be null.
+
+- `cancellationToken` (CancellationToken): Optional cancellation token for the async operation.
 
 **Returns:**
 
-A string containing the greeting message in the format "{prefix}, {name}!".
+The absolute path to the cached package folder inside the global packages folder.
 
 **Exceptions:**
 
-- `ArgumentNullException`: Thrown when `name` is null.
+- `ArgumentNullException`: Thrown when `packageId` or `version` is null.
+
+- `InvalidOperationException`: Thrown when the package cannot be found in any configured
+  NuGet source.
 
 **Example:**
 
 ```csharp
-var demo = new DemoClass();
-var greeting = demo.DemoMethod("World");
-// greeting = "Hello, World!"
+string path = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
+// path = "/home/user/.nuget/packages/newtonsoft.json/13.0.3"
 ```
 
 # Examples
 
-## Example 1: Basic Greeting
+## Example 1: Ensure a Package is Cached
 
 ```csharp
 using DemaConsulting.NuGet.Caching;
 
-var demo = new DemoClass();
-var result = demo.DemoMethod("Alice");
-Console.WriteLine(result);
-// Output: Hello, Alice!
+string packagePath = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
+Console.WriteLine($"Package available at: {packagePath}");
 ```
 
-## Example 2: Custom Prefix
+## Example 2: Using a Cancellation Token
 
 ```csharp
 using DemaConsulting.NuGet.Caching;
 
-var demo = new DemoClass("Hi");
-var result = demo.DemoMethod("Alice");
-Console.WriteLine(result);
-// Output: Hi, Alice!
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+string packagePath = await NuGetCache.EnsureCachedAsync(
+    "Newtonsoft.Json",
+    "13.0.3",
+    cts.Token);
+
+Console.WriteLine($"Package available at: {packagePath}");
 ```
 
-## Example 3: Error Handling
+## Example 3: Error Handling When Package Not Found
 
 ```csharp
 using DemaConsulting.NuGet.Caching;
 
-var demo = new DemoClass();
 try
 {
-    var result = demo.DemoMethod(null);
+    string packagePath = await NuGetCache.EnsureCachedAsync("My.Package", "1.0.0");
+    Console.WriteLine($"Package available at: {packagePath}");
 }
-catch (ArgumentNullException ex)
+catch (InvalidOperationException ex)
 {
-    Console.WriteLine("Name cannot be null");
+    Console.WriteLine($"Package not found in any configured NuGet source: {ex.Message}");
+}
+```
+
+## Example 4: Caching Multiple Packages
+
+```csharp
+using DemaConsulting.NuGet.Caching;
+
+string[] packages = ["Newtonsoft.Json:13.0.3", "System.Text.Json:8.0.0"];
+
+foreach (string entry in packages)
+{
+    string[] parts = entry.Split(':');
+    string path = await NuGetCache.EnsureCachedAsync(parts[0], parts[1]);
+    Console.WriteLine($"{parts[0]} {parts[1]} -> {path}");
 }
 ```
