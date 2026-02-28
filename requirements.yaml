@@ -9,54 +9,64 @@
 #   net8.0@TestName   - proves the test passed under the .NET 8 runtime
 #   net9.0@TestName   - proves the test passed under the .NET 9 runtime
 #   net10.0@TestName  - proves the test passed under the .NET 10 runtime
+#   net481@TestName   - proves the test passed under the .NET Framework 4.8.1 runtime (Windows only)
 sections:
   - title: DemaConsulting NuGet Caching Requirements
     sections:
       - title: Library API
         requirements:
-          - id: CACH-REQ-001
-            title: The library shall provide a method to generate a greeting.
+          - id: CACH-LIB-001
+            title: The library shall provide a method to ensure a NuGet package is cached locally on the PC.
             justification: |
-              Provides a simple demonstration of library functionality following
-              .NET library best practices for DEMA Consulting libraries.
+              Provides the core caching functionality of the library, allowing callers to ensure
+              a specific NuGet package version is available in the local cache before use.
             tests:
-              - DemoMethod_ReturnsGreeting_WithDefaultPrefix
+              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
 
       - title: Platform Support
         requirements:
-          - id: CACH-REQ-002
+          - id: CACH-PLT-001
             title: The library shall build and run on Windows platforms.
             justification: |
               DEMA Consulting libraries must support Windows as a major development platform.
             tests:
               # Tests link to "windows" to ensure results come from Windows platform
-              - "windows@DemoMethod_ReturnsGreeting_WithDefaultPrefix"
+              - "windows@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-REQ-003
+          - id: CACH-PLT-002
             title: The library shall build and run on Linux platforms.
             justification: |
               DEMA Consulting libraries must support Linux for CI/CD and containerized environments.
             tests:
               # Tests link to "ubuntu" to ensure results come from Linux platform
-              - "ubuntu@DemoMethod_ReturnsGreeting_WithDefaultPrefix"
+              - "ubuntu@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-REQ-004
+          - id: CACH-PLT-003
             title: The library shall support .NET 8 runtime.
             justification: |
               .NET 8 is an LTS release providing long-term stability for enterprise users.
             tests:
-              - "net8.0@DemoMethod_ReturnsGreeting_WithDefaultPrefix"
+              - "net8.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-REQ-005
+          - id: CACH-PLT-004
             title: The library shall support .NET 9 runtime.
             justification: |
               .NET 9 support enables users to leverage the latest .NET features.
             tests:
-              - "net9.0@DemoMethod_ReturnsGreeting_WithDefaultPrefix"
+              - "net9.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-REQ-006
+          - id: CACH-PLT-005
             title: The library shall support .NET 10 runtime.
             justification: |
               .NET 10 support ensures the library remains compatible with the latest .NET ecosystem.
             tests:
-              - "net10.0@DemoMethod_ReturnsGreeting_WithDefaultPrefix"
+              - "net10.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
+
+          - id: CACH-PLT-006
+            title: The library shall support .NET Standard 2.0, verified on .NET Framework 4.8.1 on Windows.
+            justification: |
+              .NET Standard 2.0 support ensures the library can be consumed by projects targeting
+              .NET Framework and older .NET runtimes, broadening compatibility.
+            tests:
+              # Tests link to "net481" to ensure results come from .NET Framework 4.8.1 (Windows only)
+              - "net481@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"

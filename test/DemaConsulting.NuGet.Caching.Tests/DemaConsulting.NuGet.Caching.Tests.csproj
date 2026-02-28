@@ -2,8 +2,9 @@
 
   <PropertyGroup>
     <!-- Build Configuration -->
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    <LangVersion>12</LangVersion>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net481;net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('Windows'))">net8.0;net9.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 

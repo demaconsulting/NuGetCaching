@@ -1,11 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    <LangVersion>12</LangVersion>
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
+  </PropertyGroup>
+
+  <PropertyGroup>
     <!-- NuGet Package Configuration -->
     <PackageId>DemaConsulting.NuGet.Caching</PackageId>
     <Version>0.0.0</Version>
@@ -36,6 +39,9 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
 
+    <!-- Polyfill Configuration -->
+    <PolyArgumentExceptions>true</PolyArgumentExceptions>
+
     <!-- SBOM Configuration -->
     <GenerateSBOM>true</GenerateSBOM>
     <SBOMPackageName>$(PackageId)</SBOMPackageName>
@@ -43,9 +49,28 @@
     <SBOMPackageSupplier>Organization: $(Company)</SBOMPackageSupplier>
   </PropertyGroup>
 
+  <!-- NU1701 applies to all NuGet.Protocol 7.x packages (NuGet.Common, NuGet.Configuration,
+       NuGet.Frameworks, NuGet.Packaging, NuGet.Protocol, NuGet.Versioning) because they only
+       ship net472 and net8.0 targets — there is no netstandard2.0 target folder. The net472
+       assets are fully compatible with netstandard2.0 consumers (including net481 in tests).
+       NU1701 is a NuGet restore diagnostic evaluated before TargetFramework is set, so per-TFM
+       conditions cannot suppress it; global suppression is the correct MSBuild pattern here. -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <!-- Runtime Dependencies -->
+  <ItemGroup>
+    <!-- NuGet.Configuration is a transitive dependency of NuGet.Protocol, but listed explicitly
+         here for clarity since it is directly referenced in the caching implementation. -->
+    <PackageReference Include="NuGet.Configuration" Version="7.3.0" />
+    <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
+  </ItemGroup>
+
   <!-- Build Tool Dependencies -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Sbom.Targets" Version="4.1.5" PrivateAssets="All" />
+    <PackageReference Include="Polyfill" Version="9.12.0" PrivateAssets="All" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.103" PrivateAssets="All" />
   </ItemGroup>
 
