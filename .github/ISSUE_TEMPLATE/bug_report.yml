@@ -1,6 +1,6 @@
 ---
 name: 🐛 Bug Report
-description: Report a bug or issue with the TemplateDotNetLibrary
+description: Report a bug or issue with the NuGetCaching
 title: "[Bug]: "
 labels: ["bug"]
 assignees: []
@@ -26,7 +26,7 @@ body:
       label: Steps to Reproduce
       description: Detailed steps to reproduce the behavior
       placeholder: |
-        1. Use TemplateDotNetLibrary with code '...'
+        1. Use NuGetCaching with code '...'
         2. Call method '...'
         3. Observe error...
       value: |
@@ -69,7 +69,7 @@ body:
     id: version
     attributes:
       label: Library Version
-      description: What version of the TemplateDotNetLibrary are you using?
+      description: What version of the NuGetCaching are you using?
       placeholder: e.g., 1.0.0
     validations:
       required: true

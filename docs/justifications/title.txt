@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Requirements Justifications
-subtitle: Requirements Justifications for the Template DotNet Library
+title: DemaConsulting NuGet Caching Requirements Justifications
+subtitle: Requirements Justifications for DemaConsulting NuGet Caching
 author: DEMA Consulting
-description: Requirements Justifications for the Template DotNet Library
+description: Requirements Justifications for DemaConsulting NuGet Caching
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - DemaConsulting NuGet Caching
   - Requirements
   - Justifications
   - .NET

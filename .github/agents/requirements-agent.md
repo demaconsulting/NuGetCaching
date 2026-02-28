@@ -3,7 +3,7 @@ name: Requirements Agent
 description: Develops requirements and ensures appropriate test coverage - knows which requirements need unit/integration/self-validation tests
 ---
 
-# Requirements Agent - Template DotNet Library
+# Requirements Agent - DemaConsulting NuGet Caching
 
 Develop and maintain high-quality requirements with proper test coverage linkage.
 

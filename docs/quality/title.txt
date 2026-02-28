@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Code Quality Report
+title: DemaConsulting NuGet Caching Code Quality Report
 subtitle: Code Quality Analysis Report
 author: DEMA Consulting
-description: Code Quality Analysis Report for Template DotNet Library
+description: Code Quality Analysis Report for DemaConsulting NuGet Caching
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - DemaConsulting NuGet Caching
   - Code Quality
   - Analysis
   - .NET

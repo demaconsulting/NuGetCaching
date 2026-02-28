@@ -1,4 +1,4 @@
-# Template DotNet Library
+# DemaConsulting NuGet Caching
 
 [![GitHub forks][badge-forks]][link-forks]
 [![GitHub stars][badge-stars]][link-stars]
@@ -9,13 +9,13 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
-DEMA Consulting template project for DotNet Libraries, demonstrating best practices for building reusable .NET libraries.
+DEMA Consulting library for caching NuGet packages on the local PC.
 
 ## Features
 
-This template demonstrates:
+This library provides:
 
-- **Simple Library Structure**: Demo class with example methods
+- **NuGet Package Caching**: Cache NuGet packages locally for faster builds and offline access
 - **Multi-Platform Support**: Builds and runs on Windows and Linux
 - **Multi-Runtime Support**: Targets .NET 8, 9, and 10
 - **MSTest V4**: Modern unit testing with MSTest framework version 4
@@ -23,18 +23,21 @@ This template demonstrates:
 - **Documentation Generation**: Automated build notes, user guide, code quality reports,
   requirements, justifications, and trace matrix
 
+> **Note**: Additional NuGet caching functionality will be added in future releases.
+> The current release includes the foundational library structure (DemoClass).
+
 ## Installation
 
 Install the library using the .NET CLI:
 
 ```bash
-dotnet add package TemplateDotNetLibrary
+dotnet add package DemaConsulting.NuGet.Caching
 ```
 
 ## Usage
 
 ```csharp
-using TemplateDotNetLibrary;
+using DemaConsulting.NuGet.Caching;
 
 var demo = new DemoClass();
 var result = demo.DemoMethod("World");
@@ -58,21 +61,21 @@ Copyright (c) DEMA Consulting. Licensed under the MIT License. See [LICENSE][lin
 By contributing to this project, you agree that your contributions will be licensed under the MIT License.
 
 <!-- Badge References -->
-[badge-forks]: https://img.shields.io/github/forks/demaconsulting/TemplateDotNetLibrary?style=plastic
-[badge-stars]: https://img.shields.io/github/stars/demaconsulting/TemplateDotNetLibrary?style=plastic
-[badge-contributors]: https://img.shields.io/github/contributors/demaconsulting/TemplateDotNetLibrary?style=plastic
-[badge-license]: https://img.shields.io/github/license/demaconsulting/TemplateDotNetLibrary?style=plastic
-[badge-build]: https://img.shields.io/github/actions/workflow/status/demaconsulting/TemplateDotNetLibrary/build_on_push.yaml?style=plastic
-[badge-quality]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_TemplateDotNetLibrary&metric=alert_status
-[badge-security]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_TemplateDotNetLibrary&metric=security_rating
-[badge-nuget]: https://img.shields.io/nuget/v/TemplateDotNetLibrary?style=plastic
+[badge-forks]: https://img.shields.io/github/forks/demaconsulting/NuGetCaching?style=plastic
+[badge-stars]: https://img.shields.io/github/stars/demaconsulting/NuGetCaching?style=plastic
+[badge-contributors]: https://img.shields.io/github/contributors/demaconsulting/NuGetCaching?style=plastic
+[badge-license]: https://img.shields.io/github/license/demaconsulting/NuGetCaching?style=plastic
+[badge-build]: https://img.shields.io/github/actions/workflow/status/demaconsulting/NuGetCaching/build_on_push.yaml?style=plastic
+[badge-quality]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_NuGetCaching&metric=alert_status
+[badge-security]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_NuGetCaching&metric=security_rating
+[badge-nuget]: https://img.shields.io/nuget/v/DemaConsulting.NuGet.Caching?style=plastic
 
 <!-- Link References -->
-[link-forks]: https://github.com/demaconsulting/TemplateDotNetLibrary/network/members
-[link-stars]: https://github.com/demaconsulting/TemplateDotNetLibrary/stargazers
-[link-contributors]: https://github.com/demaconsulting/TemplateDotNetLibrary/graphs/contributors
-[link-license]: https://github.com/demaconsulting/TemplateDotNetLibrary/blob/main/LICENSE
-[link-build]: https://github.com/demaconsulting/TemplateDotNetLibrary/actions/workflows/build_on_push.yaml
-[link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_TemplateDotNetLibrary
-[link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_TemplateDotNetLibrary
-[link-nuget]: https://www.nuget.org/packages/TemplateDotNetLibrary
+[link-forks]: https://github.com/demaconsulting/NuGetCaching/network/members
+[link-stars]: https://github.com/demaconsulting/NuGetCaching/stargazers
+[link-contributors]: https://github.com/demaconsulting/NuGetCaching/graphs/contributors
+[link-license]: https://github.com/demaconsulting/NuGetCaching/blob/main/LICENSE
+[link-build]: https://github.com/demaconsulting/NuGetCaching/actions/workflows/build_on_push.yaml
+[link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
+[link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
+[link-nuget]: https://www.nuget.org/packages/DemaConsulting.NuGet.Caching

@@ -7,20 +7,20 @@
     <Nullable>enable</Nullable>
 
     <!-- NuGet Package Configuration -->
-    <PackageId>TemplateDotNetLibrary</PackageId>
+    <PackageId>DemaConsulting.NuGet.Caching</PackageId>
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>Template project for DEMA Consulting DotNet Libraries</Description>
+    <Description>A library for caching NuGet packages on the local PC</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/demaconsulting/TemplateDotNetLibrary</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/demaconsulting/TemplateDotNetLibrary</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/demaconsulting/NuGetCaching</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/demaconsulting/NuGetCaching</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>Icon.png</PackageIcon>
-    <PackageTags>template;dotnet-library</PackageTags>
+    <PackageTags>nuget;caching;dotnet</PackageTags>
     <Copyright>Copyright DEMA Consulting</Copyright>
-    <Title>Template DotNet Library</Title>
-    <Product>TemplateDotNetLibrary</Product>
+    <Title>DemaConsulting NuGet Caching</Title>
+    <Product>DemaConsulting.NuGet.Caching</Product>
 
     <!-- Symbol Package Configuration -->
     <IncludeSymbols>true</IncludeSymbols>
@@ -57,7 +57,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TemplateDotNetLibrary.Tests" />
+    <InternalsVisibleTo Include="DemaConsulting.NuGet.Caching.Tests" />
   </ItemGroup>
 
   <ItemGroup>

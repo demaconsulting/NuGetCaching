@@ -11,7 +11,7 @@ We release patches for security vulnerabilities in the following versions:
 
 ## Reporting a Vulnerability
 
-We take the security of Template DotNet Library seriously. If you believe you have found a
+We take the security of DemaConsulting NuGet Caching seriously. If you believe you have found a
 security vulnerability, please report it to us as described below.
 
 ### How to Report
@@ -60,23 +60,23 @@ Security updates will be released as:
 
 ## Security Best Practices
 
-When using Template DotNet Library, we recommend following these security best practices:
+When using DemaConsulting NuGet Caching, we recommend following these security best practices:
 
 ### Input Validation
 
 - Validate input parameters and data before processing
 - Be cautious when processing data from untrusted sources
-- Use the latest version of Template DotNet Library to benefit from security updates
+- Use the latest version of DemaConsulting NuGet Caching to benefit from security updates
 
 ### Dependencies
 
-- Keep Template DotNet Library and its dependencies up to date
+- Keep DemaConsulting NuGet Caching and its dependencies up to date
 - Review the release notes for security-related updates
 - Use `dotnet list package --vulnerable` to check for vulnerable dependencies
 
 ### Usage Environment
 
-- Use Template DotNet Library with the minimum required permissions
+- Use DemaConsulting NuGet Caching with the minimum required permissions
 - Validate API tokens and credentials are stored securely
 - Follow secure coding practices when integrating the library
 
@@ -84,7 +84,7 @@ When using Template DotNet Library, we recommend following these security best p
 
 ### Data Handling
 
-Template DotNet Library processes data according to its API. Users should:
+DemaConsulting NuGet Caching processes data according to its API. Users should:
 
 - Validate input data before passing to library functions
 - Handle sensitive data according to security requirements
@@ -107,7 +107,7 @@ We will credit security researchers who report vulnerabilities responsibly. If y
 
 ## Third-Party Dependencies
 
-Template DotNet Library relies on third-party packages. We:
+DemaConsulting NuGet Caching relies on third-party packages. We:
 
 - Regularly update dependencies to address known vulnerabilities
 - Use Dependabot to monitor for security updates
@@ -132,9 +132,9 @@ For general bugs and feature requests, please use [GitHub Issues][issues].
 - [.NET Security Best Practices][dotnet-security]
 - [GitHub Security Advisories][security-advisories]
 
-Thank you for helping keep Template DotNet Library and its users safe!
+Thank you for helping keep DemaConsulting NuGet Caching and its users safe!
 
-[security-advisories]: https://github.com/demaconsulting/TemplateDotNetLibrary/security/advisories
-[issues]: https://github.com/demaconsulting/TemplateDotNetLibrary/issues
+[security-advisories]: https://github.com/demaconsulting/NuGetCaching/security/advisories
+[issues]: https://github.com/demaconsulting/NuGetCaching/issues
 [owasp-practices]: https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/
 [dotnet-security]: https://learn.microsoft.com/en-us/dotnet/standard/security/

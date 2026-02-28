@@ -3,7 +3,7 @@ name: Software Developer
 description: Writes production code and self-validation tests - targets design-for-testability and literate programming style
 ---
 
-# Software Developer - Template DotNet Library
+# Software Developer - DemaConsulting NuGet Caching
 
 Develop production code with emphasis on testability and clarity.
 
@@ -49,7 +49,7 @@ return FormatResults(results);
 - Avoid hidden state and side effects
 - Clear separation of concerns
 
-### Template DotNet Library-Specific Rules
+### DemaConsulting NuGet Caching-Specific Rules
 
 - **XML Docs**: On ALL members (public/internal/private) with spaces after `///`
   - Follow standard XML indentation rules with four-space indentation

@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Requirements
-subtitle: Requirements Specification for the Template DotNet Library
+title: DemaConsulting NuGet Caching Requirements
+subtitle: Requirements Specification for DemaConsulting NuGet Caching
 author: DEMA Consulting
-description: Requirements Specification for the Template DotNet Library
+description: Requirements Specification for DemaConsulting NuGet Caching
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - DemaConsulting NuGet Caching
   - Requirements
   - Specification
   - .NET

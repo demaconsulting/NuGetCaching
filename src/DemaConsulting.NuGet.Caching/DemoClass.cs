@@ -1,7 +1,7 @@
-namespace TemplateDotNetLibrary;
+namespace DemaConsulting.NuGet.Caching;
 
 /// <summary>
-///     Demonstration class for the template library.
+///     Demonstration class for the DemaConsulting NuGet Caching library.
 /// </summary>
 public class DemoClass
 {

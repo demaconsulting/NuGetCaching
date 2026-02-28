@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Trace Matrix
-subtitle: Requirements Traceability Matrix for the Template DotNet Library
+title: DemaConsulting NuGet Caching Trace Matrix
+subtitle: Requirements Traceability Matrix for DemaConsulting NuGet Caching
 author: DEMA Consulting
-description: Requirements Traceability Matrix for the Template DotNet Library
+description: Requirements Traceability Matrix for DemaConsulting NuGet Caching
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - DemaConsulting NuGet Caching
   - Trace Matrix
   - Traceability
   - Requirements

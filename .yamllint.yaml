@@ -1,5 +1,5 @@
 ---
-# yamllint configuration for Template DotNet Library
+# yamllint configuration for DemaConsulting NuGet Caching
 # This configuration defines the rules for YAML file linting
 
 extends: default
