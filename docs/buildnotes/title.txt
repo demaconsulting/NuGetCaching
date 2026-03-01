@@ -1,11 +1,11 @@
 ---
-title: DemaConsulting NuGet Caching
+title: NuGetCaching
 subtitle: Build Notes
 author: DEMA Consulting
-description: Build notes for the DemaConsulting NuGet Caching library
+description: Build notes for the NuGetCaching library
 lang: en-US
 keywords:
-  - DemaConsulting NuGet Caching
+  - NuGetCaching
   - Build Notes
   - Release Notes
   - C#
