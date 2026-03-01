@@ -76,9 +76,8 @@ public static class NuGetCache
             return packagePath;
         }
 
-        // Parse the version string and build the package identity used by NuGet protocol APIs
+        // Parse the version string used by NuGet protocol APIs
         var nugetVersion = NuGetVersion.Parse(version);
-        var identity = new PackageIdentity(packageId, nugetVersion);
 
         // Build the client policy context used for package signing validation
         var clientPolicyContext = ClientPolicyContext.GetClientPolicy(settings, NullLogger.Instance);
@@ -110,7 +109,6 @@ public static class NuGetCache
                 sourceRepository,
                 packageId,
                 nugetVersion,
-                identity,
                 globalPackagesFolder,
                 clientPolicyContext,
                 sourceCacheContext,
@@ -135,7 +133,6 @@ public static class NuGetCache
     /// <param name="sourceRepository">The source repository to query.</param>
     /// <param name="packageId">The NuGet package identifier.</param>
     /// <param name="version">The parsed <see cref="NuGetVersion"/> to download.</param>
-    /// <param name="identity">The <see cref="PackageIdentity"/> used by the global folder utility.</param>
     /// <param name="globalPackagesFolder">Absolute path to the NuGet global packages folder.</param>
     /// <param name="clientPolicyContext">The client signing policy context from NuGet settings.</param>
     /// <param name="cacheContext">Shared <see cref="SourceCacheContext"/> for HTTP caching.</param>
@@ -148,12 +145,14 @@ public static class NuGetCache
         SourceRepository sourceRepository,
         string packageId,
         NuGetVersion version,
-        PackageIdentity identity,
         string globalPackagesFolder,
         ClientPolicyContext clientPolicyContext,
         SourceCacheContext cacheContext,
         CancellationToken cancellationToken)
     {
+        // Build the package identity from the provided packageId and version
+        var identity = new PackageIdentity(packageId, version);
+
         // Obtain the FindPackageByIdResource; some source types may not support it or may
         // be unreachable - in either case skip this source and move on to the next
         FindPackageByIdResource? resource;
@@ -233,6 +232,9 @@ public static class NuGetCache
     /// <param name="packageId">The NuGet package identifier.</param>
     /// <param name="versionLower">The version string already lowercased.</param>
     /// <returns>The absolute path to the package folder inside the global packages folder.</returns>
-    private static string GetPackagePath(string globalPackagesFolder, string packageId, string versionLower) =>
-        Path.Combine(globalPackagesFolder, packageId.ToLowerInvariant(), versionLower);
+    private static string GetPackagePath(string globalPackagesFolder, string packageId, string versionLower)
+    {
+        var packageIdPath = PathHelpers.SafePathCombine(globalPackagesFolder, packageId.ToLowerInvariant());
+        return PathHelpers.SafePathCombine(packageIdPath, versionLower);
+    }
 }

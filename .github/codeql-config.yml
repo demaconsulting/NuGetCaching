@@ -1,4 +1,13 @@
 ---
 # CodeQL configuration for DemaConsulting NuGet Caching
+# Excludes PathHelpers.cs from path-combine security analysis
+# as SafePathCombine intentionally calls Path.Combine after validation
 
 name: "DemaConsulting NuGet Caching CodeQL Config"
+
+# Query filters to disable specific queries for certain paths
+query-filters:
+  - exclude:
+      id: cs/path-combine
+    paths:
+      - src/DemaConsulting.NuGet.Caching/PathHelpers.cs
