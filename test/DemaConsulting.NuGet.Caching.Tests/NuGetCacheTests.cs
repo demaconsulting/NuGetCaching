@@ -27,6 +27,11 @@ namespace DemaConsulting.NuGet.Caching.Tests;
 public class NuGetCacheTests
 {
     /// <summary>
+    ///     Gets or sets the test context provided by the MSTest framework before each test runs.
+    /// </summary>
+    public TestContext TestContext { get; set; } = null!;
+
+    /// <summary>
     ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> returns the path to an existing
     ///     package folder after downloading a known small package from nuget.org.
     /// </summary>
@@ -41,7 +46,7 @@ public class NuGetCacheTests
         const string version = "1.5.0";
 
         // Act - ensure the package is present in the local NuGet global packages cache
-        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version);
+        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken);
 
         // Assert - the returned path must point to a real directory on disk
         Assert.IsNotNull(packageFolder, "EnsureCachedAsync should not return null");
@@ -72,7 +77,7 @@ public class NuGetCacheTests
 
         // Act & Assert - calling with null packageId must throw ArgumentNullException
         _ = await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync(null!, version));
+            async () => await NuGetCache.EnsureCachedAsync(null!, version, TestContext.CancellationToken));
     }
 
     /// <summary>
@@ -87,7 +92,7 @@ public class NuGetCacheTests
 
         // Act & Assert - calling with null version must throw ArgumentNullException
         _ = await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, null!));
+            async () => await NuGetCache.EnsureCachedAsync(packageId, null!, TestContext.CancellationToken));
     }
 
     /// <summary>
@@ -102,8 +107,8 @@ public class NuGetCacheTests
         const string version = "1.5.0";
 
         // Act - call EnsureCachedAsync twice with the same package identity
-        var firstPath = await NuGetCache.EnsureCachedAsync(packageId, version);
-        var secondPath = await NuGetCache.EnsureCachedAsync(packageId, version);
+        var firstPath = await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken);
+        var secondPath = await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken);
 
         // Assert - both calls must return identical paths, proving the method is idempotent
         // and does not change the cache location on subsequent calls

@@ -1,0 +1,188 @@
+// Copyright (c) DEMA Consulting
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+namespace DemaConsulting.NuGet.Caching.Tests;
+
+/// <summary>
+///     Unit tests for the PathHelpers class.
+/// </summary>
+[TestClass]
+public class PathHelpersTests
+{
+    /// <summary>
+    ///     Test that SafePathCombine successfully combines valid paths.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var relativePath = "documents/file.txt";
+
+        // Act
+        var result = PathHelpers.SafePathCombine(basePath, relativePath);
+
+        // Assert
+        Assert.AreEqual(Path.Combine(basePath, relativePath), result);
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine throws ArgumentException for path traversal with double dots.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var relativePath = "../etc/passwd";
+
+        // Act & Assert
+        var exception = Assert.ThrowsExactly<ArgumentException>(() =>
+            PathHelpers.SafePathCombine(basePath, relativePath));
+        StringAssert.Contains(exception.Message, "Invalid path component");
+        Assert.AreEqual("relativePath", exception.ParamName);
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine throws ArgumentException for path with double dots in middle.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var relativePath = "documents/../../../etc/passwd";
+
+        // Act & Assert
+        var exception = Assert.ThrowsExactly<ArgumentException>(() =>
+            PathHelpers.SafePathCombine(basePath, relativePath));
+        StringAssert.Contains(exception.Message, "Invalid path component");
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine throws ArgumentException for absolute paths.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException()
+    {
+        // Test Unix absolute path
+        var unixBasePath = Path.GetTempPath();
+        var unixRelativePath = "/etc/passwd";
+        var unixException = Assert.ThrowsExactly<ArgumentException>(() =>
+            PathHelpers.SafePathCombine(unixBasePath, unixRelativePath));
+        StringAssert.Contains(unixException.Message, "Invalid path component");
+
+        // Test Windows absolute path (only on Windows since Windows paths may not be rooted on Unix)
+        if (OperatingSystem.IsWindows())
+        {
+            var windowsBasePath = "C:\\Users\\User";
+            var windowsRelativePath = "C:\\Windows\\System32";
+            var windowsException = Assert.ThrowsExactly<ArgumentException>(() =>
+                PathHelpers.SafePathCombine(windowsBasePath, windowsRelativePath));
+            StringAssert.Contains(windowsException.Message, "Invalid path component");
+        }
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine correctly handles current directory reference.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_CurrentDirectoryReference_CombinesCorrectly()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var relativePath = "./subfolder/file.txt";
+
+        // Act
+        var result = PathHelpers.SafePathCombine(basePath, relativePath);
+
+        // Assert
+        Assert.AreEqual(Path.Combine(basePath, relativePath), result);
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine correctly handles empty relative path.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_EmptyRelativePath_ReturnsBasePath()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var relativePath = "";
+
+        // Act
+        var result = PathHelpers.SafePathCombine(basePath, relativePath);
+
+        // Assert
+        Assert.AreEqual(Path.Combine(basePath, relativePath), result);
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine accepts simple filename.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_SimpleFilename_CombinesCorrectly()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var relativePath = "file.txt";
+
+        // Act
+        var result = PathHelpers.SafePathCombine(basePath, relativePath);
+
+        // Assert
+        Assert.AreEqual(Path.Combine(basePath, relativePath), result);
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine accepts path with subdirectories.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_NestedPaths_CombinesCorrectly()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var relativePath = "documents/work/report.pdf";
+
+        // Act
+        var result = PathHelpers.SafePathCombine(basePath, relativePath);
+
+        // Assert
+        Assert.AreEqual(Path.Combine(basePath, relativePath), result);
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine accepts GUID-based filename.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_GuidBasedFilename_CombinesSuccessfully()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var guid = Guid.NewGuid();
+        var relativePath = $"test-{guid}.tmp";
+
+        // Act
+        var result = PathHelpers.SafePathCombine(basePath, relativePath);
+
+        // Assert
+        Assert.AreEqual(Path.Combine(basePath, relativePath), result);
+    }
+}
