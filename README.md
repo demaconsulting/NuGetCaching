@@ -19,10 +19,15 @@ This library provides:
 - **NuGet Configuration Aware**: Reads sources and global packages folder from the default NuGet
   settings, mirroring `dotnet` CLI behavior
 - **Package Source Mapping**: Supports NuGet package source mapping configuration
-- **Multi-Platform Support**: Builds and runs on Windows and Linux
-- **Multi-Runtime Support**: Targets .NET 8, 9, and 10
+- **Multi-Platform Support**: Builds and runs on Windows, Linux, and macOS
+- **Multi-Runtime Support**: Targets .NET Standard 2.0, .NET 8, 9, and 10
 - **Documentation Generation**: Automated build notes, user guide, code quality reports,
   requirements, justifications, and trace matrix
+- **Linting Enforcement**: markdownlint, cspell, and yamllint enforced on every CI run
+- **Continuous Compliance**: Compliance evidence generated automatically on every CI run, following
+  the [Continuous Compliance][link-continuous-compliance] methodology
+- **SonarCloud Integration**: Quality gate and security analysis on every build
+- **Requirements Traceability**: Requirements linked to passing tests with auto-generated trace matrix
 
 ## Installation
 
@@ -78,3 +83,4 @@ By contributing to this project, you agree that your contributions will be licen
 [link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-nuget]: https://www.nuget.org/packages/DemaConsulting.NuGet.Caching
+[link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance
