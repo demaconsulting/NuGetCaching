@@ -142,7 +142,7 @@ Examples:
 
 - Write tests that are clear and focused
 - Use modern MSTest v4 assertions:
-  - `Assert.HasCount(collection, expectedCount)`
+  - `Assert.HasCount(expectedCount, collection)`
   - `Assert.IsEmpty(collection)`
   - `Assert.DoesNotContain(item, collection)`
 - Always clean up resources (use `try/finally` for console redirection)
