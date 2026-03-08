@@ -36,7 +36,7 @@ public class NuGetCacheTests
     ///     package folder after downloading a known small package from nuget.org.
     /// </summary>
     /// <remarks>
-    ///     This test proves CACH-REQ-007: the library can ensure a NuGet package is cached locally.
+    ///     This test proves Caching-Lib-EnsureCached: the library can ensure a NuGet package is cached locally.
     /// </remarks>
     [TestMethod]
     public async Task NuGetCache_EnsureCachedAsync_ReturnsPackageFolder()
