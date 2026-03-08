@@ -74,7 +74,7 @@ public static class NuGetCache
         // Checking for the .nupkg.metadata file (written by NuGet as the last extraction step)
         // rather than the directory avoids a race condition where concurrent callers see the
         // directory before extraction is complete and return a partially-populated path.
-        if (File.Exists(Path.Combine(packagePath, ".nupkg.metadata")))
+        if (File.Exists(PathHelpers.SafePathCombine(packagePath, ".nupkg.metadata")))
         {
             return packagePath;
         }
