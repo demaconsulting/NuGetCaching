@@ -12,6 +12,18 @@ for caching NuGet packages on the local PC.
 - **Code Quality Agent** - Enforces linting, static analysis, and security standards
 - **Repo Consistency Agent** - Ensures downstream repositories remain consistent with template patterns
 
+## Agent Selection Guide
+
+- Fix a bug → **Software Developer**
+- Add a new feature → **Requirements Agent** → **Software Developer** → **Test Developer**
+- Write a test → **Test Developer**
+- Fix linting or static analysis issues → **Code Quality Agent**
+- Update documentation → **Technical Writer**
+- Add or update requirements → **Requirements Agent**
+- Ensure test coverage linkage in `requirements.yaml` → **Requirements Agent**
+- Run security scanning or address CodeQL alerts → **Code Quality Agent**
+- Propagate template changes → **Repo Consistency Agent**
+
 ## Tech Stack
 
 - C# 12, .NET 8.0/9.0/10.0, dotnet CLI, NuGet
@@ -19,14 +31,14 @@ for caching NuGet packages on the local PC.
 ## Key Files
 
 - **`requirements.yaml`** - All requirements with test linkage (enforced via `dotnet reqstream --enforce`)
-- **`.editorconfig`** - Code style (file-scoped namespaces, 4-space indent, UTF-8+BOM, LF endings)
+- **`.editorconfig`** - Code style (file-scoped namespaces, 4-space indent, UTF-8, LF endings)
 - **`.cspell.json`, `.markdownlint-cli2.jsonc`, `.yamllint.yaml`** - Linting configs
 
 ## Requirements
 
 - All requirements MUST be linked to tests
 - Not all tests need to be linked to requirements (tests may exist for corner cases, design testing, failure-testing, etc.)
-- Enforced in CI: `dotnet reqstream --requirements requirements.yaml --tests "test-results/**/*.trx" --enforce`
+- Enforced in CI: `dotnet reqstream --requirements requirements.yaml --tests "artifacts/**/*.trx" --enforce`
 - When adding features: add requirement + link to test
 
 ## Test Source Filters
@@ -93,7 +105,7 @@ build.bat     # Windows
 ## CI/CD
 
 - **Quality Checks**: Markdown lint, spell check, YAML lint
-- **Build**: Multi-platform (Windows/Linux)
+- **Build**: Multi-platform (Windows/Linux/macOS)
 - **CodeQL**: Security scanning
 - **Documentation**: Auto-generated via Pandoc + Weasyprint
 
