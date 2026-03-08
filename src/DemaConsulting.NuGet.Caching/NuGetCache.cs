@@ -70,8 +70,11 @@ public static class NuGetCache
         // {globalPackagesFolder}/{packageId.lower}/{version.lower}/
         var packagePath = GetPackagePath(globalPackagesFolder, packageId, version.ToLowerInvariant());
 
-        // Return immediately when the package is already present - the common hot path
-        if (Directory.Exists(packagePath))
+        // Return immediately when the package is fully installed - the common hot path.
+        // Checking for the .nupkg.metadata file (written by NuGet as the last extraction step)
+        // rather than the directory avoids a race condition where concurrent callers see the
+        // directory before extraction is complete and return a partially-populated path.
+        if (File.Exists(PathHelpers.SafePathCombine(packagePath, ".nupkg.metadata")))
         {
             return packagePath;
         }
