@@ -16,7 +16,7 @@ sections:
     sections:
       - title: Library API
         requirements:
-          - id: CACH-LIB-001
+          - id: CACH-Lib-EnsureCached
             title: The library shall provide a method to ensure a NuGet package is cached locally on the PC.
             justification: |
               Provides the core caching functionality of the library, allowing callers to ensure
@@ -26,7 +26,7 @@ sections:
 
       - title: Platform Support
         requirements:
-          - id: CACH-PLT-001
+          - id: CACH-Platform-Windows
             title: The library shall build and run on Windows platforms.
             justification: |
               DEMA Consulting libraries must support Windows as a major development platform.
@@ -34,7 +34,7 @@ sections:
               # Tests link to "windows" to ensure results come from Windows platform
               - "windows@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-PLT-002
+          - id: CACH-Platform-Linux
             title: The library shall build and run on Linux platforms.
             justification: |
               DEMA Consulting libraries must support Linux for CI/CD and containerized environments.
@@ -42,7 +42,7 @@ sections:
               # Tests link to "ubuntu" to ensure results come from Linux platform
               - "ubuntu@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-PLT-007
+          - id: CACH-Platform-MacOS
             title: The library shall build and run on macOS platforms.
             justification: |
               DEMA Consulting libraries must support macOS for developers using Apple platforms.
@@ -50,28 +50,28 @@ sections:
               # Tests link to "macos" to ensure results come from macOS platform
               - "macos@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-PLT-003
+          - id: CACH-Platform-Net8
             title: The library shall support .NET 8 runtime.
             justification: |
               .NET 8 is an LTS release providing long-term stability for enterprise users.
             tests:
               - "net8.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-PLT-004
+          - id: CACH-Platform-Net9
             title: The library shall support .NET 9 runtime.
             justification: |
               .NET 9 support enables users to leverage the latest .NET features.
             tests:
               - "net9.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-PLT-005
+          - id: CACH-Platform-Net10
             title: The library shall support .NET 10 runtime.
             justification: |
               .NET 10 support ensures the library remains compatible with the latest .NET ecosystem.
             tests:
               - "net10.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
 
-          - id: CACH-PLT-006
+          - id: CACH-Platform-NetStd20
             title: The library shall support .NET Standard 2.0, verified on .NET Framework 4.8.1 on Windows.
             justification: |
               .NET Standard 2.0 support ensures the library can be consumed by projects targeting
