@@ -29,4 +29,7 @@ npx markdownlint-cli2 "**/*.md" || lint_error=1
 # Run yamllint check
 yamllint . || lint_error=1
 
+# Run dotnet format check
+dotnet format --verify-no-changes || lint_error=1
+
 exit $lint_error
