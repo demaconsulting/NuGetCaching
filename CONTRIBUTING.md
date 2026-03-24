@@ -179,15 +179,13 @@ All markdown files must follow these rules (enforced by markdownlint):
 
 ### Spell Checking
 
-All files are spell-checked using cspell. Add project-specific terms to `.cspell.json`:
+All files are spell-checked using cspell. **Never** add a word to the `.cspell.yaml` word list in order to silence a
+spell-checking failure. Doing so defeats the purpose of spell-checking and reduces the quality of the repository.
 
-```json
-{
-  "words": [
-    "myterm"
-  ]
-}
-```
+- If cspell flags a word that is **misspelled**, fix the spelling in the source file.
+- If cspell flags a word that is a **genuine technical term** (tool name, project identifier, etc.) and is spelled
+  correctly, raise a **proposal** (e.g. comment in a pull request) explaining why the word should be added. The
+  proposal must be reviewed and approved before the word is added to the list.
 
 ## Quality Checks
 
@@ -208,10 +206,10 @@ All tests must pass with zero warnings.
 ### 2. Linting
 
 ```bash
-# These commands run in CI - verify locally if tools are installed
-markdownlint-cli2 "**/*.md"
-cspell "**/*.{md,cs}"
-yamllint -c .yamllint.yaml .
+# Use the lint script which installs dependencies and runs all linters
+./lint.sh           # Linux/macOS (or: bash ./lint.sh)
+cmd /c lint.bat     # Windows (Command Prompt)
+./lint.bat          # Windows (PowerShell)
 ```
 
 ### 3. Code Coverage
