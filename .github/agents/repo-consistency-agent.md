@@ -35,5 +35,5 @@ consistency gaps, template evolution updates, and recommended changes for the sp
 ## Key Principles
 
 - **Evolutionary Consistency**: Template improvements should enhance downstream projects systematically
-- **Intelligent Customization Respect**: Distinguished valid customizations from unintentional drift
+- **Intelligent Customization Respect**: Distinguish valid customizations from unintentional drift
 - **Incremental Template Adoption**: Support phased adoption of template improvements based on project capacity
