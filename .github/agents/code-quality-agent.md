@@ -1,5 +1,5 @@
 ---
-name: Code Quality Agent
+name: code-quality
 description: Ensures code quality through linting and static analysis - responsible for security, maintainability, and correctness
 tools: [read, search, edit, execute, github, agent]
 user-invocable: true
@@ -34,7 +34,7 @@ Ensure the project is:
 1. **Build**: Zero warnings (TreatWarningsAsErrors=true)
 2. **Linting**:
    - markdownlint (`.markdownlint-cli2.jsonc`)
-   - cspell (`.cspell.json`)
+   - cspell (`.cspell.yaml`)
    - yamllint (`.yamllint.yaml`)
    - dotnet format (`.editorconfig`)
 3. **Static Analysis**:
