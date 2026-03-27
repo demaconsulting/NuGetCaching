@@ -68,7 +68,7 @@ explicit.
 ### Platform Considerations
 
 The post-combination `Path.GetFullPath` / `Path.GetRelativePath` check is conditionally
-compiled for `NET5_0_OR_GREATER`. On the `netstandard2.0` target only the pre-combination
+compiled for `NET5_0_OR_GREATER`. On the .NET Standard 2.0 target only the pre-combination
 checks apply; on .NET 8, 9, and 10 builds both validation layers are active.
 
 ## Method Descriptions
