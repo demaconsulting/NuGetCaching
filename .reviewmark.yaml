@@ -7,6 +7,7 @@
 # Processed in order; prefix a pattern with '!' to exclude.
 needs-review:
   - "**/*.cs"                    # All C# source and test files
+  - "docs/design/**/*.md"        # Design documents
   - "docs/reqstream/**/*.yaml"   # Requirements files
   - "!**/obj/**"                 # Exclude build output
   - "!**/bin/**"                 # Exclude build output
@@ -28,6 +29,7 @@ reviews:
     title: Review of NuGetCaching NuGetCache Unit
     paths:
       - "docs/reqstream/unit-nuget-cache.yaml"
+      - "docs/design/nuget-cache-design.md"
       - "src/**/NuGetCache.cs"
       - "test/**/NuGetCacheTests.cs"
       - "test/**/AssemblyInfo.cs"
@@ -36,6 +38,7 @@ reviews:
     title: Review of NuGetCaching PathHelpers Unit
     paths:
       - "docs/reqstream/unit-path-helpers.yaml"
+      - "docs/design/path-helpers-design.md"
       - "src/**/PathHelpers.cs"
       - "test/**/PathHelpersTests.cs"
 
