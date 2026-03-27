@@ -27,3 +27,14 @@ sections:
         tests:
           - NuGetCache_EnsureCachedAsync_ThrowsForNullPackageId
           - NuGetCache_EnsureCachedAsync_ThrowsForNullVersion
+
+      - id: Caching-Lib-NotFound
+        title: >-
+          The library shall throw InvalidOperationException when the package
+          cannot be found in any configured NuGet source.
+        justification: |
+          Ensures callers receive a clear, actionable error when the requested package is absent
+          from all configured sources, distinguishing this condition from a null-argument error
+          or a transient network failure on a single source.
+        tests:
+          - NuGetCache_EnsureCachedAsync_ThrowsWhenPackageNotFound

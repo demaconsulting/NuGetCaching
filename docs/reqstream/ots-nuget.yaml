@@ -1,0 +1,35 @@
+---
+# NuGet Client SDK OTS Software Requirements
+#
+# Requirements for the NuGet client SDK packages that the library depends on
+# at runtime for package source communication and configuration reading.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: NuGet Client SDK Requirements
+        requirements:
+          - id: Caching-OTS-NuGetProtocol
+            title: NuGet.Protocol shall communicate with NuGet package sources and download packages.
+            justification: |
+              NuGet.Protocol (version 7.3.0) provides the NuGet client SDK used by the library to
+              communicate with v2 and v3 NuGet package sources, stream package content, and install
+              packages into the global packages folder. It is a direct runtime dependency of the
+              library. Passing tests that exercise the full download-and-cache path confirm that the
+              protocol library is functioning correctly.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
+
+          - id: Caching-OTS-NuGetConfiguration
+            title: NuGet.Configuration shall read NuGet settings from the local machine configuration.
+            justification: |
+              NuGet.Configuration (version 7.3.0) provides the settings infrastructure used by the
+              library to load the NuGet configuration hierarchy (machine-wide, user, and
+              project-level), resolve the global packages folder path, load package source
+              definitions, and read package source mapping rules. It is a direct runtime dependency
+              of the library. Passing tests that exercise the full configuration-and-cache path
+              confirm that the configuration library is functioning correctly.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder

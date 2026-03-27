@@ -1,0 +1,28 @@
+# Introduction
+
+This document describes the software design for the DemaConsulting NuGet Caching library.
+
+## Purpose
+
+This design document provides a detailed description of the software units that make up
+the DemaConsulting NuGet Caching library. It captures the design decisions, implementation
+rationale, and method-level descriptions for each unit, tracing them back to the
+corresponding requirements.
+
+## Scope
+
+This design document covers:
+
+- The `NuGetCache` static class and its public and private methods
+- The `PathHelpers` internal static helper class and its safe path-combination method
+- Design decisions and rationale for each unit
+- Traceability from design to requirements
+
+## Audience
+
+This document is intended for:
+
+- Software developers working on DemaConsulting NuGet Caching
+- Quality assurance teams validating design against requirements
+- Code reviewers assessing correctness and security of the implementation
+- Auditors verifying design traceability

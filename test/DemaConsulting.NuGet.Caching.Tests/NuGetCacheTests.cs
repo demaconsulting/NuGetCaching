@@ -39,6 +39,7 @@ public class NuGetCacheTests
     ///     This test proves Caching-Lib-EnsureCached: the library can ensure a NuGet package is cached locally.
     /// </remarks>
     [TestMethod]
+    [TestCategory("Integration")]
     public async Task NuGetCache_EnsureCachedAsync_ReturnsPackageFolder()
     {
         // Arrange - use a small, known package that is reliably available on nuget.org
@@ -63,6 +64,26 @@ public class NuGetCacheTests
         Assert.IsTrue(
             hasPackageContent,
             $"Expected package folder to contain .nupkg or .nuspec files at: {packageFolder}");
+    }
+
+    /// <summary>
+    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
+    ///     <see cref="InvalidOperationException"/> when the package cannot be found in any configured NuGet source.
+    /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Lib-NotFound: the library reports when a package cannot be found.
+    /// </remarks>
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task NuGetCache_EnsureCachedAsync_ThrowsWhenPackageNotFound()
+    {
+        // Arrange - use a GUID-based package ID that cannot exist on any NuGet feed
+        var packageId = $"DemaConsulting.NonExistent.{Guid.NewGuid():N}";
+        const string version = "1.0.0";
+
+        // Act & Assert - calling with a non-existent package must throw InvalidOperationException
+        _ = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken));
     }
 
     /// <summary>
@@ -100,6 +121,7 @@ public class NuGetCacheTests
     ///     with the same package returns the same path both times.
     /// </summary>
     [TestMethod]
+    [TestCategory("Integration")]
     public async Task NuGetCache_EnsureCachedAsync_ReturnsSamePathWhenCalledTwice()
     {
         // Arrange - use a small, known package that is reliably available on nuget.org

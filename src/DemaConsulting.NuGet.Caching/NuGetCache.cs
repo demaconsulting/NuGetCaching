@@ -68,7 +68,7 @@ public static class NuGetCache
 
         // Compute the expected on-disk path for the package; NuGet stores packages under
         // {globalPackagesFolder}/{packageId.lower}/{version.lower}/
-        var packagePath = GetPackagePath(globalPackagesFolder, packageId, version.ToLowerInvariant());
+        var packagePath = GetPackagePath(globalPackagesFolder, packageId, version);
 
         // Return immediately when the package is fully installed - the common hot path.
         // Checking for the .nupkg.metadata file (written by NuGet as the last extraction step)
@@ -225,7 +225,7 @@ public static class NuGetCache
             cancellationToken);
 
         // Return the conventional package path that NuGet uses on disk
-        return GetPackagePath(globalPackagesFolder, packageId, version.ToString().ToLowerInvariant());
+        return GetPackagePath(globalPackagesFolder, packageId, version.ToString());
     }
 
     /// <summary>
@@ -233,11 +233,11 @@ public static class NuGetCache
     /// </summary>
     /// <param name="globalPackagesFolder">Absolute path to the NuGet global packages folder.</param>
     /// <param name="packageId">The NuGet package identifier.</param>
-    /// <param name="versionLower">The version string already lowercased.</param>
+    /// <param name="version">The version string.</param>
     /// <returns>The absolute path to the package folder inside the global packages folder.</returns>
-    private static string GetPackagePath(string globalPackagesFolder, string packageId, string versionLower)
+    private static string GetPackagePath(string globalPackagesFolder, string packageId, string version)
     {
         var packageIdPath = PathHelpers.SafePathCombine(globalPackagesFolder, packageId.ToLowerInvariant());
-        return PathHelpers.SafePathCombine(packageIdPath, versionLower);
+        return PathHelpers.SafePathCombine(packageIdPath, version.ToLowerInvariant());
     }
 }
