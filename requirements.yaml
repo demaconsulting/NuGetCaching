@@ -1,233 +1,33 @@
 ---
-# Test links can include a source filter prefix (e.g. "windows@", "ubuntu@", "net8.0@") to restrict
-# which test results count as evidence for a requirement. This is critical for platform and framework
-# requirements - removing these filters invalidates the evidence-based proof.
+# Root Requirements File
 #
-# Source filter prefixes:
-#   windows@TestName  - proves the test passed on a Windows platform
-#   ubuntu@TestName   - proves the test passed on a Linux (Ubuntu) platform
-#   macos@TestName    - proves the test passed on a macOS platform
-#   net8.0@TestName   - proves the test passed under the .NET 8 runtime
-#   net9.0@TestName   - proves the test passed under the .NET 9 runtime
-#   net10.0@TestName  - proves the test passed under the .NET 10 runtime
-#   net481@TestName   - proves the test passed under the .NET Framework 4.8.1 runtime (Windows only)
-sections:
-  - title: DemaConsulting NuGet Caching Requirements
-    sections:
-      - title: Library API
-        requirements:
-          - id: Caching-Lib-EnsureCached
-            title: The library shall provide a method to ensure a NuGet package is cached locally on the PC.
-            justification: |
-              Provides the core caching functionality of the library, allowing callers to ensure
-              a specific NuGet package version is available in the local cache before use.
-            tests:
-              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
-              - NuGetCache_EnsureCachedAsync_ReturnsSamePathWhenCalledTwice
+# PURPOSE:
+# - Serve as the entry point for ReqStream requirement processing
+# - Include all reviewable requirement files from the docs/reqstream/ directory
+#
+# USAGE:
+# - Run ReqStream against this file to process all requirements:
+#
+#   dotnet reqstream \
+#     --requirements requirements.yaml \
+#     --tests "artifacts/**/*.trx" \
+#     --report docs/requirements_doc/requirements.md \
+#     --justifications docs/requirements_doc/justifications.md \
+#     --matrix docs/requirements_report/trace_matrix.md \
+#     --enforce
+#
+# - Add new requirement files under docs/reqstream/ and add them to the includes
+#   list below (unit files first, then platform, then ots in alphabetical order)
 
-          - id: Caching-Lib-NullValidation
-            title: The library shall validate input parameters and throw ArgumentNullException for null arguments.
-            justification: |
-              Null parameter validation ensures callers receive clear, actionable error messages
-              when required arguments are missing, preventing unexpected NullReferenceExceptions
-              from propagating through the system.
-            tests:
-              - NuGetCache_EnsureCachedAsync_ThrowsForNullPackageId
-              - NuGetCache_EnsureCachedAsync_ThrowsForNullVersion
-
-          - id: Caching-Lib-NotFound
-            title: >-
-              The library shall throw InvalidOperationException when the package
-              cannot be found in any configured NuGet source.
-            justification: |
-              Ensures callers receive a clear, actionable error when the requested package is absent
-              from all configured sources, distinguishing this condition from a null-argument error
-              or a transient network failure on a single source.
-            tests:
-              - NuGetCache_EnsureCachedAsync_ThrowsWhenPackageNotFound
-
-      - title: PathHelpers
-        requirements:
-          - id: Caching-PathHelpers-SafeCombine
-            title: The PathHelpers class shall combine paths safely, preventing path traversal.
-            justification: |
-              Prevents path-traversal vulnerabilities when constructing file paths from
-              user-supplied or external inputs. Paths containing ".." or rooted paths
-              must be rejected to ensure the combined path remains under the base directory.
-            tests:
-              - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
-              - PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException
-              - PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException
-              - PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException
-              - PathHelpers_SafePathCombine_NestedPaths_CombinesCorrectly
-              - PathHelpers_SafePathCombine_SimpleFilename_CombinesCorrectly
-              - PathHelpers_SafePathCombine_GuidBasedFilename_CombinesSuccessfully
-              - PathHelpers_SafePathCombine_EmptyRelativePath_ReturnsBasePath
-              - PathHelpers_SafePathCombine_CurrentDirectoryReference_CombinesCorrectly
-
-      - title: Platform Support
-        requirements:
-          - id: Caching-PLT-Windows
-            title: The library shall build and run on Windows platforms.
-            justification: |
-              DEMA Consulting libraries must support Windows as a major development platform.
-            tests:
-              # Tests link to "windows" to ensure results come from Windows platform
-              - "windows@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
-
-          - id: Caching-PLT-Linux
-            title: The library shall build and run on Linux platforms.
-            justification: |
-              DEMA Consulting libraries must support Linux for CI/CD and containerized environments.
-            tests:
-              # Tests link to "ubuntu" to ensure results come from Linux platform
-              - "ubuntu@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
-
-          - id: Caching-PLT-MacOS
-            title: The library shall build and run on macOS platforms.
-            justification: |
-              DEMA Consulting libraries must support macOS for developers using Apple platforms.
-            tests:
-              # Tests link to "macos" to ensure results come from macOS platform
-              - "macos@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
-
-          - id: Caching-PLT-Net8
-            title: The library shall support .NET 8 runtime.
-            justification: |
-              .NET 8 is an LTS release providing long-term stability for enterprise users.
-            tests:
-              - "net8.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
-
-          - id: Caching-PLT-Net9
-            title: The library shall support .NET 9 runtime.
-            justification: |
-              .NET 9 support enables users to leverage the latest .NET features.
-            tests:
-              - "net9.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
-
-          - id: Caching-PLT-Net10
-            title: The library shall support .NET 10 runtime.
-            justification: |
-              .NET 10 support ensures the library remains compatible with the latest .NET ecosystem.
-            tests:
-              - "net10.0@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
-
-          - id: Caching-PLT-NetStd20
-            title: The library shall support .NET Standard 2.0, verified on .NET Framework 4.8.1 on Windows.
-            justification: |
-              .NET Standard 2.0 support ensures the library can be consumed by projects targeting
-              .NET Framework and older .NET runtimes, broadening compatibility.
-            tests:
-              # Tests link to "net481" to ensure results come from .NET Framework 4.8.1 (Windows only)
-              - "net481@NuGetCache_EnsureCachedAsync_ReturnsPackageFolder"
-
-      - title: OTS Software
-        requirements:
-          - id: Caching-OTS-MSTest
-            title: MSTest shall execute unit tests and report results.
-            justification: |
-              MSTest (MSTest.TestFramework, MSTest.TestAdapter, and Microsoft.NET.Test.Sdk) is the
-              unit-testing framework used by the project. It discovers and runs all test methods
-              and writes TRX result files that feed into coverage reporting and requirements
-              traceability. Passing tests confirm the framework is functioning correctly.
-            tags: [ots]
-            tests:
-              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
-
-          - id: Caching-OTS-ReqStream
-            title: ReqStream shall enforce that every requirement is linked to passing test evidence.
-            justification: |
-              DemaConsulting.ReqStream processes requirements.yaml and the TRX test-result files to
-              produce a requirements report, justifications document, and traceability matrix. When
-              run with --enforce, it exits with a non-zero code if any requirement lacks test evidence,
-              making unproven requirements a build-breaking condition. A successful pipeline run with
-              --enforce proves all requirements are covered and that ReqStream is functioning.
-            tags: [ots]
-            tests:
-              - ReqStream_EnforcementMode
-
-          - id: Caching-OTS-BuildMark
-            title: BuildMark shall generate build-notes documentation from GitHub Actions metadata.
-            justification: |
-              DemaConsulting.BuildMark queries the GitHub API to capture workflow run details and
-              renders them as a markdown build-notes document included in the release artifacts.
-              It runs as part of the same CI pipeline that produces the TRX test results, so a
-              successful pipeline run is evidence that BuildMark executed without error.
-            tags: [ots]
-            tests:
-              - BuildMark_MarkdownReportGeneration
-
-          - id: Caching-OTS-VersionMark
-            title: VersionMark shall publish captured tool-version information.
-            justification: |
-              DemaConsulting.VersionMark reads version metadata for each dotnet tool used in the
-              pipeline and writes a versions markdown document included in the release artifacts.
-              It runs in the same CI pipeline that produces the TRX test results, so a successful
-              pipeline run is evidence that VersionMark executed without error.
-            tags: [ots]
-            tests:
-              - VersionMark_CapturesVersions
-              - VersionMark_GeneratesMarkdownReport
-
-          - id: Caching-OTS-SarifMark
-            title: SarifMark shall convert CodeQL SARIF results into a markdown report.
-            justification: |
-              DemaConsulting.SarifMark reads the SARIF output produced by CodeQL code scanning and
-              renders it as a human-readable markdown document included in the release artifacts.
-              It runs in the same CI pipeline that produces the TRX test results, so a successful
-              pipeline run is evidence that SarifMark executed without error.
-            tags: [ots]
-            tests:
-              - SarifMark_SarifReading
-              - SarifMark_MarkdownReportGeneration
-
-          - id: Caching-OTS-SonarMark
-            title: SonarMark shall generate a SonarCloud quality report.
-            justification: |
-              DemaConsulting.SonarMark retrieves quality-gate and metrics data from SonarCloud and
-              renders it as a markdown document included in the release artifacts. It runs in the
-              same CI pipeline that produces the TRX test results, so a successful pipeline run is
-              evidence that SonarMark executed without error.
-            tags: [ots]
-            tests:
-              - SonarMark_QualityGateRetrieval
-              - SonarMark_IssuesRetrieval
-              - SonarMark_HotSpotsRetrieval
-              - SonarMark_MarkdownReportGeneration
-
-          - id: Caching-OTS-ReviewMark
-            title: ReviewMark shall generate a review plan and review report from the review configuration.
-            justification: |
-              DemaConsulting.ReviewMark reads the .reviewmark.yaml configuration and the review
-              evidence store to produce a review plan and review report documenting file review
-              coverage and currency. It runs in the same CI pipeline that produces the TRX test
-              results, so a successful pipeline run is evidence that ReviewMark executed without error.
-            tags: [ots]
-            tests:
-              - ReviewMark_ReviewPlanGeneration
-              - ReviewMark_ReviewReportGeneration
-
-          - id: Caching-OTS-NuGetProtocol
-            title: NuGet.Protocol shall communicate with NuGet package sources and download packages.
-            justification: |
-              NuGet.Protocol (version 7.3.0) provides the NuGet client SDK used by the library to
-              communicate with v2 and v3 NuGet package sources, stream package content, and install
-              packages into the global packages folder. It is a direct runtime dependency of the
-              library. Passing tests that exercise the full download-and-cache path confirm that the
-              protocol library is functioning correctly.
-            tags: [ots]
-            tests:
-              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
-
-          - id: Caching-OTS-NuGetConfiguration
-            title: NuGet.Configuration shall read NuGet settings from the local machine configuration.
-            justification: |
-              NuGet.Configuration (version 7.3.0) provides the settings infrastructure used by the
-              library to load the NuGet configuration hierarchy (machine-wide, user, and
-              project-level), resolve the global packages folder path, load package source
-              definitions, and read package source mapping rules. It is a direct runtime dependency
-              of the library. Passing tests that exercise the full configuration-and-cache path
-              confirm that the configuration library is functioning correctly.
-            tags: [ots]
-            tests:
-              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
+includes:
+  - docs/reqstream/unit-nuget-cache.yaml
+  - docs/reqstream/unit-path-helpers.yaml
+  - docs/reqstream/platform-requirements.yaml
+  - docs/reqstream/ots-buildmark.yaml
+  - docs/reqstream/ots-mstest.yaml
+  - docs/reqstream/ots-nuget.yaml
+  - docs/reqstream/ots-reqstream.yaml
+  - docs/reqstream/ots-reviewmark.yaml
+  - docs/reqstream/ots-sarifmark.yaml
+  - docs/reqstream/ots-sonarmark.yaml
+  - docs/reqstream/ots-versionmark.yaml
