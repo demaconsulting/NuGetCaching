@@ -74,6 +74,7 @@ public class NuGetCacheTests
     ///     This test proves Caching-Lib-NotFound: the library reports when a package cannot be found.
     /// </remarks>
     [TestMethod]
+    [TestCategory("Integration")]
     public async Task NuGetCache_EnsureCachedAsync_ThrowsWhenPackageNotFound()
     {
         // Arrange - use a GUID-based package ID that cannot exist on any NuGet feed

@@ -68,9 +68,8 @@ explicit.
 ### Platform Considerations
 
 The post-combination `Path.GetFullPath` / `Path.GetRelativePath` check is conditionally
-compiled for `NET5_0_OR_GREATER`. On older target frameworks, only the pre-combination
-checks apply. The NuGet Caching library targets modern .NET, so in practice both
-validation layers are always active in production.
+compiled for `NET5_0_OR_GREATER`. On the `netstandard2.0` target only the pre-combination
+checks apply; on .NET 8, 9, and 10 builds both validation layers are active.
 
 ## Method Descriptions
 

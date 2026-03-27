@@ -32,7 +32,6 @@ reviews:
       - "docs/design/nuget-cache-design.md"
       - "src/**/NuGetCache.cs"
       - "test/**/NuGetCacheTests.cs"
-      - "test/**/AssemblyInfo.cs"
 
   - id: NuGetCaching-PathHelpers
     title: Review of NuGetCaching PathHelpers Unit
