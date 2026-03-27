@@ -1,6 +1,8 @@
 ---
-name: Requirements Agent
+name: requirements
 description: Develops requirements and ensures appropriate test coverage - knows which requirements need unit/integration/self-validation tests
+tools: [read, search, edit, execute, github, web, agent]
+user-invocable: true
 ---
 
 # Requirements Agent - DemaConsulting NuGet Caching

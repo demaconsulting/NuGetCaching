@@ -82,6 +82,7 @@ package-lock.json
 npm-debug.log
 
 # Python
+.venv/
 __pycache__/
 *.py[cod]
 *$py.class
