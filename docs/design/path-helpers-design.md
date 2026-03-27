@@ -34,6 +34,11 @@ requires no instantiation and has no lifecycle to manage.
    contains `".."` or if `Path.IsPathRooted` returns `true`. These checks cover the
    common, obvious attack vectors and are evaluated before any path manipulation.
 
+   > Note: the `".."` check uses a substring match, so it also rejects filenames that
+   > happen to contain the character sequence `..` (such as `file..txt`). This is
+   > intentionally conservative: NuGet package identifiers and version strings do not
+   > contain `..` as a substring, so no false-positive rejections occur in practice.
+
 2. **Post-combination checks** (NET5.0+) — after calling `Path.Combine`, the method
    resolves both the base path and the combined path to their canonical full forms
    using `Path.GetFullPath`, then uses `Path.GetRelativePath` to verify that the
@@ -41,6 +46,13 @@ requires no instantiation and has no lifecycle to manage.
    might survive the pre-combination checks on specific operating systems or file-system
    configurations, such as unusual Unicode representations or OS-specific separator
    handling.
+
+   > **Limitation:** `Path.GetFullPath` normalizes `.` and `..` segments in the path
+   > string but does not resolve symbolic links. A symbolic link within the base
+   > directory that points outside it would not be detected by this check.
+   > Symlink-based traversal attacks are therefore outside the scope of this
+   > protection; callers are responsible for ensuring the base directory contains no
+   > untrusted symbolic links.
 
 The two-layer approach ensures robustness against both obvious and subtle path-traversal
 attacks without relying on a single validation mechanism.
@@ -68,7 +80,8 @@ Safely combines `basePath` and `relativePath`, returning the resulting path stri
 
 The method:
 
-1. Validates that neither argument is null (`ArgumentNullException.ThrowIfNull`).
+1. Validates that neither argument is null (`ArgumentNullException.ThrowIfNull`),
+   throwing `ArgumentNullException` for a null argument.
 2. Rejects `relativePath` if it contains `".."` or is rooted (`Path.IsPathRooted`),
    throwing `ArgumentException` with a descriptive message.
 3. Calls `Path.Combine(basePath, relativePath)` to produce the combined path.

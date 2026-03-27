@@ -76,7 +76,7 @@ Two private methods encapsulate distinct sub-responsibilities:
 - `TryDownloadPackageAsync` — all logic for querying and downloading from a single
   NuGet source repository.
 - `GetPackagePath` — the conventional on-disk path calculation that NuGet uses for
-  installed packages (`{globalPackagesFolder}/{id.lower}/{version.lower}/`).
+  installed packages (`{globalPackagesFolder}/{id.lower}/{version.lower}`).
 
 This separation keeps `EnsureCachedAsync` at a high level of abstraction and makes
 each sub-task individually readable.
@@ -119,8 +119,12 @@ Attempts to download a NuGet package from a single `SourceRepository`. The metho
 Computes the conventional on-disk path that NuGet uses for an installed package:
 
 ```text
-{globalPackagesFolder}/{packageId.lower}/{version.lower}/
+{globalPackagesFolder}/{packageId.lower}/{version.lower}
 ```
+
+Both `packageId` and `version` are lowercased internally by this method before being
+appended to `globalPackagesFolder`. Callers pass the identifiers as received and do
+not need to pre-lowercase them.
 
 Uses `PathHelpers.SafePathCombine` for both path-combination steps to guard against
 any unexpected traversal sequences in package identifiers or version strings sourced

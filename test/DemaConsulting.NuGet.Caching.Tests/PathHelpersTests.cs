@@ -89,7 +89,7 @@ public class PathHelpersTests
             PathHelpers.SafePathCombine(unixBasePath, unixRelativePath));
         Assert.Contains("Invalid path component", unixException.Message);
 
-        // Test Windows absolute path (only on Windows since Windows paths may not be rooted on Unix)
+        // Test a Windows-style absolute path; Path.IsPathRooted returns false for this format on Linux/macOS
         if (OperatingSystem.IsWindows())
         {
             var windowsBasePath = "C:\\Users\\User";
@@ -184,5 +184,35 @@ public class PathHelpersTests
 
         // Assert
         Assert.AreEqual(Path.Combine(basePath, relativePath), result);
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine throws ArgumentNullException for null basePath.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_NullBasePath_ThrowsArgumentNullException()
+    {
+        // Arrange
+        const string? basePath = null;
+        var relativePath = "file.txt";
+
+        // Act & Assert
+        _ = Assert.ThrowsExactly<ArgumentNullException>(() =>
+            PathHelpers.SafePathCombine(basePath!, relativePath));
+    }
+
+    /// <summary>
+    ///     Test that SafePathCombine throws ArgumentNullException for null relativePath.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        const string? relativePath = null;
+
+        // Act & Assert
+        _ = Assert.ThrowsExactly<ArgumentNullException>(() =>
+            PathHelpers.SafePathCombine(basePath, relativePath!));
     }
 }

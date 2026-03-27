@@ -35,6 +35,17 @@ sections:
               - NuGetCache_EnsureCachedAsync_ThrowsForNullPackageId
               - NuGetCache_EnsureCachedAsync_ThrowsForNullVersion
 
+          - id: Caching-Lib-NotFound
+            title: >-
+              The library shall throw InvalidOperationException when the package
+              cannot be found in any configured NuGet source.
+            justification: |
+              Ensures callers receive a clear, actionable error when the requested package is absent
+              from all configured sources, distinguishing this condition from a null-argument error
+              or a transient network failure on a single source.
+            tests:
+              - NuGetCache_EnsureCachedAsync_ThrowsWhenPackageNotFound
+
       - title: PathHelpers
         requirements:
           - id: Caching-PathHelpers-SafeCombine
@@ -115,10 +126,10 @@ sections:
           - id: Caching-OTS-MSTest
             title: MSTest shall execute unit tests and report results.
             justification: |
-              MSTest (MSTest.TestFramework and MSTest.TestAdapter) is the unit-testing framework used
-              by the project. It discovers and runs all test methods and writes TRX result files that
-              feed into coverage reporting and requirements traceability. Passing tests confirm the
-              framework is functioning correctly.
+              MSTest (MSTest.TestFramework, MSTest.TestAdapter, and Microsoft.NET.Test.Sdk) is the
+              unit-testing framework used by the project. It discovers and runs all test methods
+              and writes TRX result files that feed into coverage reporting and requirements
+              traceability. Passing tests confirm the framework is functioning correctly.
             tags: [ots]
             tests:
               - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
@@ -195,3 +206,28 @@ sections:
             tests:
               - ReviewMark_ReviewPlanGeneration
               - ReviewMark_ReviewReportGeneration
+
+          - id: Caching-OTS-NuGetProtocol
+            title: NuGet.Protocol shall communicate with NuGet package sources and download packages.
+            justification: |
+              NuGet.Protocol (version 7.3.0) provides the NuGet client SDK used by the library to
+              communicate with v2 and v3 NuGet package sources, stream package content, and install
+              packages into the global packages folder. It is a direct runtime dependency of the
+              library. Passing tests that exercise the full download-and-cache path confirm that the
+              protocol library is functioning correctly.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
+
+          - id: Caching-OTS-NuGetConfiguration
+            title: NuGet.Configuration shall read NuGet settings from the local machine configuration.
+            justification: |
+              NuGet.Configuration (version 7.3.0) provides the settings infrastructure used by the
+              library to load the NuGet configuration hierarchy (machine-wide, user, and
+              project-level), resolve the global packages folder path, load package source
+              definitions, and read package source mapping rules. It is a direct runtime dependency
+              of the library. Passing tests that exercise the full configuration-and-cache path
+              confirm that the configuration library is functioning correctly.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder

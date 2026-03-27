@@ -32,6 +32,7 @@ internal static class PathHelpers
     /// <param name="relativePath">The relative path to combine.</param>
     /// <returns>The combined path.</returns>
     /// <exception cref="ArgumentException">Thrown when relativePath contains invalid characters or path traversal sequences.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="basePath"/> or <paramref name="relativePath"/> is <see langword="null"/>.</exception>
     internal static string SafePathCombine(string basePath, string relativePath)
     {
         // Validate inputs
@@ -54,6 +55,8 @@ internal static class PathHelpers
         // Additional security validation: ensure the combined path is still under the base path.
         // This defense-in-depth approach protects against edge cases that might bypass the
         // initial validation, ensuring the final path stays within the intended directory.
+        // Note: Path.GetFullPath normalizes ".." and "." segments but does NOT resolve symbolic links.
+        // Symlink-based traversal attacks are outside the scope of this string-level validation.
         var fullBasePath = Path.GetFullPath(basePath);
         var fullCombinedPath = Path.GetFullPath(combinedPath);
 
