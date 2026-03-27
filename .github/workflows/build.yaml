@@ -353,7 +353,7 @@ jobs:
           echo "Capturing tool versions..."
           dotnet versionmark --capture --job-id "build-docs" \
             --output "artifacts/versionmark-build-docs.json" -- \
-            dotnet git node npm pandoc weasyprint sarifmark sonarmark reqstream buildmark versionmark
+            dotnet git node npm pandoc weasyprint sarifmark sonarmark reqstream buildmark versionmark reviewmark
           echo "✓ Tool versions captured"
 
       # === CAPTURE OTS SELF-VALIDATION RESULTS ===
@@ -391,6 +391,12 @@ jobs:
           --validate
           --results artifacts/sonarmark-self-validation.trx
 
+      - name: Run ReviewMark self-validation
+        run: >
+          dotnet reviewmark
+          --validate
+          --results artifacts/reviewmark-self-validation.trx
+
       # === GENERATE MARKDOWN REPORTS ===
       # This section generates all markdown reports from various tools and sources.
       # Downstream projects: Add any additional markdown report generation steps here.
@@ -400,16 +406,16 @@ jobs:
           dotnet reqstream
           --requirements requirements.yaml
           --tests "artifacts/**/*.trx"
-          --report docs/requirements/requirements.md
-          --justifications docs/justifications/justifications.md
-          --matrix docs/tracematrix/tracematrix.md
+          --report docs/requirements_doc/requirements.md
+          --justifications docs/requirements_doc/justifications.md
+          --matrix docs/requirements_report/trace_matrix.md
           --enforce
 
       - name: Generate CodeQL Quality Report with SarifMark
         run: >
           dotnet sarifmark
           --sarif artifacts/csharp.sarif
-          --report docs/quality/codeql-quality.md
+          --report docs/code_quality/codeql-quality.md
           --heading "DemaConsulting NuGet Caching CodeQL Analysis"
           --report-depth 1
 
@@ -417,7 +423,7 @@ jobs:
         shell: bash
         run: |
           echo "=== CodeQL Quality Report ==="
-          cat docs/quality/codeql-quality.md
+          cat docs/code_quality/codeql-quality.md
 
       - name: Generate SonarCloud Quality Report
         shell: bash
@@ -429,14 +435,34 @@ jobs:
           --project-key demaconsulting_NuGetCaching
           --branch ${{ github.ref_name }}
           --token "$SONAR_TOKEN"
-          --report docs/quality/sonar-quality.md
+          --report docs/code_quality/sonar-quality.md
           --report-depth 1
 
       - name: Display SonarCloud Quality Report
         shell: bash
         run: |
           echo "=== SonarCloud Quality Report ==="
-          cat docs/quality/sonar-quality.md
+          cat docs/code_quality/sonar-quality.md
+
+      - name: Generate ReviewMark Review Plan and Report
+        run: >
+          dotnet reviewmark
+          --definition .reviewmark.yaml
+          --plan docs/code_review_plan/plan.md
+          --report docs/code_review_report/report.md
+          --results artifacts/reviewmark-generation.trx
+
+      - name: Display ReviewMark Review Plan
+        shell: bash
+        run: |
+          echo "=== ReviewMark Review Plan ==="
+          cat docs/code_review_plan/plan.md
+
+      - name: Display ReviewMark Review Report
+        shell: bash
+        run: |
+          echo "=== ReviewMark Review Report ==="
+          cat docs/code_review_report/report.md
 
       - name: Generate Build Notes with BuildMark
         shell: bash
@@ -445,20 +471,20 @@ jobs:
         run: >
           dotnet buildmark
           --build-version ${{ inputs.version }}
-          --report docs/buildnotes.md
+          --report docs/build_notes.md
           --report-depth 1
 
       - name: Display Build Notes Report
         shell: bash
         run: |
           echo "=== Build Notes Report ==="
-          cat docs/buildnotes.md
+          cat docs/build_notes.md
 
       - name: Publish Tool Versions
         shell: bash
         run: |
           echo "Publishing tool versions..."
-          dotnet versionmark --publish --report docs/buildnotes/versions.md --report-depth 1 \
+          dotnet versionmark --publish --report docs/build_notes/versions.md --report-depth 1 \
             -- "artifacts/**/versionmark-*.json"
           echo "✓ Tool versions published"
 
@@ -466,7 +492,7 @@ jobs:
         shell: bash
         run: |
           echo "=== Tool Versions Report ==="
-          cat docs/buildnotes/versions.md
+          cat docs/build_notes/versions.md
 
       # === GENERATE HTML DOCUMENTS WITH PANDOC ===
       # This section converts markdown documents to HTML using Pandoc.
@@ -476,11 +502,11 @@ jobs:
         shell: bash
         run: >
           dotnet pandoc
-          --defaults docs/buildnotes/definition.yaml
+          --defaults docs/build_notes/definition.yaml
           --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
-          --output docs/buildnotes/buildnotes.html
+          --output docs/build_notes/buildnotes.html
 
       - name: Generate Guide HTML with Pandoc
         shell: bash
@@ -496,41 +522,51 @@ jobs:
         shell: bash
         run: >
           dotnet pandoc
-          --defaults docs/quality/definition.yaml
+          --defaults docs/code_quality/definition.yaml
           --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
-          --output docs/quality/quality.html
+          --output docs/code_quality/quality.html
 
       - name: Generate Requirements HTML with Pandoc
         shell: bash
         run: >
           dotnet pandoc
-          --defaults docs/requirements/definition.yaml
+          --defaults docs/requirements_doc/definition.yaml
           --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
-          --output docs/requirements/requirements.html
-
-      - name: Generate Requirements Justifications HTML with Pandoc
-        shell: bash
-        run: >
-          dotnet pandoc
-          --defaults docs/justifications/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
-          --metadata version="${{ inputs.version }}"
-          --metadata date="$(date +'%Y-%m-%d')"
-          --output docs/justifications/justifications.html
+          --output docs/requirements_doc/requirements.html
 
       - name: Generate Trace Matrix HTML with Pandoc
         shell: bash
         run: >
           dotnet pandoc
-          --defaults docs/tracematrix/definition.yaml
+          --defaults docs/requirements_report/definition.yaml
           --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
-          --output docs/tracematrix/tracematrix.html
+          --output docs/requirements_report/trace_matrix.html
+
+      - name: Generate Review Plan HTML with Pandoc
+        shell: bash
+        run: >
+          dotnet pandoc
+          --defaults docs/code_review_plan/definition.yaml
+          --filter node_modules/.bin/mermaid-filter.cmd
+          --metadata version="${{ inputs.version }}"
+          --metadata date="$(date +'%Y-%m-%d')"
+          --output docs/code_review_plan/plan.html
+
+      - name: Generate Review Report HTML with Pandoc
+        shell: bash
+        run: >
+          dotnet pandoc
+          --defaults docs/code_review_report/definition.yaml
+          --filter node_modules/.bin/mermaid-filter.cmd
+          --metadata version="${{ inputs.version }}"
+          --metadata date="$(date +'%Y-%m-%d')"
+          --output docs/code_review_report/report.html
 
       # === GENERATE PDF DOCUMENTS WITH WEASYPRINT ===
       # This section converts HTML documents to PDF using Weasyprint.
@@ -540,7 +576,7 @@ jobs:
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
-          docs/buildnotes/buildnotes.html
+          docs/build_notes/buildnotes.html
           "docs/NuGetCaching Build Notes.pdf"
 
       - name: Generate Guide PDF with Weasyprint
@@ -554,29 +590,36 @@ jobs:
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
-          docs/quality/quality.html
+          docs/code_quality/quality.html
           "docs/NuGetCaching Code Quality.pdf"
 
       - name: Generate Requirements PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
-          docs/requirements/requirements.html
+          docs/requirements_doc/requirements.html
           "docs/NuGetCaching Requirements.pdf"
-
-      - name: Generate Requirements Justifications PDF with Weasyprint
-        run: >
-          dotnet weasyprint
-          --pdf-variant pdf/a-3u
-          docs/justifications/justifications.html
-          "docs/NuGetCaching Requirements Justifications.pdf"
 
       - name: Generate Trace Matrix PDF with Weasyprint
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
-          docs/tracematrix/tracematrix.html
+          docs/requirements_report/trace_matrix.html
           "docs/NuGetCaching Trace Matrix.pdf"
+
+      - name: Generate Review Plan PDF with Weasyprint
+        run: >
+          dotnet weasyprint
+          --pdf-variant pdf/a-3u
+          docs/code_review_plan/plan.html
+          "docs/NuGetCaching Review Plan.pdf"
+
+      - name: Generate Review Report PDF with Weasyprint
+        run: >
+          dotnet weasyprint
+          --pdf-variant pdf/a-3u
+          docs/code_review_report/report.html
+          "docs/NuGetCaching Review Report.pdf"
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated documentation artifacts.
@@ -588,4 +631,4 @@ jobs:
           name: documents
           path: |
             docs/*.pdf
-            docs/buildnotes.md
+            docs/build_notes.md
