@@ -1,7 +1,6 @@
 # Agent Quick Reference
 
-Project-specific guidance for agents working on DemaConsulting NuGet Caching - a library
-for caching NuGet packages on the local PC.
+Comprehensive guidance for AI agents working on repositories following Continuous Compliance practices.
 
 ## Standards Application (ALL Agents Must Follow)
 
@@ -90,114 +89,72 @@ compliance gates on every CI/CD run instead of as a last-mile activity.
 - **BuildMark**: Tool version documentation
 - **VersionMark**: Version tracking across CI/CD jobs
 
-## Tech Stack
+## Project Structure Template
 
-- C# 12, .NET 8.0/9.0/10.0, dotnet CLI, NuGet
+- `docs/` - Documentation and compliance artifacts
+  - `reqstream/` - Subsystem requirements YAML files (included by root requirements.yaml)
+  - Auto-generated reports (requirements, justifications, trace matrix)
+- `src/` - Source code files
+- `test/` - Test files
+- `.github/workflows/` - CI/CD pipeline definitions (build.yaml, build_on_push.yaml, release.yaml)
+- Configuration files: `.editorconfig`, `.clang-format`, `nuget.config`, `.reviewmark.yaml`, etc.
 
-## Key Files
+## Key Configuration Files
 
-- **`requirements.yaml`** - All requirements with test linkage (enforced via `dotnet reqstream --enforce`)
-- **`.editorconfig`** - Code style (file-scoped namespaces, 4-space indent, UTF-8, LF endings)
-- **`.cspell.yaml`, `.markdownlint-cli2.yaml`, `.yamllint.yaml`** - Linting configs
+### Essential Files (Repository-Specific)
 
-### Spell check word list policy
+- **`lint.sh` / `lint.bat`** - Cross-platform comprehensive linting scripts
+- **`.editorconfig`** - Code formatting rules
+- **`.clang-format`** - C/C++ formatting (if applicable)
+- **`.cspell.yaml`** - Spell-check configuration and technical term dictionary
+- **`.markdownlint-cli2.yaml`** - Markdown linting rules
+- **`.yamllint.yaml`** - YAML linting configuration
+- **`nuget.config`** - NuGet package sources (if .NET)
+- **`package.json`** - Node.js dependencies for linting tools
 
-**Never** add a word to the `.cspell.yaml` word list in order to silence a spell-checking failure.
-Doing so defeats the purpose of spell-checking and reduces the quality of the repository.
+### Compliance Files
 
-- If cspell flags a word that is **misspelled**, fix the spelling in the source file.
-- If cspell flags a word that is a **genuine technical term** (tool name, project identifier, etc.) and is
-  spelled correctly, raise a **proposal** (e.g. comment in a pull request) explaining why the word
-  should be added. The proposal must be reviewed and approved before the word is added to the list.
+- **`requirements.yaml`** - Root requirements file with includes
+- **`.reviewmark.yaml`** - File review definitions and tracking
+- CI/CD pipeline files with quality gate enforcement
 
-## Requirements
+## Continuous Compliance Workflow
 
-- All requirements MUST be linked to tests
-- Not all tests need to be linked to requirements (tests may exist for corner cases, design testing, failure-testing, etc.)
-- Enforced in CI: `dotnet reqstream --requirements requirements.yaml --tests "artifacts/**/*.trx" --enforce`
-- When adding features: add requirement + link to test
+### CI/CD Pipeline Stages (Standard)
 
-## Test Source Filters
+1. **Lint**: `./lint.sh` or `lint.bat` - comprehensive linting suite
+2. **Build**: Compile with warnings as errors
+3. **Analyze**: SonarQube/SonarCloud, CodeQL security scanning
+4. **Test**: Execute all tests, generate coverage reports
+5. **Validate**: Tool self-validation tests
+6. **Document**: Generate requirements reports, trace matrix, build notes
+7. **Enforce**: Requirements traceability, file review status
+8. **Publish**: Generate final documentation (Pandoc → PDF)
 
-Test links in `requirements.yaml` can include a source filter prefix to restrict which test results count as
-evidence. This is critical for platform and framework requirements - **do not remove these filters**.
+### Quality Gate Enforcement
 
-- `windows@TestName` - proves the test passed on a Windows platform
-- `ubuntu@TestName` - proves the test passed on a Linux (Ubuntu) platform
-- `net8.0@TestName` - proves the test passed under the .NET 8 runtime
-- `net9.0@TestName` - proves the test passed under the .NET 9 runtime
-- `net10.0@TestName` - proves the test passed under the .NET 10 runtime
+All stages must pass before merge. Pipeline fails immediately on:
 
-Without the source filter, a test result from any platform/framework satisfies the requirement. Adding the filter
-ensures the CI evidence comes specifically from the required environment.
+- Any linting errors
+- Build warnings or errors
+- Security vulnerabilities (CodeQL)
+- Requirements without test coverage
+- Outdated file reviews
+- Missing documentation
 
-## Testing
+## Continuous Compliance Requirements
 
-- **Test Naming**: `ClassName_MethodUnderTest_Scenario_ExpectedBehavior` for unit tests
-- **Test Framework**: Uses MSTest for unit testing
-- **Code Coverage**: Maintain high code coverage for library APIs
+This repository follows continuous compliance practices from DEMA Consulting
+Continuous Compliance <https://github.com/demaconsulting/ContinuousCompliance>.
 
-## Code Style
+### Core Requirements Traceability Rules
 
-- **XML Docs**: On ALL members (public/internal/private) with spaces after `///` in summaries
-- **Namespace**: File-scoped namespaces only
-- **Using Statements**: Top of file only (no nested using declarations except for IDisposable)
-- **String Formatting**: Use interpolated strings ($"") for clarity
+- **ALL requirements MUST be linked to tests** - Enforced in CI via `dotnet reqstream --enforce`
+- **NOT all tests need requirement links** - Tests may exist for corner cases, design validation, failure scenarios
+- **Source filters are critical** - Platform/framework requirements need specific test evidence
 
-## Project Structure
-
-- **DemoClass.cs**: Placeholder class (NuGet caching API will be added here)
-- **DemaConsulting.NuGet.Caching.csproj**: Project configuration with NuGet package settings
-
-## Build and Test
-
-```bash
-# Build the project
-dotnet build --configuration Release
-
-# Run unit tests
-dotnet test --configuration Release
-
-# Use convenience scripts
-./build.sh    # Linux/macOS
-build.bat     # Windows
-```
-
-## Documentation
-
-- **User Guide**: `docs/guide/guide.md`
-- **Requirements**: `requirements.yaml` -> auto-generated docs
-- **Build Notes**: Auto-generated via BuildMark
-- **Code Quality**: Auto-generated via CodeQL and SonarMark
-- **Trace Matrix**: Auto-generated via ReqStream
-- **CHANGELOG.md**: Not present - changes are captured in the auto-generated build notes
-
-## Markdown Link Style
-
-- **AI agent markdown files** (`.github/agents/*.md`): Use inline links `[text](url)` so URLs are visible in agent context
-- **README.md**: Use absolute URLs (shipped in NuGet package)
-- **All other markdown files**: Use reference-style links `[text][ref]` with `[ref]: url` at document end
-
-## CI/CD
-
-- **Quality Checks**: Markdown lint, spell check, YAML lint
-- **Build**: Multi-platform (Windows/Linux/macOS)
-- **CodeQL**: Security scanning
-- **Documentation**: Auto-generated via Pandoc + Weasyprint
-
-## Common Tasks
-
-```bash
-# Format code
-dotnet format
-
-# Run all linters
-./lint.sh     # Linux/macOS
-lint.bat      # Windows
-
-# Pack as NuGet tool
-dotnet pack --configuration Release
-```
+For detailed requirements format, test linkage patterns, and ReqStream
+integration, call the @developer agent with requirements management context.
 
 ## Agent Report Files
 
