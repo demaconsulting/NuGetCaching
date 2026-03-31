@@ -31,11 +31,64 @@ Delegate to specialized agents only for specific scenarios:
 
 ## Available Specialized Agents
 
-- **code-review** - Performs formal reviews using standardized review processes
-- **developer** - General-purpose development agent applying appropriate standards
-- **implementation** - Orchestrator agent for complex multi-step implementations
-- **quality** - Quality assurance agent grading work against DEMA standards
-- **repo-consistency** - Ensures downstream repositories remain consistent with template patterns
+- **code-review** - Agent for performing formal reviews using standardized
+  review processes
+- **developer** - General-purpose software development agent that applies
+  appropriate standards based on the work being performed
+- **implementation** - Orchestrator agent that manages quality implementations
+  through a formal state machine workflow
+- **quality** - Quality assurance agent that grades developer work against DEMA
+  Consulting standards and Continuous Compliance practices
+- **repo-consistency** - Ensures downstream repositories remain consistent with
+  the TemplateDotNetLibrary template patterns and best practices
+
+## Quality Gate Enforcement (ALL Agents Must Verify)
+
+Configuration files and scripts are self-documenting with their design intent and
+modification policies in header comments.
+
+1. **Linting Standards**: `./lint.sh` (Unix) or `lint.bat` (Windows) - comprehensive linting suite
+2. **Build Quality**: Zero warnings (`TreatWarningsAsErrors=true`)
+3. **Static Analysis**: SonarQube/CodeQL passing with no blockers
+4. **Requirements Traceability**: `dotnet reqstream --enforce` passing
+5. **Test Coverage**: All requirements linked to passing tests
+6. **Documentation Currency**: All docs current and generated
+7. **File Review Status**: All reviewable files have current reviews
+
+## Continuous Compliance Overview
+
+This repository follows the DEMA Consulting Continuous Compliance
+<https://github.com/demaconsulting/ContinuousCompliance> approach, which enforces quality and
+compliance gates on every CI/CD run instead of as a last-mile activity.
+
+### Core Principles
+
+- **Requirements Traceability**: Every requirement MUST link to passing tests
+- **Quality Gates**: All quality checks must pass before merge
+- **Documentation Currency**: All docs auto-generated and kept current
+- **Automated Evidence**: Full audit trail generated with every build
+
+## Required Compliance Tools
+
+### Linting Tools (ALL Must Pass)
+
+- **markdownlint-cli2**: Markdown style and formatting enforcement
+- **cspell**: Spell-checking across all text files (use `.cspell.yaml` for technical terms)
+- **yamllint**: YAML structure and formatting validation
+- **Language-specific linters**: Based on repository technology stack
+
+### Quality Analysis
+
+- **SonarQube/SonarCloud**: Code quality and security analysis
+- **CodeQL**: Security vulnerability scanning (produces SARIF output)
+- **Static analyzers**: Microsoft.CodeAnalysis.NetAnalyzers, SonarAnalyzer.CSharp, etc.
+
+### Requirements & Compliance
+
+- **ReqStream**: Requirements traceability enforcement (`dotnet reqstream --enforce`)
+- **ReviewMark**: File review status enforcement
+- **BuildMark**: Tool version documentation
+- **VersionMark**: Version tracking across CI/CD jobs
 
 ## Tech Stack
 
@@ -148,23 +201,10 @@ dotnet pack --configuration Release
 
 ## Agent Report Files
 
-When agents need to write report files to communicate with each other or the user, follow these guidelines:
+Upon completion, create a report file at `.agent-logs/[agent-name]-[subject]-[unique-id].md` that includes:
 
-- **Naming Convention**: Use the pattern `AGENT_REPORT_xxxx.md` (e.g., `AGENT_REPORT_analysis.md`, `AGENT_REPORT_results.md`)
-- **Purpose**: These files are for temporary inter-agent communication and should not be committed
-- **Exclusions**: Files matching `AGENT_REPORT_*.md` are automatically:
-  - Excluded from git (via .gitignore)
-  - Excluded from markdown linting
-  - Excluded from spell checking
+- A concise summary of the work performed
+- Any important decisions made and their rationale
+- Follow-up items, open questions, or TODOs
 
-## Agent Log Files
-
-Agents may store detailed logs and intermediate work in the `.agent-logs/` folder:
-
-- **Location**: `.agent-logs/[agent-name]-[subject]-[unique-id].md`
-- **Purpose**: Detailed work summaries, research results, and completion reports
-- **Exclusions**: The `.agent-logs/` folder is automatically:
-  - Excluded from git (via .gitignore)
-  - Excluded from markdown linting
-  - Excluded from spell checking
-  - Excluded from YAML linting
+Store agent logs in the `.agent-logs/` folder so they are ignored via `.gitignore` and excluded from linting and commits.
