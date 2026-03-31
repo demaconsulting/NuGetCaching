@@ -3,6 +3,20 @@
 Project-specific guidance for agents working on DemaConsulting NuGet Caching - a library
 for caching NuGet packages on the local PC.
 
+## Standards Application (ALL Agents Must Follow)
+
+Before performing any work, agents must read and apply the relevant standards from `.github/standards/`:
+
+- **`csharp-language.md`** - For C# code development (literate programming, XML docs, dependency injection)
+- **`csharp-testing.md`** - For C# test development (AAA pattern, naming, MSTest anti-patterns)
+- **`reqstream-usage.md`** - For requirements management (traceability, semantic IDs, source filters)
+- **`reviewmark-usage.md`** - For file review management (review-sets, file patterns, enforcement)
+- **`software-items.md`** - For software categorization (system/subsystem/unit/OTS classification)
+- **`technical-documentation.md`** - For documentation creation and maintenance (structure, Pandoc, README best practices)
+
+Load only the standards relevant to your specific task scope and apply their
+quality checks and guidelines throughout your work.
+
 ## Available Specialized Agents
 
 - **requirements** - Develops requirements and ensures test coverage linkage
@@ -11,6 +25,10 @@ for caching NuGet packages on the local PC.
 - **test-developer** - Creates unit tests following AAA pattern
 - **code-quality** - Enforces linting, static analysis, and security standards
 - **repo-consistency** - Ensures downstream repositories remain consistent with template patterns
+- **developer** - General-purpose development agent applying appropriate standards
+- **quality** - Quality assurance agent grading work against DEMA standards
+- **implementation** - Orchestrator agent for complex multi-step implementations
+- **code-review** - Performs formal reviews using standardized review processes
 
 ## Agent Selection Guide
 
@@ -150,3 +168,15 @@ When agents need to write report files to communicate with each other or the use
   - Excluded from git (via .gitignore)
   - Excluded from markdown linting
   - Excluded from spell checking
+
+## Agent Log Files
+
+Agents may store detailed logs and intermediate work in the `.agent-logs/` folder:
+
+- **Location**: `.agent-logs/[agent-name]-[subject]-[unique-id].md`
+- **Purpose**: Detailed work summaries, research results, and completion reports
+- **Exclusions**: The `.agent-logs/` folder is automatically:
+  - Excluded from git (via .gitignore)
+  - Excluded from markdown linting
+  - Excluded from spell checking
+  - Excluded from YAML linting
