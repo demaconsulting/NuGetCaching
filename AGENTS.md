@@ -17,37 +17,25 @@ Before performing any work, agents must read and apply the relevant standards fr
 Load only the standards relevant to your specific task scope and apply their
 quality checks and guidelines throughout your work.
 
+## Agent Delegation Guidelines
+
+The default agent should handle simple, straightforward tasks directly.
+Delegate to specialized agents only for specific scenarios:
+
+- **Light development work** (small fixes, simple features) → Call @developer agent
+- **Light quality checking** (linting, basic validation) → Call @quality agent
+- **Formal feature implementation** (complex, multi-step) → Call the `@implementation` agent
+- **Formal bug resolution** (complex debugging, systematic fixes) → Call the `@implementation` agent
+- **Formal reviews** (compliance verification, detailed analysis) → Call @code-review agent
+- **Template consistency** (downstream repository alignment) → Call @repo-consistency agent
+
 ## Available Specialized Agents
 
-- **requirements** - Develops requirements and ensures test coverage linkage
-- **technical-writer** - Creates accurate documentation following regulatory best practices
-- **software-developer** - Writes production code in literate style
-- **test-developer** - Creates unit tests following AAA pattern
-- **code-quality** - Enforces linting, static analysis, and security standards
-- **repo-consistency** - Ensures downstream repositories remain consistent with template patterns
-- **developer** - General-purpose development agent applying appropriate standards
-- **quality** - Quality assurance agent grading work against DEMA standards
-- **implementation** - Orchestrator agent for complex multi-step implementations
 - **code-review** - Performs formal reviews using standardized review processes
-
-## Agent Selection Guide
-
-- To fix a bug, call the @software-developer agent with the **context** of the bug details and **goal** of resolving
-  the issue while maintaining code quality.
-- To add a new feature, call the @requirements agent with the **request** to define feature requirements and
-  **context** of business needs and **goal** of comprehensive requirement specification.
-- To write or fix tests, call the @test-developer agent with the **context** of the functionality to be tested and
-  **goal** of achieving comprehensive test coverage.
-- To update documentation, call the @technical-writer agent with the **context** of changes requiring documentation
-  and **goal** of maintaining current and accurate documentation.
-- To add or update requirements, call the @requirements agent with the **context** of requirement changes and **goal**
-  of maintaining compliance traceability.
-- To resolve quality or linting issues, call the @code-quality agent with the **context** of quality gate failures
-  and **goal** of achieving compliance standards.
-- To run security scanning or address CodeQL alerts, call the @code-quality agent with the **context** of security
-  findings and **goal** of resolving vulnerabilities.
-- To propagate template changes, call the @repo-consistency agent with the **context** of the downstream repository
-  and **goal** of maintaining template alignment.
+- **developer** - General-purpose development agent applying appropriate standards
+- **implementation** - Orchestrator agent for complex multi-step implementations
+- **quality** - Quality assurance agent grading work against DEMA standards
+- **repo-consistency** - Ensures downstream repositories remain consistent with template patterns
 
 ## Tech Stack
 
