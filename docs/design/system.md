@@ -47,8 +47,9 @@ This provides:
 
 ## Design Constraints
 
-- The library targets .NET Standard 2.0 for maximum compatibility, with additional
-  security validation enabled on .NET 5.0 and later
+- The library targets .NET Standard 2.0 for maximum compatibility, plus .NET 8.0,
+  9.0, and 10.0 for modern runtime support, with additional security validation
+  enabled on builds targeting .NET 5.0 or later frameworks
 - The system reads from the same NuGet configuration hierarchy as the `dotnet` CLI
   and Visual Studio, ensuring consistent behavior
 - All path operations use `PathHelpers.SafePathCombine` to prevent path traversal
