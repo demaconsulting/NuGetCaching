@@ -20,14 +20,15 @@
 #   list below (unit files first, then platform, then ots in alphabetical order)
 
 includes:
-  - docs/reqstream/unit-nuget-cache.yaml
-  - docs/reqstream/unit-path-helpers.yaml
+  - docs/reqstream/system.yaml
+  - docs/reqstream/nuget-cache.yaml
+  - docs/reqstream/path-helpers.yaml
   - docs/reqstream/platform-requirements.yaml
-  - docs/reqstream/ots-buildmark.yaml
-  - docs/reqstream/ots-mstest.yaml
-  - docs/reqstream/ots-nuget.yaml
-  - docs/reqstream/ots-reqstream.yaml
-  - docs/reqstream/ots-reviewmark.yaml
-  - docs/reqstream/ots-sarifmark.yaml
-  - docs/reqstream/ots-sonarmark.yaml
-  - docs/reqstream/ots-versionmark.yaml
+  - docs/reqstream/ots/buildmark.yaml
+  - docs/reqstream/ots/mstest.yaml
+  - docs/reqstream/ots/nuget.yaml
+  - docs/reqstream/ots/reqstream.yaml
+  - docs/reqstream/ots/reviewmark.yaml
+  - docs/reqstream/ots/sarifmark.yaml
+  - docs/reqstream/ots/sonarmark.yaml
+  - docs/reqstream/ots/versionmark.yaml
