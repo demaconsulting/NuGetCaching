@@ -20,7 +20,7 @@ The system comprises two software units:
 ### NuGet Protocol (NuGet.Protocol)
 
 The system communicates with NuGet package sources using the NuGet client SDK
-(`NuGet.Protocol` version 7.3.0). This provides:
+(`NuGet.Protocol`). This provides:
 
 - `SourceRepository` for connecting to NuGet v2 and v3 feeds
 - `FindPackageByIdResource` for locating and downloading packages
@@ -28,8 +28,8 @@ The system communicates with NuGet package sources using the NuGet client SDK
 
 ### NuGet Configuration (NuGet.Configuration)
 
-The system reads NuGet configuration from the local machine using `NuGet.Configuration`
-version 7.3.0. This provides:
+The system reads NuGet configuration from the local machine using `NuGet.Configuration`.
+This provides:
 
 - `Settings.LoadDefaultSettings` for reading the NuGet configuration hierarchy
 - `SettingsUtility.GetGlobalPackagesFolder` for resolving the cache directory

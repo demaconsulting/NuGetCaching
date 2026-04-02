@@ -25,10 +25,7 @@ reviews:
     paths:
       - "docs/reqstream/system.yaml"
       - "docs/reqstream/platform-requirements.yaml"
-      - "docs/design/introduction.md"
-      - "docs/design/system.md"
-      - "docs/design/nuget-cache.md"
-      - "docs/design/path-helpers.md"
+      - "docs/design/**/*.md"
 
   - id: NuGetCaching-AllRequirements
     title: Review of All NuGetCaching Requirements
@@ -51,13 +48,3 @@ reviews:
       - "docs/design/path-helpers.md"
       - "src/**/PathHelpers.cs"
       - "test/**/PathHelpersTests.cs"
-
-  - id: NuGetCaching-OTS
-    title: Review of NuGetCaching Off-The-Shelf Dependencies
-    paths:
-      - "docs/reqstream/ots/**/*.yaml"
-
-  - id: NuGetCaching-Platform
-    title: Review of NuGetCaching Platform Support Requirements
-    paths:
-      - "docs/reqstream/platform-requirements.yaml"
