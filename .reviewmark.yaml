@@ -1,60 +1,50 @@
 ---
 # ReviewMark Configuration File
-# This file defines which files require review, where the evidence store is located,
-# and how files are grouped into named review-sets following software unit boundaries.
-
-# Patterns identifying all files that require review.
-# Processed in order; prefix a pattern with '!' to exclude.
 needs-review:
-  - "**/*.cs"                    # All C# source and test files
-  - "docs/design/**/*.md"        # Design documents
+  - "requirements.yaml"          # Root requirements file
   - "docs/reqstream/**/*.yaml"   # Requirements files
+  - "docs/design/**/*.md"        # Design documents
+  - "**/*.cs"                    # All C# source and test files
   - "!**/obj/**"                 # Exclude build output
   - "!**/bin/**"                 # Exclude build output
 
-# Evidence source: review data and index.json are located in the 'reviews' branch
-# of this repository, accessed through the GitHub public HTTPS raw content access.
-# Note: The 'reviews' branch must be created and populated with review evidence PDFs
-# and an index.json before enforcement (--enforce flag) can be enabled in the pipeline.
 evidence-source:
   type: url
   location: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/reviews/index.json
 
-# Review sets grouping files by logical unit of review.
-# Each review-set groups requirements, source, and tests for a coherent software unit
-# so that an AI-assisted review can verify consistency across the full evidence chain.
 reviews:
-  # Software unit reviews - one per class
+  - id: NuGetCaching-System
+    title: Review of NuGetCaching System Integration
+    paths:
+      - "docs/reqstream/system.yaml"
+      - "docs/design/introduction.md"
+      - "docs/design/system.md"
+
+  - id: NuGetCaching-Design
+    title: Review of NuGetCaching Architecture and Design
+    paths:
+      - "docs/reqstream/system.yaml"
+      - "docs/reqstream/platform-requirements.yaml"
+      - "docs/design/**/*.md"
+
+  - id: NuGetCaching-AllRequirements
+    title: Review of All NuGetCaching Requirements
+    paths:
+      - "requirements.yaml"
+      - "docs/reqstream/**/*.yaml"
+
   - id: NuGetCaching-NuGetCache
     title: Review of NuGetCaching NuGetCache Unit
     paths:
-      - "docs/reqstream/unit-nuget-cache.yaml"
-      - "docs/design/nuget-cache-design.md"
+      - "docs/reqstream/nuget-cache.yaml"
+      - "docs/design/nuget-cache.md"
       - "src/**/NuGetCache.cs"
       - "test/**/NuGetCacheTests.cs"
 
   - id: NuGetCaching-PathHelpers
     title: Review of NuGetCaching PathHelpers Unit
     paths:
-      - "docs/reqstream/unit-path-helpers.yaml"
-      - "docs/design/path-helpers-design.md"
+      - "docs/reqstream/path-helpers.yaml"
+      - "docs/design/path-helpers.md"
       - "src/**/PathHelpers.cs"
       - "test/**/PathHelpersTests.cs"
-
-  # Platform and OTS dependency reviews
-  - id: Platform-Support
-    title: Review of Platform and Runtime Support Requirements
-    paths:
-      - "docs/reqstream/platform-requirements.yaml"
-
-  - id: OTS-Dependencies
-    title: Review of Off-The-Shelf Software Dependencies
-    paths:
-      - "docs/reqstream/ots-mstest.yaml"
-      - "docs/reqstream/ots-reqstream.yaml"
-      - "docs/reqstream/ots-buildmark.yaml"
-      - "docs/reqstream/ots-versionmark.yaml"
-      - "docs/reqstream/ots-sarifmark.yaml"
-      - "docs/reqstream/ots-sonarmark.yaml"
-      - "docs/reqstream/ots-reviewmark.yaml"
-      - "docs/reqstream/ots-nuget.yaml"
