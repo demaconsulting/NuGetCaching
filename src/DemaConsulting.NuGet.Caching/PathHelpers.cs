@@ -71,16 +71,13 @@ internal static class PathHelpers
 #else
         // On .NET Standard 2.0, Path.GetRelativePath is not available.
         // Perform containment check using normalized path prefix matching.
-        var normalizedBase = absoluteBase.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            + Path.DirectorySeparatorChar;
+        var trimmedBase = absoluteBase.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var normalizedBase = trimmedBase + Path.DirectorySeparatorChar;
         var pathComparison = Path.DirectorySeparatorChar == '\\'
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
         if (!absoluteCombined.StartsWith(normalizedBase, pathComparison)
-            && !string.Equals(
-                absoluteCombined,
-                normalizedBase.TrimEnd(Path.DirectorySeparatorChar),
-                pathComparison))
+            && !string.Equals(absoluteCombined, trimmedBase, pathComparison))
         {
             throw new ArgumentException($"Invalid path component: {relativePath}", nameof(relativePath));
         }
