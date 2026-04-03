@@ -101,6 +101,23 @@ public class PathHelpersTests
     }
 
     /// <summary>
+    ///     Test that SafePathCombine accepts a filename that starts with ".." but is not a traversal sequence.
+    /// </summary>
+    [TestMethod]
+    public void PathHelpers_SafePathCombine_DotDotPrefixedName_CombinesCorrectly()
+    {
+        // Arrange
+        var basePath = Path.GetTempPath();
+        var relativePath = "..data";
+
+        // Act
+        var result = PathHelpers.SafePathCombine(basePath, relativePath);
+
+        // Assert
+        Assert.AreEqual(Path.Combine(basePath, relativePath), result);
+    }
+
+    /// <summary>
     ///     Test that SafePathCombine correctly handles current directory reference.
     /// </summary>
     [TestMethod]

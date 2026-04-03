@@ -52,6 +52,7 @@ words:
   - ncipollo
   - Newtonsoft
   - nuget
+  - netstandard
   - nupkg
   - opencover
   - pagetitle
