@@ -19,6 +19,7 @@ reviews:
       - "docs/reqstream/nuget-caching/nuget-caching.yaml"
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching/nuget-caching.md"
+      - "test/**/NuGetCacheTests.cs"
 
   - id: NuGetCaching-Design
     title: Review of NuGetCaching Architecture and Design
