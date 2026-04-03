@@ -43,6 +43,17 @@ src/DemaConsulting.NuGet.Caching/
 └── PathHelpers.cs              — Safe path combination utilities (internal)
 ```
 
+Design documentation mirrors the software structure:
+
+```text
+docs/design/
+├── introduction.md             — Design overview and software structure
+└── nuget-caching/
+    ├── nuget-caching.md        — System-level design
+    ├── nuget-cache.md          — NuGetCache unit design
+    └── path-helpers.md         — PathHelpers unit design
+```
+
 Test code mirrors the source structure:
 
 ```text
