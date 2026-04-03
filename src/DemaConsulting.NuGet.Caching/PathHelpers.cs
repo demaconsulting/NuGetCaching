@@ -26,43 +26,61 @@ namespace DemaConsulting.NuGet.Caching;
 internal static class PathHelpers
 {
     /// <summary>
-    ///     Safely combines two paths, ensuring the second path doesn't contain path traversal sequences.
+    ///     Safely combines two paths, ensuring the resolved combined path stays within the base directory.
     /// </summary>
     /// <param name="basePath">The base path.</param>
     /// <param name="relativePath">The relative path to combine.</param>
     /// <returns>The combined path.</returns>
-    /// <exception cref="ArgumentException">Thrown when relativePath contains invalid characters or path traversal sequences.</exception>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="basePath"/> or <paramref name="relativePath"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when the resolved combined path escapes the base directory, or when a supplied path is invalid.
+    /// </exception>
+    /// <exception cref="NotSupportedException">Thrown when a supplied path contains an unsupported format.</exception>
+    /// <exception cref="PathTooLongException">Thrown when the combined or resolved path exceeds the system-defined maximum length.</exception>
     internal static string SafePathCombine(string basePath, string relativePath)
     {
         // Validate inputs
         ArgumentNullException.ThrowIfNull(basePath);
         ArgumentNullException.ThrowIfNull(relativePath);
 
-        // Ensure the relative path doesn't contain path traversal sequences
-        if (relativePath.Contains("..") || Path.IsPathRooted(relativePath))
+        // Combine the paths (preserves the caller's relative/absolute style)
+        var combinedPath = Path.Combine(basePath, relativePath);
+
+        // Security check: resolve both paths to absolute form and verify the combined
+        // path is still inside the base directory. Path.GetFullPath normalizes ".." and
+        // "." segments but does not resolve symbolic links; symlink-based traversal attacks
+        // are outside the scope of this string-level validation.
+        var absoluteBase = Path.GetFullPath(basePath);
+        var absoluteCombined = Path.GetFullPath(combinedPath);
+
+#if NET5_0_OR_GREATER
+        // Path.GetRelativePath handles root paths, platform case-sensitivity, and
+        // directory-separator normalization natively. The containment test treats ".."
+        // as an escaping segment only when it is the entire relative result or is
+        // followed by a directory separator, avoiding false positives for valid in-base
+        // names such as "..data".
+        var checkRelative = Path.GetRelativePath(absoluteBase, absoluteCombined);
+
+        if (string.Equals(checkRelative, "..", StringComparison.Ordinal)
+            || checkRelative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            || checkRelative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal)
+            || Path.IsPathRooted(checkRelative))
         {
             throw new ArgumentException($"Invalid path component: {relativePath}", nameof(relativePath));
         }
-
-        // This call to Path.Combine is safe because we've validated that:
-        // 1. relativePath doesn't contain ".." (path traversal)
-        // 2. relativePath is not an absolute path (IsPathRooted check)
-        // This ensures the combined path will always be under basePath
-        var combinedPath = Path.Combine(basePath, relativePath);
-
-#if NET5_0_OR_GREATER
-        // Additional security validation: ensure the combined path is still under the base path.
-        // This defense-in-depth approach protects against edge cases that might bypass the
-        // initial validation, ensuring the final path stays within the intended directory.
-        // Note: Path.GetFullPath normalizes ".." and "." segments but does NOT resolve symbolic links.
-        // Symlink-based traversal attacks are outside the scope of this string-level validation.
-        var fullBasePath = Path.GetFullPath(basePath);
-        var fullCombinedPath = Path.GetFullPath(combinedPath);
-
-        // Use GetRelativePath to verify the relationship between paths
-        var relativeCheck = Path.GetRelativePath(fullBasePath, fullCombinedPath);
-        if (relativeCheck.StartsWith("..") || Path.IsPathRooted(relativeCheck))
+#else
+        // On .NET Standard 2.0, Path.GetRelativePath is not available.
+        // Perform containment check using normalized path prefix matching.
+        var normalizedBase = absoluteBase.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var pathComparison = Path.DirectorySeparatorChar == '\\'
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!absoluteCombined.StartsWith(normalizedBase, pathComparison)
+            && !string.Equals(
+                absoluteCombined,
+                normalizedBase.TrimEnd(Path.DirectorySeparatorChar),
+                pathComparison))
         {
             throw new ArgumentException($"Invalid path component: {relativePath}", nameof(relativePath));
         }

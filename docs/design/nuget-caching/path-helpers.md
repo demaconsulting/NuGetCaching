@@ -2,14 +2,38 @@
 
 ## Overview
 
-The `PathHelpers` class is an internal static helper class providing safe path-combination
-utilities for the DemaConsulting NuGet Caching library. It is a software unit in the
-sense of IEC 62304 — the smallest independently testable component responsible for
-preventing path-traversal vulnerabilities when constructing file-system paths from
-external inputs such as NuGet package identifiers and version strings.
+`PathHelpers` is an internal static utility class providing a safe path-combination method
+in the DemaConsulting NuGet Caching library. It protects callers against path-traversal
+attacks by verifying the resolved combined path stays within the base directory. Note that
+`Path.GetFullPath` normalizes `.`/`..` segments but does not resolve symlinks or reparse
+points, so this check guards against string-level traversal only.
 
-The class is marked `internal` because it is an implementation detail of the library
-and is not part of the public API surface.
+The class is marked `internal` because it is an implementation detail of the library and is
+not part of the public API surface.
+
+## Class Structure
+
+### SafePathCombine Method
+
+```csharp
+internal static string SafePathCombine(string basePath, string relativePath)
+```
+
+Combines `basePath` and `relativePath` safely, ensuring the resulting path remains within
+the base directory.
+
+**Validation steps:**
+
+1. Reject null inputs via `ArgumentNullException.ThrowIfNull`.
+2. Combine the paths with `Path.Combine` to produce the candidate path (preserving the
+   caller's relative/absolute style).
+3. Resolve both `basePath` and the candidate to absolute form with `Path.GetFullPath`.
+4. On .NET 5 and later, compute `Path.GetRelativePath(absoluteBase, absoluteCombined)` and
+   reject the input if the result is exactly `".."`, starts with `".."` followed by
+   `Path.DirectorySeparatorChar` or `Path.AltDirectorySeparatorChar`, or is itself rooted
+   (absolute), which would indicate the combined path escapes the base directory.
+5. On .NET Standard 2.0, perform an equivalent containment check using normalized path
+   prefix matching, since `Path.GetRelativePath` is not available on that target.
 
 ## Design Decisions
 
@@ -26,36 +50,32 @@ All operations in `PathHelpers` are pure functions that depend only on their inp
 parameters and have no side effects. A static class is therefore appropriate: it
 requires no instantiation and has no lifecycle to manage.
 
-### Defense-in-Depth Validation
+### `Path.GetRelativePath` for Containment Check
 
-`SafePathCombine` applies two independent layers of path-traversal protection:
+Using `GetRelativePath` to verify containment handles root paths (e.g. `/`, `C:\`),
+platform case-sensitivity, and directory-separator normalization natively. The containment
+test treats `..` as an escaping segment only when it is the entire relative result or is
+followed by a directory separator, avoiding false positives for valid in-base names such
+as `..data`.
 
-1. **Pre-combination checks** — the relative path is rejected immediately if it
-   contains `".."` or if `Path.IsPathRooted` returns `true`. These checks cover the
-   common, obvious attack vectors and are evaluated before any path manipulation.
+### Post-Combine Canonical-Path Check
 
-   > Note: the `".."` check uses a substring match, so it also rejects filenames that
-   > happen to contain the character sequence `..` (such as `file..txt`). This is
-   > intentionally conservative: NuGet package identifiers and version strings do not
-   > contain `..` as a substring, so no false-positive rejections occur in practice.
+Resolving paths after combining handles all traversal patterns — `../`, embedded `/../`,
+absolute-path overrides, and platform edge cases — without fragile pre-combine string
+inspection of `relativePath`.
 
-2. **Post-combination checks** (NET5.0+) — after calling `Path.Combine`, the method
-   resolves both the base path and the combined path to their canonical full forms
-   using `Path.GetFullPath`, then uses `Path.GetRelativePath` to verify that the
-   combined path is still subordinate to the base. This guard catches edge cases that
-   might survive the pre-combination checks on specific operating systems or file-system
-   configurations, such as unusual Unicode representations or OS-specific separator
-   handling.
+### .NET Standard 2.0 Compatibility
 
-   > **Limitation:** `Path.GetFullPath` normalizes `.` and `..` segments in the path
-   > string but does not resolve symbolic links. A symbolic link within the base
-   > directory that points outside it would not be detected by this check.
-   > Symlink-based traversal attacks are therefore outside the scope of this
-   > protection; callers are responsible for ensuring the base directory contains no
-   > untrusted symbolic links.
+`Path.GetRelativePath` is not available on the `netstandard2.0` target. On that target, an
+equivalent containment check is performed using `Path.GetFullPath` and normalized path
+prefix matching, with platform-appropriate case-sensitivity derived from
+`Path.DirectorySeparatorChar`.
 
-The two-layer approach ensures robustness against both obvious and subtle path-traversal
-attacks without relying on a single validation mechanism.
+> **Limitation:** `Path.GetFullPath` normalizes `.` and `..` segments in the path string
+> but does not resolve symbolic links. A symbolic link within the base directory that
+> points outside it would not be detected by this check. Symlink-based traversal attacks
+> are therefore outside the scope of this protection; callers are responsible for ensuring
+> the base directory contains no untrusted symbolic links.
 
 ### Rejection Strategy
 
@@ -65,11 +85,10 @@ exception is preferable to silently correcting or ignoring potentially malicious
 as it surfaces bugs in calling code during development and makes security boundaries
 explicit.
 
-### Platform Considerations
+### No Logging or Error Accumulation
 
-The post-combination `Path.GetFullPath` / `Path.GetRelativePath` check is conditionally
-compiled for `NET5_0_OR_GREATER`. On the .NET Standard 2.0 target only the pre-combination
-checks apply; on .NET 8, 9, and 10 builds both validation layers are active.
+`SafePathCombine` is a pure utility method that throws on invalid input; it does not
+interact with any context or output mechanism.
 
 ## Method Descriptions
 
@@ -81,12 +100,12 @@ The method:
 
 1. Validates that neither argument is null (`ArgumentNullException.ThrowIfNull`),
    throwing `ArgumentNullException` for a null argument.
-2. Rejects `relativePath` if it contains `".."` or is rooted (`Path.IsPathRooted`),
-   throwing `ArgumentException` with a descriptive message.
-3. Calls `Path.Combine(basePath, relativePath)` to produce the combined path.
-4. On .NET 5 and later, resolves both the base and combined paths to canonical forms
-   and uses `Path.GetRelativePath` to confirm the combined path remains under the base,
-   throwing `ArgumentException` if it does not.
-5. Returns the combined path string.
+2. Calls `Path.Combine(basePath, relativePath)` to produce the combined path.
+3. Resolves both the base and combined paths to canonical forms using `Path.GetFullPath`.
+4. On .NET 5 and later, uses `Path.GetRelativePath` to confirm the combined path remains
+   under the base, throwing `ArgumentException` if it does not.
+5. On .NET Standard 2.0, performs an equivalent prefix-based containment check, throwing
+   `ArgumentException` if the combined path escapes the base.
+6. Returns the combined path string.
 
 Satisfies requirement `Caching-PathHelpers-SafeCombine`.
