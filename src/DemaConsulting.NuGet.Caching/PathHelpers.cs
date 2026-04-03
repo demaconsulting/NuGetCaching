@@ -53,7 +53,6 @@ internal static class PathHelpers
         var absoluteBase = Path.GetFullPath(basePath);
         var absoluteCombined = Path.GetFullPath(combinedPath);
 
-#if NET5_0_OR_GREATER
         // Path.GetRelativePath handles root paths, platform case-sensitivity, and
         // directory-separator normalization natively. The containment test treats ".."
         // as an escaping segment only when it is the entire relative result or is
@@ -68,20 +67,6 @@ internal static class PathHelpers
         {
             throw new ArgumentException($"Invalid path component: {relativePath}", nameof(relativePath));
         }
-#else
-        // On .NET Standard 2.0, Path.GetRelativePath is not available.
-        // Perform containment check using normalized path prefix matching.
-        var trimmedBase = absoluteBase.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var normalizedBase = trimmedBase + Path.DirectorySeparatorChar;
-        var pathComparison = Path.DirectorySeparatorChar == '\\'
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-        if (!absoluteCombined.StartsWith(normalizedBase, pathComparison)
-            && !string.Equals(absoluteCombined, trimmedBase, pathComparison))
-        {
-            throw new ArgumentException($"Invalid path component: {relativePath}", nameof(relativePath));
-        }
-#endif
 
         return combinedPath;
     }

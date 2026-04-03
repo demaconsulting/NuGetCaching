@@ -28,12 +28,10 @@ the base directory.
 2. Combine the paths with `Path.Combine` to produce the candidate path (preserving the
    caller's relative/absolute style).
 3. Resolve both `basePath` and the candidate to absolute form with `Path.GetFullPath`.
-4. On .NET 5 and later, compute `Path.GetRelativePath(absoluteBase, absoluteCombined)` and
-   reject the input if the result is exactly `".."`, starts with `".."` followed by
+4. Compute `Path.GetRelativePath(absoluteBase, absoluteCombined)` and reject the input if
+   the result is exactly `".."`, starts with `".."` followed by
    `Path.DirectorySeparatorChar` or `Path.AltDirectorySeparatorChar`, or is itself rooted
    (absolute), which would indicate the combined path escapes the base directory.
-5. On .NET Standard 2.0, perform an equivalent containment check using normalized path
-   prefix matching, since `Path.GetRelativePath` is not available on that target.
 
 ## Design Decisions
 
@@ -66,10 +64,8 @@ inspection of `relativePath`.
 
 ### .NET Standard 2.0 Compatibility
 
-`Path.GetRelativePath` is not available on the `netstandard2.0` target. On that target, an
-equivalent containment check is performed using `Path.GetFullPath` and normalized path
-prefix matching, with platform-appropriate case-sensitivity derived from
-`Path.DirectorySeparatorChar`.
+`Path.GetRelativePath` is available on all supported target frameworks via the Polyfill
+library, which provides a compatible implementation for `netstandard2.0`.
 
 > **Limitation:** `Path.GetFullPath` normalizes `.` and `..` segments in the path string
 > but does not resolve symbolic links. A symbolic link within the base directory that
@@ -102,10 +98,8 @@ The method:
    throwing `ArgumentNullException` for a null argument.
 2. Calls `Path.Combine(basePath, relativePath)` to produce the combined path.
 3. Resolves both the base and combined paths to canonical forms using `Path.GetFullPath`.
-4. On .NET 5 and later, uses `Path.GetRelativePath` to confirm the combined path remains
-   under the base, throwing `ArgumentException` if it does not.
-5. On .NET Standard 2.0, performs an equivalent prefix-based containment check, throwing
-   `ArgumentException` if the combined path escapes the base.
-6. Returns the combined path string.
+4. Uses `Path.GetRelativePath` to confirm the combined path remains under the base,
+   throwing `ArgumentException` if it does not.
+5. Returns the combined path string.
 
 Satisfies requirement `Caching-PathHelpers-SafeCombine`.
