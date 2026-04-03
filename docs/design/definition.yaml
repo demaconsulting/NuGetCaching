@@ -5,9 +5,9 @@ resource-path:
 input-files:
   - docs/design/title.txt
   - docs/design/introduction.md
-  - docs/design/system.md
-  - docs/design/nuget-cache.md
-  - docs/design/path-helpers.md
+  - docs/design/nuget-caching/nuget-caching.md
+  - docs/design/nuget-caching/nuget-cache.md
+  - docs/design/nuget-caching/path-helpers.md
 template: template.html
 table-of-contents: true
 number-sections: true

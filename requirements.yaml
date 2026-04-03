@@ -17,13 +17,13 @@
 #     --enforce
 #
 # - Add new requirement files under docs/reqstream/ and add them to the includes
-#   list below (unit files first, then platform, then ots in alphabetical order)
+#   list below (system files first, then platform, then subsystem/unit files, then ots in alphabetical order)
 
 includes:
-  - docs/reqstream/system.yaml
-  - docs/reqstream/nuget-cache.yaml
-  - docs/reqstream/path-helpers.yaml
-  - docs/reqstream/platform-requirements.yaml
+  - docs/reqstream/nuget-caching/nuget-caching.yaml
+  - docs/reqstream/nuget-caching/platform-requirements.yaml
+  - docs/reqstream/nuget-caching/nuget-cache.yaml
+  - docs/reqstream/nuget-caching/path-helpers.yaml
   - docs/reqstream/ots/buildmark.yaml
   - docs/reqstream/ots/mstest.yaml
   - docs/reqstream/ots/nuget.yaml

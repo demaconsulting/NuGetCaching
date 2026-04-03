@@ -13,18 +13,18 @@ evidence-source:
   location: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/reviews/index.json
 
 reviews:
-  - id: NuGetCaching-System
-    title: Review of NuGetCaching System Integration
+  - id: NuGetCaching-Architecture
+    title: Review of NuGetCaching System Architecture
     paths:
-      - "docs/reqstream/system.yaml"
+      - "docs/reqstream/nuget-caching/nuget-caching.yaml"
       - "docs/design/introduction.md"
-      - "docs/design/system.md"
+      - "docs/design/nuget-caching/nuget-caching.md"
 
   - id: NuGetCaching-Design
     title: Review of NuGetCaching Architecture and Design
     paths:
-      - "docs/reqstream/system.yaml"
-      - "docs/reqstream/platform-requirements.yaml"
+      - "docs/reqstream/nuget-caching/nuget-caching.yaml"
+      - "docs/reqstream/nuget-caching/platform-requirements.yaml"
       - "docs/design/**/*.md"
 
   - id: NuGetCaching-AllRequirements
@@ -36,15 +36,15 @@ reviews:
   - id: NuGetCaching-NuGetCache
     title: Review of NuGetCaching NuGetCache Unit
     paths:
-      - "docs/reqstream/nuget-cache.yaml"
-      - "docs/design/nuget-cache.md"
+      - "docs/reqstream/nuget-caching/nuget-cache.yaml"
+      - "docs/design/nuget-caching/nuget-cache.md"
       - "src/**/NuGetCache.cs"
       - "test/**/NuGetCacheTests.cs"
 
   - id: NuGetCaching-PathHelpers
     title: Review of NuGetCaching PathHelpers Unit
     paths:
-      - "docs/reqstream/path-helpers.yaml"
-      - "docs/design/path-helpers.md"
+      - "docs/reqstream/nuget-caching/path-helpers.yaml"
+      - "docs/design/nuget-caching/path-helpers.md"
       - "src/**/PathHelpers.cs"
       - "test/**/PathHelpersTests.cs"
