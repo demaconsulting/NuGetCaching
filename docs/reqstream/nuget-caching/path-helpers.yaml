@@ -12,9 +12,8 @@ sections:
         title: The PathHelpers class shall combine paths safely, preventing path traversal.
         justification: |
           Prevents path-traversal vulnerabilities when constructing file paths from
-          user-supplied or external inputs. After combining paths, both the base and
-          combined paths are resolved to canonical form and a containment check confirms
-          the combined path remains under the base directory.
+          user-supplied or external inputs, which could otherwise allow access to
+          files outside the intended cache directory.
         tests:
           - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
           - PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException
