@@ -54,14 +54,6 @@ docs/design/
     └── path-helpers.md         — PathHelpers unit design
 ```
 
-Test code mirrors the source structure:
-
-```text
-test/DemaConsulting.NuGet.Caching.Tests/
-├── NuGetCacheTests.cs          — Tests for NuGetCache class
-└── PathHelpersTests.cs         — Tests for PathHelpers class
-```
-
 ## Audience
 
 This document is intended for:
