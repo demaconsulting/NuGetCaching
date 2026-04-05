@@ -16,4 +16,4 @@ sections:
         children:
           - Caching-Lib-EnsureCached
         tests:
-          - NuGetCaching_EnsureCachedAsync_ReturnsPackageFolder
+          - NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder

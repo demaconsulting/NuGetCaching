@@ -5,7 +5,7 @@ needs-review:
   - "requirements.yaml"                  # Root requirements file
   - "docs/reqstream/**/*.yaml"           # Requirements files
   - "docs/design/**/*.md"               # Design documents
-  - "docs/guide/**/*.md"                # User guide
+  - "docs/user_guide/**/*.md"                # User guide
   - "**/*.cs"                            # All C# source and test files
   - "!**/obj/**"                         # Exclude build output
   - "!**/bin/**"                         # Exclude build output
@@ -19,7 +19,7 @@ reviews:
     title: Review that Advertised Features Match System Design
     paths:
       - "README.md"
-      - "docs/guide/**/*.md"
+      - "docs/user_guide/**/*.md"
       - "docs/reqstream/nuget-caching/nuget-caching.yaml"
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching/nuget-caching.md"

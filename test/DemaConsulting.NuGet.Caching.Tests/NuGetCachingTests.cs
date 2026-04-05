@@ -41,28 +41,26 @@ public class NuGetCachingTests
     /// </remarks>
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task NuGetCaching_EnsureCachedAsync_ReturnsPackageFolder()
+    public async Task NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder()
     {
-        // Arrange - use a small, known package that is reliably available on nuget.org
+        // Arrange: use a small, known package that is reliably available on nuget.org
         const string packageId = "DemaConsulting.TestResults";
         const string version = "1.5.0";
 
-        // Act - invoke the library's package caching capability
+        // Act: invoke the library's package caching capability
         var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken);
 
-        // Assert - the library returned a valid path to the cached package on disk
+        // Assert: the library returned a valid path to the cached package on disk
         Assert.IsNotNull(packageFolder, "EnsureCachedAsync should not return null");
         Assert.IsTrue(
             Directory.Exists(packageFolder),
             $"Expected package folder to exist at: {packageFolder}");
 
-        // Assert - the directory must contain package content, proving the package was cached
-        var hasPackageContent =
-            Directory.EnumerateFiles(packageFolder, "*.nupkg", SearchOption.AllDirectories).Any() ||
-            Directory.EnumerateFiles(packageFolder, "*.nuspec", SearchOption.AllDirectories).Any();
+        // Assert: a fully installed package should include the NuGet installation sentinel file
+        var metadataFilePath = Path.Combine(packageFolder, ".nupkg.metadata");
 
         Assert.IsTrue(
-            hasPackageContent,
-            $"Expected package folder to contain .nupkg or .nuspec files at: {packageFolder}");
+            File.Exists(metadataFilePath),
+            $"Expected package folder to contain .nupkg.metadata at: {metadataFilePath}");
     }
 }
