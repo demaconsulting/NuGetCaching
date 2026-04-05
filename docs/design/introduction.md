@@ -58,6 +58,7 @@ Test code mirrors the source structure:
 
 ```text
 test/DemaConsulting.NuGet.Caching.Tests/
+├── NuGetCachingTests.cs        — System-level integration tests
 ├── NuGetCacheTests.cs          — Tests for NuGetCache class
 └── PathHelpersTests.cs         — Tests for PathHelpers class
 ```

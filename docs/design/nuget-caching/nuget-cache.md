@@ -99,7 +99,7 @@ cache. The method:
 
 Returns the absolute path to the cached package folder.
 
-Satisfies requirements `Caching-Lib-EnsureCached` and `Caching-Lib-NullValidation`.
+Satisfies requirements `Caching-Lib-EnsureCached`, `Caching-Lib-NullValidation`, and `Caching-Lib-NotFound`.
 
 ### `TryDownloadPackageAsync` (private)
 
