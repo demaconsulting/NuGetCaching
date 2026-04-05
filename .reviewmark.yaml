@@ -1,51 +1,64 @@
 ---
 # ReviewMark Configuration File
 needs-review:
-  - "requirements.yaml"          # Root requirements file
-  - "docs/reqstream/**/*.yaml"   # Requirements files
-  - "docs/design/**/*.md"        # Design documents
-  - "**/*.cs"                    # All C# source and test files
-  - "!**/obj/**"                 # Exclude build output
-  - "!**/bin/**"                 # Exclude build output
+  - "README.md"                          # Root README
+  - "requirements.yaml"                  # Root requirements file
+  - "docs/reqstream/**/*.yaml"           # Requirements files
+  - "docs/design/**/*.md"               # Design documents
+  - "docs/user_guide/**/*.md"                # User guide
+  - "**/*.cs"                            # All C# source and test files
+  - "!**/obj/**"                         # Exclude build output
+  - "!**/bin/**"                         # Exclude build output
 
 evidence-source:
   type: url
   location: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/reviews/index.json
 
 reviews:
+  - id: Purpose
+    title: Review that Advertised Features Match System Design
+    paths:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+      - "docs/reqstream/nuget-caching/nuget-caching.yaml"
+      - "docs/design/introduction.md"
+      - "docs/design/nuget-caching/nuget-caching.md"
+
   - id: NuGetCaching-Architecture
-    title: Review of NuGetCaching System Architecture
+    title: Review that NuGetCaching Architecture Satisfies Requirements
     paths:
       - "docs/reqstream/nuget-caching/nuget-caching.yaml"
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching/nuget-caching.md"
-      - "test/**/NuGetCacheTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCachingTests.cs"
 
   - id: NuGetCaching-Design
-    title: Review of NuGetCaching Architecture and Design
+    title: Review that NuGetCaching Design is Consistent and Complete
     paths:
       - "docs/reqstream/nuget-caching/nuget-caching.yaml"
       - "docs/reqstream/nuget-caching/platform-requirements.yaml"
-      - "docs/design/**/*.md"
+      - "docs/design/introduction.md"
+      - "docs/design/nuget-caching/**/*.md"
 
   - id: NuGetCaching-AllRequirements
-    title: Review of All NuGetCaching Requirements
+    title: Review that All NuGetCaching Requirements are Complete
     paths:
       - "requirements.yaml"
-      - "docs/reqstream/**/*.yaml"
+      - "docs/reqstream/nuget-caching/**/*.yaml"
+      - "docs/reqstream/ots/**/*.yaml"
 
   - id: NuGetCaching-NuGetCache
-    title: Review of NuGetCaching NuGetCache Unit
+    title: Review that NuGetCaching NuGetCache Implementation is Correct
     paths:
       - "docs/reqstream/nuget-caching/nuget-cache.yaml"
       - "docs/design/nuget-caching/nuget-cache.md"
-      - "src/**/NuGetCache.cs"
-      - "test/**/NuGetCacheTests.cs"
+      - "src/DemaConsulting.NuGet.Caching/NuGetCache.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheTests.cs"
 
   - id: NuGetCaching-PathHelpers
-    title: Review of NuGetCaching PathHelpers Unit
+    title: Review that NuGetCaching PathHelpers Implementation is Correct
     paths:
       - "docs/reqstream/nuget-caching/path-helpers.yaml"
       - "docs/design/nuget-caching/path-helpers.md"
-      - "src/**/PathHelpers.cs"
-      - "test/**/PathHelpersTests.cs"
+      - "src/DemaConsulting.NuGet.Caching/PathHelpers.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/PathHelpersTests.cs"

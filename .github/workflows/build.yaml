@@ -512,11 +512,11 @@ jobs:
         shell: bash
         run: >
           dotnet pandoc
-          --defaults docs/guide/definition.yaml
+          --defaults docs/user_guide/definition.yaml
           --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
-          --output docs/guide/guide.html
+          --output docs/user_guide/introduction.html
 
       - name: Generate Design HTML with Pandoc
         shell: bash
@@ -593,7 +593,7 @@ jobs:
         run: >
           dotnet weasyprint
           --pdf-variant pdf/a-3u
-          docs/guide/guide.html
+          docs/user_guide/introduction.html
           "docs/NuGetCaching User Guide.pdf"
 
       - name: Generate Design PDF with Weasyprint
