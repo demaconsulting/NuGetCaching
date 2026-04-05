@@ -1,0 +1,68 @@
+// Copyright (c) DEMA Consulting
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+namespace DemaConsulting.NuGet.Caching.Tests;
+
+/// <summary>
+///     System-level integration tests for the DemaConsulting NuGet Caching library.
+/// </summary>
+[TestClass]
+public class NuGetCachingTests
+{
+    /// <summary>
+    ///     Gets or sets the test context provided by the MSTest framework before each test runs.
+    /// </summary>
+    public TestContext TestContext { get; set; } = null!;
+
+    /// <summary>
+    ///     Tests that the library provides programmatic NuGet package caching by ensuring a known
+    ///     package is available in the local global packages cache after calling the library.
+    /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Sys-PackageCaching: the system provides a .NET library for
+    ///     programmatic NuGet package caching.
+    /// </remarks>
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task NuGetCaching_EnsureCachedAsync_ReturnsPackageFolder()
+    {
+        // Arrange - use a small, known package that is reliably available on nuget.org
+        const string packageId = "DemaConsulting.TestResults";
+        const string version = "1.5.0";
+
+        // Act - invoke the library's package caching capability
+        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken);
+
+        // Assert - the library returned a valid path to the cached package on disk
+        Assert.IsNotNull(packageFolder, "EnsureCachedAsync should not return null");
+        Assert.IsTrue(
+            Directory.Exists(packageFolder),
+            $"Expected package folder to exist at: {packageFolder}");
+
+        // Assert - the directory must contain package content, proving the package was cached
+        var hasPackageContent =
+            Directory.EnumerateFiles(packageFolder, "*.nupkg", SearchOption.AllDirectories).Any() ||
+            Directory.EnumerateFiles(packageFolder, "*.nuspec", SearchOption.AllDirectories).Any();
+
+        Assert.IsTrue(
+            hasPackageContent,
+            $"Expected package folder to contain .nupkg or .nuspec files at: {packageFolder}");
+    }
+}

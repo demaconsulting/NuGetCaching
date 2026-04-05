@@ -13,5 +13,7 @@ sections:
           Tools and automation workflows need to ensure specific NuGet package versions are
           available in the local global packages cache before use, without requiring the
           full .NET SDK restore workflow.
+        children:
+          - Caching-Lib-EnsureCached
         tests:
-          - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
+          - NuGetCaching_EnsureCachedAsync_ReturnsPackageFolder
