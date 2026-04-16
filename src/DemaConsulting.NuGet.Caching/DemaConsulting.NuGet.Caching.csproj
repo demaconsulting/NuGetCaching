@@ -63,8 +63,8 @@
   <ItemGroup>
     <!-- NuGet.Configuration is a transitive dependency of NuGet.Protocol, but listed explicitly
          here for clarity since it is directly referenced in the caching implementation. -->
-    <PackageReference Include="NuGet.Configuration" Version="7.3.0" />
-    <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
+    <PackageReference Include="NuGet.Configuration" Version="7.3.1" />
+    <PackageReference Include="NuGet.Protocol" Version="7.3.1" />
   </ItemGroup>
 
   <!-- Build Tool Dependencies -->
