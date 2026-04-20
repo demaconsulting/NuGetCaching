@@ -24,11 +24,14 @@ includes:
   - docs/reqstream/nuget-caching/platform-requirements.yaml
   - docs/reqstream/nuget-caching/nuget-cache.yaml
   - docs/reqstream/nuget-caching/path-helpers.yaml
-  - docs/reqstream/ots/buildmark.yaml
-  - docs/reqstream/ots/mstest.yaml
   - docs/reqstream/ots/nuget.yaml
+  - docs/reqstream/ots/mstest.yaml
   - docs/reqstream/ots/reqstream.yaml
-  - docs/reqstream/ots/reviewmark.yaml
+  - docs/reqstream/ots/buildmark.yaml
+  - docs/reqstream/ots/versionmark.yaml
   - docs/reqstream/ots/sarifmark.yaml
   - docs/reqstream/ots/sonarmark.yaml
-  - docs/reqstream/ots/versionmark.yaml
+  - docs/reqstream/ots/reviewmark.yaml
+  - docs/reqstream/ots/pandoc.yaml
+  - docs/reqstream/ots/weasyprint.yaml
+  - docs/reqstream/ots/fileassert.yaml
