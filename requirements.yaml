@@ -17,7 +17,7 @@
 #     --enforce
 #
 # - Add new requirement files under docs/reqstream/ and add them to the includes
-#   list below (system files first, then platform, then subsystem/unit files, then ots in alphabetical order)
+#   list below (system files first, then platform, then subsystem/unit files, then ots files)
 
 includes:
   - docs/reqstream/nuget-caching/nuget-caching.yaml
