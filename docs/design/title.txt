@@ -2,7 +2,7 @@
 title: NuGetCaching Design
 subtitle: Software Design Document for NuGetCaching
 author: DEMA Consulting
-description: Software Design Document for NuGetCaching
+description: Software design document for NuGetCaching
 lang: en-US
 keywords:
   - NuGetCaching

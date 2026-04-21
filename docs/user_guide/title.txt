@@ -2,7 +2,7 @@
 title: NuGetCaching User Guide
 subtitle: A Library for Caching NuGet Packages
 author: DEMA Consulting
-description: A Library for Caching NuGet Packages
+description: NuGetCaching Reference Implementation User Guide
 lang: en-US
 keywords:
   - NuGetCaching

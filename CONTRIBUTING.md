@@ -175,7 +175,8 @@ All markdown files must follow these rules (enforced by markdownlint):
 - Use reference-style links: `[text][ref]` with `[ref]: url` at document end
 - **Exceptions**:
   - `README.md` uses absolute URLs (it's included in the NuGet package)
-  - AI agent markdown files (`.github/agents/*.md`) use inline links `[text](url)` so URLs are visible in agent context
+  - AI agent markdown files (`.github/agents/*.agent.md`) use inline links
+    `[text](url)` so URLs are visible in agent context
 
 ### Spell Checking
 
@@ -191,7 +192,7 @@ spell-checking failure. Doing so defeats the purpose of spell-checking and reduc
 
 Before submitting a pull request, ensure all quality checks pass:
 
-### 1. Build, Test, and Validate
+### 1. Build and Test
 
 ```bash
 # Build the project
@@ -205,11 +206,12 @@ All tests must pass with zero warnings.
 
 ### 2. Linting
 
-```bash
-# Use the lint script which installs dependencies and runs all linters
-./lint.sh           # Linux/macOS (or: bash ./lint.sh)
-cmd /c lint.bat     # Windows (Command Prompt)
-./lint.bat          # Windows (PowerShell)
+```pwsh
+# After making changes: applies dotnet format, markdown, and YAML fixes silently
+pwsh ./fix.ps1
+
+# Before submitting a pull request: all linters must pass
+pwsh ./lint.ps1
 ```
 
 ### 3. Code Coverage

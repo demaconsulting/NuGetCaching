@@ -11,10 +11,11 @@ sections:
           - id: Caching-OTS-MSTest
             title: MSTest shall execute unit tests and report results.
             justification: |
-              MSTest (MSTest.TestFramework, MSTest.TestAdapter, and Microsoft.NET.Test.Sdk) is the
-              unit-testing framework used by the project. It discovers and runs all test methods
-              and writes TRX result files that feed into coverage reporting and requirements
-              traceability. Passing tests confirm the framework is functioning correctly.
+              The project's MSTest-based test stack uses MSTest.TestFramework,
+              MSTest.TestAdapter, and Microsoft.NET.Test.Sdk. Together they discover and run
+              all test methods and write TRX result files that feed into coverage reporting and
+              requirements traceability. Passing tests confirm the framework is functioning
+              correctly.
             tags: [ots]
             tests:
               - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder

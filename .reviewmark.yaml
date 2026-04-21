@@ -1,22 +1,35 @@
 ---
 # ReviewMark Configuration File
-needs-review:
-  - "README.md"                          # Root README
-  - "requirements.yaml"                  # Root requirements file
-  - "docs/reqstream/**/*.yaml"           # Requirements files
-  - "docs/design/**/*.md"               # Design documents
-  - "docs/user_guide/**/*.md"                # User guide
-  - "**/*.cs"                            # All C# source and test files
-  - "!**/obj/**"                         # Exclude build output
-  - "!**/bin/**"                         # Exclude build output
+# This file defines which files require review, where the evidence store is located,
+# and how files are grouped into named review-sets following hierarchical scope principles.
 
+# Patterns identifying all files that require review.
+# Processed in order; prefix a pattern with '!' to exclude.
+needs-review:
+  - "README.md"                   # Root README file
+  - "requirements.yaml"           # Root requirements file
+  - "**/*.cs"                     # All C# source and test files
+  - "docs/reqstream/**/*.yaml"    # Requirements files
+  - "docs/design/**/*.md"         # Design documentation files
+  - "docs/user_guide/**/*.md"     # User guide documentation
+  - "!**/obj/**"                  # Exclude build output
+  - "!**/bin/**"                  # Exclude build output
+  - "!node_modules/**"            # Exclude npm dependencies
+  - "!**/.venv/**"                # Exclude Python virtual environment
+
+# Evidence source: review data and index.json are located in the 'reviews' branch
+# of this repository, accessed through the GitHub public HTTPS raw content access.
+# Note: The 'reviews' branch must be created and populated with review evidence PDFs
+# and an index.json before enforcement (--enforce flag) can be enabled in the pipeline.
 evidence-source:
   type: url
   location: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/reviews/index.json
 
+# Review sets following hierarchical scope principles.
+# Each review-set focuses on a single compliance question with manageable file counts.
 reviews:
   - id: Purpose
-    title: Review that Advertised Features Match System Design
+    title: Review of user-facing capabilities and system promises
     paths:
       - "README.md"
       - "docs/user_guide/**/*.md"
