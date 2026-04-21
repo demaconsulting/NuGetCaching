@@ -63,4 +63,25 @@ public class NuGetCachingTests
             File.Exists(metadataFilePath),
             $"Expected package folder to contain .nupkg.metadata at: {metadataFilePath}");
     }
+
+    /// <summary>
+    ///     Tests that the library throws <see cref="InvalidOperationException"/> when the requested
+    ///     package cannot be found in any configured NuGet source.
+    /// </summary>
+    /// <remarks>
+    ///     This test proves the error-path behavior of Caching-Sys-PackageCaching: the system
+    ///     correctly signals when a package version is unavailable across all configured sources.
+    /// </remarks>
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task NuGetCaching_EnsureCachedAsync_WhenPackageNotFound_ThrowsInvalidOperationException()
+    {
+        // Arrange: use a package ID and version combination that does not exist on any source
+        const string packageId = "DemaConsulting.NonExistentPackage.DoesNotExist";
+        const string version = "99.99.99";
+
+        // Act & Assert: the library should throw when the package cannot be found
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(
+            () => NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken));
+    }
 }

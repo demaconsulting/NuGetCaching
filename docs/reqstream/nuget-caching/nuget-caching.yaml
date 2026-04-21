@@ -17,3 +17,4 @@ sections:
           - Caching-Lib-EnsureCached
         tests:
           - NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder
+          - NuGetCaching_EnsureCachedAsync_WhenPackageNotFound_ThrowsInvalidOperationException

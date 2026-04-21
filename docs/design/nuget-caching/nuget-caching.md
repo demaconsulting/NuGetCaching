@@ -45,6 +45,20 @@ This provides:
 5. On successful download, the package is installed into the global packages folder
 6. The absolute path to the cached package folder is returned
 
+## Error Handling
+
+The system communicates error states to callers through exceptions:
+
+- **`ArgumentNullException`**: Thrown when `packageId` or `version` is `null`.
+- **`InvalidOperationException`**: Thrown when the requested package version cannot
+  be found in any configured NuGet source. The exception message identifies the
+  package identifier and version.
+
+Transient source failures — unreachable hosts, network errors, or unsupported NuGet
+protocol versions — are handled gracefully by skipping the affected source and
+continuing to the next configured source. An exception is only raised after all
+sources have been exhausted without a successful download.
+
 ## Design Constraints
 
 - The library targets .NET Standard 2.0 for maximum compatibility, plus .NET 8.0,
@@ -56,4 +70,6 @@ This provides:
   vulnerabilities when processing package identifiers and version strings from
   external NuGet feeds
 
-Satisfies requirement `Caching-Sys-PackageCaching`.
+Satisfies requirements `Caching-Sys-PackageCaching`, `Caching-PLT-Windows`, `Caching-PLT-Linux`,
+`Caching-PLT-MacOS`, `Caching-PLT-Net8`, `Caching-PLT-Net9`, `Caching-PLT-Net10`, and
+`Caching-PLT-NetStd20`.
