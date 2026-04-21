@@ -81,7 +81,7 @@ public class NuGetCachingTests
         const string version = "99.99.99";
 
         // Act & Assert: the library should throw when the package cannot be found
-        await Assert.ThrowsExceptionAsync<InvalidOperationException>(
-            () => NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken));
+        _ = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken));
     }
 }
