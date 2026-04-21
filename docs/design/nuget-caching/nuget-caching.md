@@ -50,6 +50,8 @@ This provides:
 The system communicates error states to callers through exceptions:
 
 - **`ArgumentNullException`**: Thrown when `packageId` or `version` is `null`.
+- **`ArgumentException`**: Thrown when `version` is not a valid NuGet version string
+  (propagated from `NuGetVersion.Parse`).
 - **`InvalidOperationException`**: Thrown when the requested package version cannot
   be found in any configured NuGet source. The exception message identifies the
   package identifier and version.

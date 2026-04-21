@@ -19,7 +19,7 @@ sections:
               protocol library is functioning correctly.
             tags: [ots]
             tests:
-              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
+              - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
 
           - id: Caching-OTS-NuGetConfiguration
             title: NuGet.Configuration shall read NuGet settings from the local machine configuration.
@@ -32,4 +32,4 @@ sections:
               confirm that the configuration library is functioning correctly.
             tags: [ots]
             tests:
-              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
+              - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
