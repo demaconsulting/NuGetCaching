@@ -15,8 +15,8 @@ sections:
           Provides the core caching functionality of the library, allowing callers to ensure
           a specific NuGet package version is available in the local cache before use.
         tests:
-          - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
-          - NuGetCache_EnsureCachedAsync_ReturnsSamePathWhenCalledTwice
+          - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
+          - NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath
 
       - id: Caching-Lib-NullValidation
         title: The library shall validate input parameters and throw ArgumentNullException for null arguments.
@@ -25,8 +25,8 @@ sections:
           when required arguments are missing, preventing unexpected NullReferenceExceptions
           from propagating through the system.
         tests:
-          - NuGetCache_EnsureCachedAsync_ThrowsForNullPackageId
-          - NuGetCache_EnsureCachedAsync_ThrowsForNullVersion
+          - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
+          - NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
 
       - id: Caching-Lib-NotFound
         title: >-
@@ -37,4 +37,4 @@ sections:
           from all configured sources, distinguishing this condition from a null-argument error
           or a transient network failure on a single source.
         tests:
-          - NuGetCache_EnsureCachedAsync_ThrowsWhenPackageNotFound
+          - NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException

@@ -40,7 +40,7 @@ public class NuGetCacheTests
     /// </remarks>
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task NuGetCache_EnsureCachedAsync_ReturnsPackageFolder()
+    public async Task NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder()
     {
         // Arrange - use a small, known package that is reliably available on nuget.org
         const string packageId = "DemaConsulting.TestResults";
@@ -75,7 +75,7 @@ public class NuGetCacheTests
     /// </remarks>
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task NuGetCache_EnsureCachedAsync_ThrowsWhenPackageNotFound()
+    public async Task NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException()
     {
         // Arrange - use a GUID-based package ID that cannot exist on any NuGet feed
         var packageId = $"DemaConsulting.NonExistent.{Guid.NewGuid():N}";
@@ -90,8 +90,12 @@ public class NuGetCacheTests
     ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
     ///     <see cref="ArgumentNullException"/> when <c>packageId</c> is <see langword="null"/>.
     /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Lib-NullValidation: the library validates input parameters
+    ///     and throws <see cref="ArgumentNullException"/> for null arguments.
+    /// </remarks>
     [TestMethod]
-    public async Task NuGetCache_EnsureCachedAsync_ThrowsForNullPackageId()
+    public async Task NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException()
     {
         // Arrange - null packageId is an invalid argument
         const string version = "1.5.0";
@@ -105,8 +109,12 @@ public class NuGetCacheTests
     ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
     ///     <see cref="ArgumentNullException"/> when <c>version</c> is <see langword="null"/>.
     /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Lib-NullValidation: the library validates input parameters
+    ///     and throws <see cref="ArgumentNullException"/> for null arguments.
+    /// </remarks>
     [TestMethod]
-    public async Task NuGetCache_EnsureCachedAsync_ThrowsForNullVersion()
+    public async Task NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException()
     {
         // Arrange - null version is an invalid argument
         const string packageId = "DemaConsulting.TestResults";
@@ -120,9 +128,13 @@ public class NuGetCacheTests
     ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> is idempotent: calling it twice
     ///     with the same package returns the same path both times.
     /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Lib-EnsureCached: the library can ensure a NuGet package is cached locally,
+    ///     and the operation is idempotent — calling it a second time returns the same path from the cache.
+    /// </remarks>
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task NuGetCache_EnsureCachedAsync_ReturnsSamePathWhenCalledTwice()
+    public async Task NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath()
     {
         // Arrange - use a small, known package that is reliably available on nuget.org
         const string packageId = "DemaConsulting.TestResults";

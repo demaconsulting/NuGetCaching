@@ -29,7 +29,7 @@ evidence-source:
 # Each review-set focuses on a single compliance question with manageable file counts.
 reviews:
   - id: Purpose
-    title: Review of user-facing capabilities and system promises
+    title: Review that Advertised Features Match System Design
     paths:
       - "README.md"
       - "docs/user_guide/**/*.md"

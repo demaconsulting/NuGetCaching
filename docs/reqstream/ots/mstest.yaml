@@ -18,5 +18,5 @@ sections:
               correctly.
             tags: [ots]
             tests:
-              - NuGetCache_EnsureCachedAsync_ReturnsPackageFolder
+              - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
               - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
