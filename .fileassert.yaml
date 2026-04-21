@@ -1,5 +1,5 @@
 ---
-# FileAssert document validation tests for TemplateDotNetLibrary.
+# FileAssert document validation tests for NuGetCaching.
 # Tests are tagged by document group to allow per-group execution during the build pipeline.
 # Tags: build-notes, code-quality, code-review, design, user-guide, requirements.
 #
