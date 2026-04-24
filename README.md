@@ -9,7 +9,7 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
-DEMA Consulting library for caching NuGet packages on the local PC.
+DEMA Consulting library for caching NuGet packages on the local global packages cache.
 
 ## Features
 

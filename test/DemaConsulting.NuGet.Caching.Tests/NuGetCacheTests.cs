@@ -36,7 +36,7 @@ public class NuGetCacheTests
     ///     package folder after downloading a known small package from nuget.org.
     /// </summary>
     /// <remarks>
-    ///     This test proves Caching-Lib-EnsureCached: the library can ensure a NuGet package is cached locally.
+    ///     This test proves Caching-NuGetCache-EnsureCached: the library can ensure a NuGet package is cached locally.
     /// </remarks>
     [TestMethod]
     [TestCategory("Integration")]
@@ -71,7 +71,7 @@ public class NuGetCacheTests
     ///     <see cref="InvalidOperationException"/> when the package cannot be found in any configured NuGet source.
     /// </summary>
     /// <remarks>
-    ///     This test proves Caching-Lib-NotFound: the library reports when a package cannot be found.
+    ///     This test proves Caching-NuGetCache-NotFound: the library reports when a package cannot be found.
     /// </remarks>
     [TestMethod]
     [TestCategory("Integration")]
@@ -91,7 +91,7 @@ public class NuGetCacheTests
     ///     <see cref="ArgumentNullException"/> when <c>packageId</c> is <see langword="null"/>.
     /// </summary>
     /// <remarks>
-    ///     This test proves Caching-Lib-NullValidation: the library validates input parameters
+    ///     This test proves Caching-NuGetCache-NullValidation: the library validates input parameters
     ///     and throws <see cref="ArgumentNullException"/> for null arguments.
     /// </remarks>
     [TestMethod]
@@ -110,7 +110,7 @@ public class NuGetCacheTests
     ///     <see cref="ArgumentNullException"/> when <c>version</c> is <see langword="null"/>.
     /// </summary>
     /// <remarks>
-    ///     This test proves Caching-Lib-NullValidation: the library validates input parameters
+    ///     This test proves Caching-NuGetCache-NullValidation: the library validates input parameters
     ///     and throws <see cref="ArgumentNullException"/> for null arguments.
     /// </remarks>
     [TestMethod]
@@ -125,11 +125,27 @@ public class NuGetCacheTests
     }
 
     /// <summary>
+    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
+    ///     <see cref="ArgumentException"/> when <c>version</c> is not a valid NuGet version string.
+    /// </summary>
+    [TestMethod]
+    public async Task NuGetCache_EnsureCachedAsync_InvalidVersion_ThrowsArgumentException()
+    {
+        // Arrange: a string that is not a valid NuGet version
+        const string packageId = "DemaConsulting.TestResults";
+        const string version = "not-a-version";
+
+        // Act & Assert: calling with an invalid version must throw ArgumentException
+        _ = await Assert.ThrowsExactlyAsync<ArgumentException>(
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken));
+    }
+
+    /// <summary>
     ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> is idempotent: calling it twice
     ///     with the same package returns the same path both times.
     /// </summary>
     /// <remarks>
-    ///     This test proves Caching-Lib-EnsureCached: the library can ensure a NuGet package is cached locally,
+    ///     This test proves Caching-NuGetCache-EnsureCached: the library can ensure a NuGet package is cached locally,
     ///     and the operation is idempotent — calling it a second time returns the same path from the cache.
     /// </remarks>
     [TestMethod]

@@ -50,6 +50,9 @@ public static class NuGetCache
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="packageId"/> or <paramref name="version"/> is <see langword="null"/>.
     /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
+    /// </exception>
     /// <exception cref="InvalidOperationException">
     ///     Thrown when the package cannot be found in any configured NuGet source.
     /// </exception>
@@ -62,13 +65,17 @@ public static class NuGetCache
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(version);
 
+        // Parse the version string early to validate it and obtain the normalized form;
+        // NuGet stores packages using the normalized version (e.g. "1.0" becomes "1.0.0")
+        var nugetVersion = NuGetVersion.Parse(version);
+
         // Load the default NuGet settings from the machine / user configuration files
         var settings = Settings.LoadDefaultSettings(null);
         var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(settings);
 
         // Compute the expected on-disk path for the package; NuGet stores packages under
-        // {globalPackagesFolder}/{packageId.lower}/{version.lower}/
-        var packagePath = GetPackagePath(globalPackagesFolder, packageId, version);
+        // {globalPackagesFolder}/{packageId.lower}/{normalizedVersion.lower}/
+        var packagePath = GetPackagePath(globalPackagesFolder, packageId, nugetVersion.ToNormalizedString());
 
         // Return immediately when the package is fully installed - the common hot path.
         // Checking for the .nupkg.metadata file (written by NuGet as the last extraction step)
@@ -78,9 +85,6 @@ public static class NuGetCache
         {
             return packagePath;
         }
-
-        // Parse the version string used by NuGet protocol APIs
-        var nugetVersion = NuGetVersion.Parse(version);
 
         // Build the client policy context used for package signing validation
         var clientPolicyContext = ClientPolicyContext.GetClientPolicy(settings, NullLogger.Instance);
@@ -225,7 +229,7 @@ public static class NuGetCache
             cancellationToken);
 
         // Return the conventional package path that NuGet uses on disk
-        return GetPackagePath(globalPackagesFolder, packageId, version.ToString());
+        return GetPackagePath(globalPackagesFolder, packageId, version.ToNormalizedString());
     }
 
     /// <summary>

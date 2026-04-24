@@ -90,16 +90,18 @@ cache. The method:
 
 1. Validates that `packageId` and `version` are not null, throwing
    `ArgumentNullException` for either null argument.
-2. Loads the default NuGet settings and resolves the global packages folder.
-3. Computes the expected on-disk package path and returns it immediately if the
+2. Parses the `version` string using `NuGetVersion.Parse`, throwing
+   `ArgumentException` when the version string is not a valid NuGet version.
+3. Loads the default NuGet settings and resolves the global packages folder.
+4. Computes the expected on-disk package path and returns it immediately if the
    `.nupkg.metadata` sentinel file exists (cache-hit fast path).
-4. Iterates over enabled, mapped package sources and delegates to
+5. Iterates over enabled, mapped package sources and delegates to
    `TryDownloadPackageAsync` for each one until a download succeeds.
-5. Throws `InvalidOperationException` if no source provided the package.
+6. Throws `InvalidOperationException` if no source provided the package.
 
 Returns the absolute path to the cached package folder.
 
-Satisfies requirements `Caching-Lib-EnsureCached`, `Caching-Lib-NullValidation`, and `Caching-Lib-NotFound`.
+Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullValidation`, and `Caching-NuGetCache-NotFound`.
 
 ### `TryDownloadPackageAsync` (private)
 

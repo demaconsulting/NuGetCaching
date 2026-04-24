@@ -14,7 +14,20 @@ sections:
           available in the local global packages cache before use, without requiring the
           full .NET SDK restore workflow.
         children:
-          - Caching-Lib-EnsureCached
+          - Caching-NuGetCache-EnsureCached
+          - Caching-NuGetCache-NotFound
         tests:
           - NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder
           - NuGetCaching_EnsureCachedAsync_WhenPackageNotFound_ThrowsInvalidOperationException
+
+      - id: Caching-Sys-NullValidation
+        title: The system shall reject null arguments with a clear, actionable error.
+        justification: |
+          Null parameter validation ensures callers receive clear, actionable error messages
+          when required arguments are missing, preventing unexpected errors from propagating
+          through the system.
+        children:
+          - Caching-NuGetCache-NullValidation
+        tests:
+          - NuGetCaching_EnsureCachedAsync_WhenPackageIdIsNull_ThrowsArgumentNullException
+          - NuGetCaching_EnsureCachedAsync_WhenVersionIsNull_ThrowsArgumentNullException

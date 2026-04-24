@@ -96,6 +96,8 @@ The absolute path to the cached package folder inside the global packages folder
 
 - `ArgumentNullException`: Thrown when `packageId` or `version` is null.
 
+- `ArgumentException`: Thrown when `version` is not a valid NuGet version string.
+
 - `InvalidOperationException`: Thrown when the package cannot be found in any configured
   NuGet source.
 
