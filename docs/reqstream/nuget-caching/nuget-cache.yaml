@@ -1,37 +1,38 @@
 ---
 # Software Unit Requirements for the NuGetCache Class
 #
-# The NuGetCache class provides NuGet package caching functionality, ensuring a
-# specific package version is available in the local global packages cache before
-# use. It reads NuGet configuration from the default machine settings and
-# communicates with configured NuGet sources to download packages when needed.
+# These requirements define the behavioral obligations of the NuGetCache unit
+# for programmatic NuGet package caching. They decompose the system-level
+# package-caching requirement into the responsibilities of this unit.
 
 sections:
   - title: NuGetCache Unit Requirements
     requirements:
       - id: Caching-Lib-EnsureCached
-        title: The library shall provide a method to ensure a NuGet package is cached locally on the PC.
+        title: The library shall ensure a specified NuGet package version is available in the local cache.
         justification: |
           Provides the core caching functionality of the library, allowing callers to ensure
           a specific NuGet package version is available in the local cache before use.
+        children:
+          - Caching-PathHelpers-SafeCombine
         tests:
           - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
           - NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath
 
       - id: Caching-Lib-NullValidation
-        title: The library shall validate input parameters and throw ArgumentNullException for null arguments.
+        title: The library shall reject null arguments with a clear, actionable error.
         justification: |
           Null parameter validation ensures callers receive clear, actionable error messages
-          when required arguments are missing, preventing unexpected NullReferenceExceptions
-          from propagating through the system.
+          when required arguments are missing, preventing unexpected errors from propagating
+          through the system.
         tests:
           - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
           - NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
 
       - id: Caching-Lib-NotFound
         title: >-
-          The library shall throw InvalidOperationException when the package
-          cannot be found in any configured NuGet source.
+          The library shall report an error when the requested package cannot be
+          found in any configured NuGet source.
         justification: |
           Ensures callers receive a clear, actionable error when the requested package is absent
           from all configured sources, distinguishing this condition from a null-argument error
