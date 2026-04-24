@@ -8,7 +8,7 @@
 sections:
   - title: NuGetCache Unit Requirements
     requirements:
-      - id: Caching-Lib-EnsureCached
+      - id: Caching-NuGetCache-EnsureCached
         title: The library shall ensure a specified NuGet package version is available in the local cache.
         justification: |
           Provides the core caching functionality of the library, allowing callers to ensure
@@ -19,7 +19,7 @@ sections:
           - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
           - NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath
 
-      - id: Caching-Lib-NullValidation
+      - id: Caching-NuGetCache-NullValidation
         title: The library shall reject null arguments with a clear, actionable error.
         justification: |
           Null parameter validation ensures callers receive clear, actionable error messages
@@ -29,7 +29,7 @@ sections:
           - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
           - NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
 
-      - id: Caching-Lib-NotFound
+      - id: Caching-NuGetCache-NotFound
         title: >-
           The library shall report an error when the requested package cannot be
           found in any configured NuGet source.

@@ -9,7 +9,8 @@ sections:
   - title: PathHelpers Unit Requirements
     requirements:
       - id: Caching-PathHelpers-SafeCombine
-        title: The path-combination utility shall safely combine a base path and a relative path, rejecting any combination that would escape the base directory.
+        title: The path-combination utility shall safely combine a base path and a relative path, rejecting any combination
+          that would escape the base directory.
         justification: |
           Prevents path-traversal vulnerabilities when constructing file paths from
           user-supplied or external inputs, which could otherwise allow access to

@@ -36,14 +36,21 @@ This provides:
 - `PackageSourceProvider` for enumerating enabled package sources
 - `PackageSourceMapping` for respecting package source mapping rules
 
+### Polyfill
+
+The system uses the `Polyfill` library to provide `Path.GetRelativePath` on
+`netstandard2.0` targets, where the method is not available in the BCL.
+On .NET 5.0 and later, the BCL implementation is used directly.
+
 ## Data Flow
 
 1. Caller invokes `NuGetCache.EnsureCachedAsync(packageId, version)`
-2. The system loads NuGet configuration from machine/user settings
-3. The system checks for a cached package using the sentinel file (`.nupkg.metadata`)
-4. If not cached, the system queries configured NuGet sources sequentially
-5. On successful download, the package is installed into the global packages folder
-6. The absolute path to the cached package folder is returned
+2. The system validates inputs are not null, throwing `ArgumentNullException`
+3. The system loads NuGet configuration from machine/user settings
+4. The system checks for a cached package using the sentinel file (`.nupkg.metadata`)
+5. If not cached, the system queries configured NuGet sources sequentially
+6. On successful download, the package is installed into the global packages folder
+7. The absolute path to the cached package folder is returned
 
 ## Error Handling
 
