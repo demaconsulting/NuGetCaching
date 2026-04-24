@@ -29,5 +29,5 @@ sections:
         children:
           - Caching-NuGetCache-NullValidation
         tests:
-          - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
-          - NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
+          - NuGetCaching_EnsureCachedAsync_WhenPackageIdIsNull_ThrowsArgumentNullException
+          - NuGetCaching_EnsureCachedAsync_WhenVersionIsNull_ThrowsArgumentNullException

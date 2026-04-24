@@ -88,4 +88,42 @@ public class NuGetCachingTests
         StringAssert.Contains(ex.Message, packageId, "Exception message must contain the package ID");
         StringAssert.Contains(ex.Message, version, "Exception message must contain the version");
     }
+
+    /// <summary>
+    ///     Tests that the library throws <see cref="ArgumentNullException"/> when
+    ///     <c>packageId</c> is <see langword="null"/>.
+    /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Sys-NullValidation: the system rejects null arguments
+    ///     with a clear, actionable error.
+    /// </remarks>
+    [TestMethod]
+    public async Task NuGetCaching_EnsureCachedAsync_WhenPackageIdIsNull_ThrowsArgumentNullException()
+    {
+        // Arrange: null packageId is an invalid argument
+        const string version = "1.5.0";
+
+        // Act & Assert: the library should throw ArgumentNullException for a null package ID
+        _ = await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await NuGetCache.EnsureCachedAsync(null!, version, TestContext.CancellationToken));
+    }
+
+    /// <summary>
+    ///     Tests that the library throws <see cref="ArgumentNullException"/> when
+    ///     <c>version</c> is <see langword="null"/>.
+    /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Sys-NullValidation: the system rejects null arguments
+    ///     with a clear, actionable error.
+    /// </remarks>
+    [TestMethod]
+    public async Task NuGetCaching_EnsureCachedAsync_WhenVersionIsNull_ThrowsArgumentNullException()
+    {
+        // Arrange: null version is an invalid argument
+        const string packageId = "DemaConsulting.TestResults";
+
+        // Act & Assert: the library should throw ArgumentNullException for a null version
+        _ = await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await NuGetCache.EnsureCachedAsync(packageId, null!, TestContext.CancellationToken));
+    }
 }

@@ -131,11 +131,11 @@ public class NuGetCacheTests
     [TestMethod]
     public async Task NuGetCache_EnsureCachedAsync_InvalidVersion_ThrowsArgumentException()
     {
-        // Arrange - a string that is not a valid NuGet version
+        // Arrange: a string that is not a valid NuGet version
         const string packageId = "DemaConsulting.TestResults";
         const string version = "not-a-version";
 
-        // Act & Assert - calling with an invalid version must throw ArgumentException
+        // Act & Assert: calling with an invalid version must throw ArgumentException
         _ = await Assert.ThrowsExactlyAsync<ArgumentException>(
             async () => await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken));
     }

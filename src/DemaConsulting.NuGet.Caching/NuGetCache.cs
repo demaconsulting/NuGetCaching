@@ -50,7 +50,7 @@ public static class NuGetCache
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="packageId"/> or <paramref name="version"/> is <see langword="null"/>.
     /// </exception>
-    /// <exception cref="System.ArgumentException">
+    /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
     /// </exception>
     /// <exception cref="InvalidOperationException">
