@@ -20,10 +20,34 @@ All code MUST follow literate programming principles:
   matches design intent without reading the full codebase
 - **Logical Separation**: Complex functions use block comments to separate and
   describe logical steps within the implementation
-- **Public Documentation**: All public interfaces have comprehensive documentation
-  because consumers and auditors rely on interface contracts for integration
-  and compliance verification
+- **Full Symbol Documentation**: ALL symbols have comprehensive documentation
+  because reviewers and auditors must verify every implementation detail, not
+  just the public interface - access-level specifics (public, protected,
+  private, internal, etc.) vary by language; see the language-specific standard
 - **Clarity Over Cleverness**: Code should be immediately understandable by team members
+
+## API Documentation
+
+Good API documentation enables consumers, reviewers, and agents to use an
+interface correctly without reading the implementation:
+
+- **Self-Contained**: Each member's documentation must be fully understandable
+  in isolation - consumers must not need to read the implementation to call it
+  correctly
+- **Intent-Focused**: Explain WHY the member exists and WHAT problem it solves,
+  not just restate the name - this lets reviewers verify the implementation
+  matches design intent
+- **Parameter and Return Contracts**: Document valid ranges, null handling, and
+  boundary cases - agents and consumers rely on these contracts to call the API
+  correctly
+- **Error Conditions**: Document every exception or error code, the condition
+  that triggers it, and how the caller should respond - undocumented errors
+  cannot be handled correctly
+- **Side Effects**: Document I/O, state mutation, resource allocation, or
+  network calls - hidden side effects cause integration bugs that are hard to
+  diagnose
+- **Thread Safety**: State whether the API is safe for concurrent use - missing
+  this forces consumers to read the implementation or risk data races
 
 ## Universal Code Architecture Principles
 

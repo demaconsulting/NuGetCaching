@@ -1,0 +1,33 @@
+---
+# xUnit OTS Software Requirements
+#
+# Requirements for the xUnit v3 testing framework functionality.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: xUnit Requirements
+        requirements:
+          - id: Caching-OTS-xUnit-Execute
+            title: xUnit shall discover and execute unit tests.
+            justification: |
+              xUnit v3 (xunit.v3 and xunit.runner.visualstudio) is the unit-testing framework
+              used by the project. It discovers and runs all test methods, confirming the
+              framework is functioning correctly.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
+              - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
+              - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
+
+          - id: Caching-OTS-xUnit-Report
+            title: xUnit shall write TRX result files.
+            justification: |
+              xUnit v3 (xunit.v3 and xunit.runner.visualstudio) writes TRX result files that
+              feed into coverage reporting and requirements traceability. Passing tests confirm
+              the TRX output is produced correctly.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
+              - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
+              - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException

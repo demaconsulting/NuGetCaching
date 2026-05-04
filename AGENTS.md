@@ -1,3 +1,10 @@
+# Project Overview
+
+- **name**: DemaConsulting NuGet Caching
+- **description**: A library for caching NuGet packages on the local PC
+- **languages**: C#
+- **technologies**: .NET (netstandard2.0, net8.0, net9.0, net10.0), NuGet.Protocol, NuGet.Configuration
+
 # Project Structure
 
 ```text
@@ -10,7 +17,8 @@
 │   ├── requirements_doc/
 │   ├── requirements_report/
 │   ├── reqstream/
-│   └── user_guide/
+│   ├── user_guide/
+│   └── verification/
 ├── src/
 │   └── DemaConsulting.NuGet.Caching/
 └── test/
@@ -45,16 +53,17 @@ before searching the filesystem.
 Before performing any work, agents must read and apply the relevant standards
 from `.github/standards/`. Use this matrix to determine which to load:
 
-| Work involves...     | Load these standards                                                         |
-|----------------------|------------------------------------------------------------------------------|
-| Any code             | `coding-principles.md`                                                       |
-| C# code              | `coding-principles.md`, `csharp-language.md`                                 |
-| Any tests            | `testing-principles.md`                                                      |
-| C# tests             | `testing-principles.md`, `csharp-testing.md`                                 |
-| Requirements         | `requirements-principles.md`, `software-items.md`, `reqstream-usage.md`      |
-| Design docs          | `software-items.md`, `design-documentation.md`, `technical-documentation.md` |
-| Review configuration | `software-items.md`, `reviewmark-usage.md`                                   |
-| Any documentation    | `technical-documentation.md`                                                 |
+| Work involves...     | Load these standards                                                               |
+|----------------------|------------------------------------------------------------------------------------|
+| Any code             | `coding-principles.md`                                                             |
+| C# code              | `coding-principles.md`, `csharp-language.md`                                       |
+| Any tests            | `testing-principles.md`                                                            |
+| C# tests             | `testing-principles.md`, `csharp-testing.md`                                       |
+| Requirements         | `requirements-principles.md`, `software-items.md`, `reqstream-usage.md`            |
+| Design docs          | `software-items.md`, `design-documentation.md`, `technical-documentation.md`       |
+| Verification docs    | `software-items.md`, `verification-documentation.md`, `technical-documentation.md` |
+| Review configuration | `software-items.md`, `reviewmark-usage.md`                                         |
+| Any documentation    | `technical-documentation.md`                                                       |
 
 Load only the standards relevant to your specific task scope.
 
@@ -69,26 +78,10 @@ Delegate to specialized agents only for specific scenarios:
 - **Formal feature implementation** (complex, multi-step) → Call the implementation agent
 - **Formal bug resolution** (complex debugging, systematic fixes) → Call the implementation agent
 - **Formal reviews** (compliance verification, detailed analysis) → Call the formal-review agent
-- **Template consistency** (downstream repository alignment) → Call the repo-consistency agent
-
-## Available Specialized Agents
-
-- **lint-fix** - Pre-PR lint sweep agent that loops running `pwsh ./lint.ps1`,
-  fixing issues until the repository is lint-clean
-- **developer** - General-purpose software development agent that applies appropriate
-  standards based on the work being performed
-- **formal-review** - Agent for performing formal reviews using standardized review processes
-- **implementation** - Orchestrator agent that manages quality implementations
-  through a formal state machine workflow
-- **quality** - Quality assurance agent that grades developer work against project
-  standards and Continuous Compliance practices
-- **repo-consistency** - Ensures downstream repositories remain consistent with
-  the TemplateDotNetLibrary template patterns and best practices
 
 # Agent Reporting (Specialized Agents Must Follow)
 
-Specialized agents (lint-fix, developer, quality, implementation,
-formal-review, repo-consistency) MUST generate a completion report:
+Specialized agents MUST generate a completion report:
 
 1. Save to `.agent-logs/{agent-name}-{subject}-{unique-id}.md`
    where `{subject}` is a kebab-case task summary (max 5 words) and
@@ -124,6 +117,8 @@ reqstream, versionmark, and reviewmark.
 
 # Scope Discipline (ALL Agents Must Follow)
 
+- **No generated file access**: Files inside any `generated/` folder are build
+  outputs — do not read, lint, or modify them
 - **Minimum necessary changes**: Only modify files directly required by the task
 - **No speculative refactoring**: Do not refactor code adjacent to the change
   unless the task explicitly requests it

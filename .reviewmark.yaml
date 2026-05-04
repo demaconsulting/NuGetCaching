@@ -11,6 +11,7 @@ needs-review:
   - "**/*.cs"                     # All C# source and test files
   - "docs/reqstream/**/*.yaml"    # Requirements files
   - "docs/design/**/*.md"         # Design documentation files
+  - "docs/verification/**/*.md"   # Verification documentation files
   - "docs/user_guide/**/*.md"     # User guide documentation
   - "!**/obj/**"                  # Exclude build output
   - "!**/bin/**"                  # Exclude build output
@@ -28,6 +29,7 @@ evidence-source:
 # Review sets following hierarchical scope principles.
 # Each review-set focuses on a single compliance question with manageable file counts.
 reviews:
+  # Purpose
   - id: Purpose
     title: Review that Advertised Features Match System Design
     paths:
@@ -37,12 +39,14 @@ reviews:
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching/nuget-caching.md"
 
+  # NuGetCaching - Specials
   - id: NuGetCaching-Architecture
     title: Review that NuGetCaching Architecture Satisfies Requirements
     paths:
       - "docs/reqstream/nuget-caching/nuget-caching.yaml"
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching/nuget-caching.md"
+      - "docs/verification/nuget-caching/nuget-caching.md"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCachingTests.cs"
 
   - id: NuGetCaching-Design
@@ -52,6 +56,7 @@ reviews:
       - "docs/reqstream/nuget-caching/platform-requirements.yaml"
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching/**/*.md"
+      - "docs/verification/introduction.md"
 
   - id: NuGetCaching-AllRequirements
     title: Review that All NuGetCaching Requirements are Complete
@@ -60,18 +65,83 @@ reviews:
       - "docs/reqstream/nuget-caching/**/*.yaml"
       - "docs/reqstream/ots/**/*.yaml"
 
+  # NuGetCaching - NuGetCache
   - id: NuGetCaching-NuGetCache
     title: Review that NuGetCaching NuGetCache Implementation is Correct
     paths:
       - "docs/reqstream/nuget-caching/nuget-cache.yaml"
       - "docs/design/nuget-caching/nuget-cache.md"
+      - "docs/verification/nuget-caching/nuget-cache.md"
       - "src/DemaConsulting.NuGet.Caching/NuGetCache.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheTests.cs"
 
+  # NuGetCaching - PathHelpers
   - id: NuGetCaching-PathHelpers
     title: Review that NuGetCaching PathHelpers Implementation is Correct
     paths:
       - "docs/reqstream/nuget-caching/path-helpers.yaml"
       - "docs/design/nuget-caching/path-helpers.md"
+      - "docs/verification/nuget-caching/path-helpers.md"
       - "src/DemaConsulting.NuGet.Caching/PathHelpers.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/PathHelpersTests.cs"
+
+  # OTS Items
+  - id: OTS-BuildMark
+    title: Review of BuildMark OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/buildmark.yaml"
+      - "docs/verification/ots/buildmark.md"
+
+  - id: OTS-FileAssert
+    title: Review of FileAssert OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/fileassert.yaml"
+      - "docs/verification/ots/fileassert.md"
+
+  - id: OTS-Pandoc
+    title: Review of Pandoc OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/pandoc.yaml"
+      - "docs/verification/ots/pandoc.md"
+
+  - id: OTS-ReqStream
+    title: Review of ReqStream OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/reqstream.yaml"
+      - "docs/verification/ots/reqstream.md"
+
+  - id: OTS-ReviewMark
+    title: Review of ReviewMark OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/reviewmark.yaml"
+      - "docs/verification/ots/reviewmark.md"
+
+  - id: OTS-SarifMark
+    title: Review of SarifMark OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/sarifmark.yaml"
+      - "docs/verification/ots/sarifmark.md"
+
+  - id: OTS-SonarMark
+    title: Review of SonarMark OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/sonarmark.yaml"
+      - "docs/verification/ots/sonarmark.md"
+
+  - id: OTS-VersionMark
+    title: Review of VersionMark OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/versionmark.yaml"
+      - "docs/verification/ots/versionmark.md"
+
+  - id: OTS-WeasyPrint
+    title: Review of WeasyPrint OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/weasyprint.yaml"
+      - "docs/verification/ots/weasyprint.md"
+
+  - id: OTS-xUnit
+    title: Review of xUnit OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/xunit.yaml"
+      - "docs/verification/ots/xunit.md"
