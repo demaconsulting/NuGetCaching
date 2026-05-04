@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <!-- Build Configuration -->
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net481;net8.0;net9.0;net10.0</TargetFrameworks>
-    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('Windows'))">net8.0;net9.0;net10.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -19,6 +19,12 @@
     <AnalysisLevel>latest</AnalysisLevel>
   </PropertyGroup>
 
+  <!-- Implicit Usings -->
+  <ItemGroup>
+    <Using Include="Polyfills" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+
   <!-- Test Framework Dependencies -->
   <ItemGroup>
     <!-- coverlet.collector uses child-element form to configure both PrivateAssets and IncludeAssets:
@@ -30,8 +36,11 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
-    <PackageReference Include="MSTest.TestAdapter" Version="4.2.2" />
-    <PackageReference Include="MSTest.TestFramework" Version="4.2.2" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <!-- Code Analysis Dependencies -->
@@ -54,11 +63,6 @@
   <!-- Project References -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\DemaConsulting.NuGet.Caching\DemaConsulting.NuGet.Caching.csproj" />
-  </ItemGroup>
-
-  <!-- Implicit Usings -->
-  <ItemGroup>
-    <Using Include="Polyfills" />
   </ItemGroup>
 
 </Project>

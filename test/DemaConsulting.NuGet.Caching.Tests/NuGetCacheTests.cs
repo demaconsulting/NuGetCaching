@@ -23,14 +23,8 @@ namespace DemaConsulting.NuGet.Caching.Tests;
 /// <summary>
 ///     Unit tests for the <see cref="NuGetCache"/> class.
 /// </summary>
-[TestClass]
 public class NuGetCacheTests
 {
-    /// <summary>
-    ///     Gets or sets the test context provided by the MSTest framework before each test runs.
-    /// </summary>
-    public TestContext TestContext { get; set; } = null!;
-
     /// <summary>
     ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> returns the path to an existing
     ///     package folder after downloading a known small package from nuget.org.
@@ -38,8 +32,8 @@ public class NuGetCacheTests
     /// <remarks>
     ///     This test proves Caching-NuGetCache-EnsureCached: the library can ensure a NuGet package is cached locally.
     /// </remarks>
-    [TestMethod]
-    [TestCategory("Integration")]
+    [Fact]
+    [Trait("Category", "Integration")]
     public async Task NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder()
     {
         // Arrange - use a small, known package that is reliably available on nuget.org
@@ -47,11 +41,11 @@ public class NuGetCacheTests
         const string version = "1.5.0";
 
         // Act - ensure the package is present in the local NuGet global packages cache
-        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken);
+        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None);
 
         // Assert - the returned path must point to a real directory on disk
-        Assert.IsNotNull(packageFolder, "EnsureCachedAsync should not return null");
-        Assert.IsTrue(
+        Assert.NotNull(packageFolder);
+        Assert.True(
             Directory.Exists(packageFolder),
             $"Expected package folder to exist at: {packageFolder}");
 
@@ -61,7 +55,7 @@ public class NuGetCacheTests
             Directory.EnumerateFiles(packageFolder, "*.nupkg", SearchOption.AllDirectories).Any() ||
             Directory.EnumerateFiles(packageFolder, "*.nuspec", SearchOption.AllDirectories).Any();
 
-        Assert.IsTrue(
+        Assert.True(
             hasPackageContent,
             $"Expected package folder to contain .nupkg or .nuspec files at: {packageFolder}");
     }
@@ -73,8 +67,8 @@ public class NuGetCacheTests
     /// <remarks>
     ///     This test proves Caching-NuGetCache-NotFound: the library reports when a package cannot be found.
     /// </remarks>
-    [TestMethod]
-    [TestCategory("Integration")]
+    [Fact]
+    [Trait("Category", "Integration")]
     public async Task NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException()
     {
         // Arrange - use a GUID-based package ID that cannot exist on any NuGet feed
@@ -82,8 +76,8 @@ public class NuGetCacheTests
         const string version = "1.0.0";
 
         // Act & Assert - calling with a non-existent package must throw InvalidOperationException
-        _ = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken));
+        _ = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None));
     }
 
     /// <summary>
@@ -94,15 +88,15 @@ public class NuGetCacheTests
     ///     This test proves Caching-NuGetCache-NullValidation: the library validates input parameters
     ///     and throws <see cref="ArgumentNullException"/> for null arguments.
     /// </remarks>
-    [TestMethod]
+    [Fact]
     public async Task NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException()
     {
         // Arrange - null packageId is an invalid argument
         const string version = "1.5.0";
 
         // Act & Assert - calling with null packageId must throw ArgumentNullException
-        _ = await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync(null!, version, TestContext.CancellationToken));
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await NuGetCache.EnsureCachedAsync(null!, version, CancellationToken.None));
     }
 
     /// <summary>
@@ -113,22 +107,22 @@ public class NuGetCacheTests
     ///     This test proves Caching-NuGetCache-NullValidation: the library validates input parameters
     ///     and throws <see cref="ArgumentNullException"/> for null arguments.
     /// </remarks>
-    [TestMethod]
+    [Fact]
     public async Task NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException()
     {
         // Arrange - null version is an invalid argument
         const string packageId = "DemaConsulting.TestResults";
 
         // Act & Assert - calling with null version must throw ArgumentNullException
-        _ = await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, null!, TestContext.CancellationToken));
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await NuGetCache.EnsureCachedAsync(packageId, null!, CancellationToken.None));
     }
 
     /// <summary>
     ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
     ///     <see cref="ArgumentException"/> when <c>version</c> is not a valid NuGet version string.
     /// </summary>
-    [TestMethod]
+    [Fact]
     public async Task NuGetCache_EnsureCachedAsync_InvalidVersion_ThrowsArgumentException()
     {
         // Arrange: a string that is not a valid NuGet version
@@ -136,8 +130,8 @@ public class NuGetCacheTests
         const string version = "not-a-version";
 
         // Act & Assert: calling with an invalid version must throw ArgumentException
-        _ = await Assert.ThrowsExactlyAsync<ArgumentException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken));
+        _ = await Assert.ThrowsAsync<ArgumentException>(
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None));
     }
 
     /// <summary>
@@ -148,8 +142,8 @@ public class NuGetCacheTests
     ///     This test proves Caching-NuGetCache-EnsureCached: the library can ensure a NuGet package is cached locally,
     ///     and the operation is idempotent — calling it a second time returns the same path from the cache.
     /// </remarks>
-    [TestMethod]
-    [TestCategory("Integration")]
+    [Fact]
+    [Trait("Category", "Integration")]
     public async Task NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath()
     {
         // Arrange - use a small, known package that is reliably available on nuget.org
@@ -157,11 +151,11 @@ public class NuGetCacheTests
         const string version = "1.5.0";
 
         // Act - call EnsureCachedAsync twice with the same package identity
-        var firstPath = await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken);
-        var secondPath = await NuGetCache.EnsureCachedAsync(packageId, version, TestContext.CancellationToken);
+        var firstPath = await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None);
+        var secondPath = await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None);
 
         // Assert - both calls must return identical paths, proving the method is idempotent
         // and does not change the cache location on subsequent calls
-        Assert.AreEqual(firstPath, secondPath, "EnsureCachedAsync must return the same path on repeated calls");
+        Assert.Equal(firstPath, secondPath);
     }
 }

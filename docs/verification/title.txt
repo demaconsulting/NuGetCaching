@@ -1,0 +1,14 @@
+---
+title: NuGetCaching Verification Design Document
+subtitle: A .NET Library for Programmatic NuGet Package Caching
+author: DEMA Consulting
+description: Verification design document for NuGetCaching
+lang: en-US
+keywords:
+  - NuGetCaching
+  - .NET
+  - NuGet
+  - Library
+  - Verification
+  - Verification Design Document
+---

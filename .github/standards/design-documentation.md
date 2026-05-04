@@ -108,6 +108,13 @@ src/Project2Name/
 └── HelperClass.cs              - Helper functions
 ```
 
+### References Section (RECOMMENDED)
+
+If the design references external documents (standards, specifications), include
+a `## References` section in `introduction.md`. This is the **only** place in the
+design document collection where a References section should appear - do not add
+one to any other design file.
+
 ### Companion Artifact Structure (RECOMMENDED)
 
 Include a brief note explaining that each software item has parallel artifacts
@@ -122,6 +129,7 @@ parallel directory trees:
 
 - Requirements: `docs/reqstream/{system}/.../{item}.yaml` (kebab-case)
 - Design docs: `docs/design/{system}/.../{item}.md` (kebab-case)
+- Verification design: `docs/verification/{system}/.../{item}.md` (kebab-case)
 - Source code: `src/{System}/.../{Item}.{ext}` (cased per language - see `software-items.md`)
 - Tests: `test/{System}.Tests/.../{Item}Tests.{ext}` (cased per language - see `software-items.md`)
 - Review-sets: defined in `.reviewmark.yaml`
@@ -168,6 +176,9 @@ implementation specification for formal code review:
 - **Implementation Detail**: Provide sufficient detail for code review and implementation
 - **Architectural Clarity**: Clearly define component boundaries and interfaces
 - **Traceability**: Link to requirements where applicable using ReqStream patterns
+- **Verbal Cross-References**: Reference other parts of the design by name (e.g.,
+  "See *Parser Design* for more details") - do not use markdown hyperlinks, which
+  break in compiled PDFs
 
 # Mermaid Diagram Integration
 
