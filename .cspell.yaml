@@ -18,6 +18,7 @@ words:
   - Dema
   - fileassert
   - mstest
+  - xunit
   - netstandard
   - Newtonsoft
   - pandoc
