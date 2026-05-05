@@ -58,6 +58,7 @@ reviews:
       - "docs/design/nuget-caching.md"
       - "docs/design/nuget-caching/**/*.md"
       - "docs/verification/introduction.md"
+      - "docs/verification/ots.md"
 
   - id: NuGetCaching-AllRequirements
     title: Review that All NuGetCaching Requirements are Complete
