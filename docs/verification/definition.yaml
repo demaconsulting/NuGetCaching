@@ -8,9 +8,10 @@ resource-path:
 input-files:
   - docs/verification/title.txt
   - docs/verification/introduction.md
-  - docs/verification/nuget-caching/nuget-caching.md
+  - docs/verification/nuget-caching.md
   - docs/verification/nuget-caching/nuget-cache.md
   - docs/verification/nuget-caching/path-helpers.md
+  - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md
   - docs/verification/ots/pandoc.md

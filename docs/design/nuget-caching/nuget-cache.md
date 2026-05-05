@@ -1,6 +1,6 @@
-# NuGetCache Design
+## NuGetCache Design
 
-## Overview
+### Overview
 
 The `NuGetCache` class is a public static class providing NuGet package caching
 functionality for the DemaConsulting NuGet Caching library. It is a software unit
@@ -13,9 +13,9 @@ path) from the default machine settings, mirroring the behavior of the `dotnet` 
 and Visual Studio package restore. It communicates with configured NuGet sources using
 the NuGet client SDK to download packages when they are not already present locally.
 
-## Design Decisions
+### Design Decisions
 
-### Static Class
+#### Static Class
 
 `NuGetCache` is designed as a static class because it provides a service — ensuring
 a package is cached — that does not require instance state. All configuration is
@@ -23,14 +23,14 @@ read from the machine-level NuGet settings on each call, making the class natura
 stateless. A static class avoids unnecessary object instantiation and provides a
 simple, flat API surface for callers.
 
-### Async Approach
+#### Async Approach
 
 The primary method `EnsureCachedAsync` is asynchronous because NuGet source
 communication involves network I/O. Using `async`/`await` throughout allows the
 calling thread to be returned to the thread pool during network waits, keeping the
 library cooperative in concurrent or UI-driven environments.
 
-### NuGet Settings Integration
+#### NuGet Settings Integration
 
 Rather than accepting source URIs directly, `NuGetCache` reads from the default
 NuGet settings on the local machine via `Settings.LoadDefaultSettings(null)`. This
@@ -38,7 +38,7 @@ ensures the library respects the same `nuget.config` hierarchy (machine-wide, us
 and project-level) as the `dotnet` CLI and Visual Studio, including authenticated
 feeds, proxy settings, and package source mapping.
 
-### Early-Exit on Cache Hit
+#### Early-Exit on Cache Hit
 
 The method checks for the presence of the `.nupkg.metadata` sentinel file before
 attempting any network communication. NuGet writes this file as the final step of
@@ -47,14 +47,14 @@ fully installed. Checking for this file rather than the directory avoids a race
 condition where a partially-extracted package directory is mistaken for a complete
 installation.
 
-### Package Source Mapping Support
+#### Package Source Mapping Support
 
 When `PackageSourceMapping` is enabled in the NuGet configuration, `NuGetCache`
 filters the set of queried sources to only those explicitly mapped to the requested
 package ID. This mirrors the security and governance behavior of the NuGet toolchain,
 ensuring packages are only fetched from their authorized feeds.
 
-### Resilient Source Enumeration
+#### Resilient Source Enumeration
 
 Sources are queried sequentially. If a source is unreachable (`HttpRequestException`)
 or does not support the required NuGet protocol (`NuGetProtocolException`), the error
@@ -69,7 +69,7 @@ which sources were tried — for troubleshooting feed configuration or intermitt
 network issues — can wrap `EnsureCachedAsync` and correlate the
 `InvalidOperationException` message against their `nuget.config` source list.
 
-### Separation of Private Helpers
+#### Separation of Private Helpers
 
 Two private methods encapsulate distinct sub-responsibilities:
 
@@ -81,9 +81,9 @@ Two private methods encapsulate distinct sub-responsibilities:
 This separation keeps `EnsureCachedAsync` at a high level of abstraction and makes
 each sub-task individually readable.
 
-## Method Descriptions
+### Method Descriptions
 
-### `EnsureCachedAsync(string packageId, string version, CancellationToken)`
+#### `EnsureCachedAsync(string packageId, string version, CancellationToken)`
 
 Ensures a specific NuGet package version is available in the local global packages
 cache. The method:
@@ -103,7 +103,7 @@ Returns the absolute path to the cached package folder.
 
 Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullValidation`, and `Caching-NuGetCache-NotFound`.
 
-### `TryDownloadPackageAsync` (private)
+#### `TryDownloadPackageAsync` (private)
 
 Attempts to download a NuGet package from a single `SourceRepository`. The method:
 
@@ -116,7 +116,7 @@ Attempts to download a NuGet package from a single `SourceRepository`. The metho
    `GlobalPackagesFolderUtility.AddPackageAsync`.
 4. Returns the conventional package path on success.
 
-### `GetPackagePath` (private)
+#### `GetPackagePath` (private)
 
 Computes the conventional on-disk path that NuGet uses for an installed package:
 

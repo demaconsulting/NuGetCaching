@@ -84,6 +84,23 @@ elsewhere causes duplicate sections in the compiled PDF.
 List documents in logical reading order in Pandoc configuration because
 readers need coherent information flow from general to specific topics.
 
+## Heading Depth Rule (MANDATORY)
+
+A file's top-level heading depth must equal its folder depth under the document
+collection root - this ensures Pandoc can concatenate all files in `definition.yaml`
+order and produce a coherent outline with no heading-shift configuration:
+
+| Folder depth | Top heading |
+| --- | --- |
+| 0 - collection root | `#` |
+| 1 - one subfolder deep | `##` |
+| 2 - two subfolders deep | `###` |
+| N - N subfolders deep | `#` × (N+1) |
+
+Internal sections use the next heading level down (e.g. a `##` file uses `###`
+for *Overview*, *Interfaces*, etc.). Deeply nested files have fewer heading levels
+available - keep internal structure flat to avoid excessive nesting.
+
 # Writing Guidelines
 
 Write technical documentation for clarity and compliance verification:

@@ -48,8 +48,8 @@ Design documentation mirrors the software structure:
 ```text
 docs/design/
 ├── introduction.md             — Design overview and software structure
+├── nuget-caching.md            — System-level design
 └── nuget-caching/
-    ├── nuget-caching.md        — System-level design
     ├── nuget-cache.md          — NuGetCache unit design
     └── path-helpers.md         — PathHelpers unit design
 ```

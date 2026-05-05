@@ -1,9 +1,9 @@
-# FileAssert Verification
+## FileAssert Verification
 
 This document provides the verification evidence for the FileAssert OTS software item. Requirements
 for this OTS item are defined in the FileAssert OTS Software Requirements document.
 
-## Required Functionality
+### Required Functionality
 
 DemaConsulting.FileAssert validates HTML and PDF documents produced during the build, asserting that
 each document exists, has a non-trivial size, is structurally valid, and contains expected content.
@@ -11,7 +11,7 @@ It provides OTS evidence for Pandoc and WeasyPrint and independently confirms fi
 functioning. Self-validation proves the tool itself is operational before ReqStream consumes the
 results.
 
-## Verification Approach
+### Verification Approach
 
 FileAssert is verified by two complementary layers of evidence. First, the CI pipeline runs
 `fileassert --validate --results artifacts/fileassert-self-validation.trx` after all documents
@@ -25,9 +25,9 @@ incorrect results, causing `reqstream --enforce` to report missing test coverage
 build. A passing CI build therefore constitutes transitive evidence that FileAssert correctly
 asserted document content at each stage of the pipeline.
 
-## Test Scenarios
+### Test Scenarios
 
-### FileAssert_Results
+#### FileAssert_Results
 
 **Scenario**: FileAssert self-validation exercises the `--results` option, generating TRX test
 results containing both passing and failing outcomes.
@@ -36,7 +36,7 @@ results containing both passing and failing outcomes.
 
 **Requirement coverage**: `Caching-OTS-FileAssert`.
 
-### FileAssert_Exists
+#### FileAssert_Exists
 
 **Scenario**: FileAssert self-validation exercises a test configuration using a glob pattern to
 assert file existence.
@@ -45,7 +45,7 @@ assert file existence.
 
 **Requirement coverage**: `Caching-OTS-FileAssert`.
 
-### FileAssert_Contains
+#### FileAssert_Contains
 
 **Scenario**: FileAssert self-validation exercises a test configuration using a `contains` assertion
 to verify file content.
@@ -54,6 +54,6 @@ to verify file content.
 
 **Requirement coverage**: `Caching-OTS-FileAssert`.
 
-## Requirements Coverage
+### Requirements Coverage
 
 - **`Caching-OTS-FileAssert`**: FileAssert_Results, FileAssert_Exists, FileAssert_Contains

@@ -23,17 +23,24 @@ Organize under `docs/verification/` mirroring the software item hierarchy:
 
 ```text
 docs/verification/
-├── introduction.md              # Verification overview
-├── {system-name}/               # System-level verification folder (one per system)
-│   ├── {system-name}.md         # System-level verification design
-│   ├── {subsystem-name}/        # Subsystem (kebab-case); may nest recursively
-│   │   ├── {subsystem-name}.md  # Subsystem verification design
-│   │   ├── {child-subsystem}/   # Child subsystem (same structure as parent)
-│   │   └── {unit-name}.md       # Unit-level verification design documents
-│   └── {unit-name}.md           # Top-level unit verification documents (if not in subsystem)
-└── ots/                         # OTS items (one verification file per OTS item)
-    └── {ots-name}.md            # Verification evidence for each OTS item
+├── introduction.md              # Document overview - heading depth #
+├── {system-name}.md             # System-level verification - heading depth #
+├── {system-name}/               # System folder (one per system)
+│   ├── {subsystem-name}.md      # Subsystem verification - heading depth ##
+│   ├── {subsystem-name}/        # Subsystem folder (kebab-case); may nest recursively
+│   │   ├── {child-subsystem}.md # Child subsystem verification - heading depth ###
+│   │   ├── {child-subsystem}/   # Child subsystem folder (same structure as parent)
+│   │   └── {unit-name}.md       # Unit verification - heading depth ###
+│   └── {unit-name}.md           # System-level unit verification - heading depth ##
+├── ots.md                       # OTS section overview - heading depth # (MANDATORY if OTS items exist)
+└── ots/                         # OTS items - parallel to system folders (not inside them)
+    └── {ots-name}.md            # OTS item verification evidence - heading depth ##
 ```
+
+Each scope's overview file lives in its **parent** folder, not inside the scope's own
+subfolder - this keeps artifact locations consistent with design and requirements trees
+so any item's files are deterministically locatable, and aligns heading depth with folder
+depth for correct PDF structure (see Heading Depth Rule in `technical-documentation.md`).
 
 ## introduction.md (MANDATORY)
 
@@ -45,16 +52,16 @@ artifact to all related files:
 
 ```text
 In-house items have parallel artifacts in:
-- Requirements: `docs/reqstream/{system}/.../{item}.yaml` (kebab-case)
-- Design: `docs/design/{system}/.../{item}.md` (kebab-case)
-- Verification: `docs/verification/{system}/.../{item}.md` (kebab-case)
-- Source: `src/{System}/.../{Item}.{ext}` (cased per language)
-- Tests: `test/{System}.Tests/.../{Item}Tests.{ext}` (cased per language)
+- Requirements: `docs/reqstream/{system-name}.yaml`, `docs/reqstream/{system-name}/.../{item}.yaml`
+- Design:        `docs/design/{system-name}.md`, `docs/design/{system-name}/.../{item}.md`
+- Verification:  `docs/verification/{system-name}.md`, `docs/verification/{system-name}/.../{item}.md`
+- Source:        `src/{SystemName}/.../{Item}.{ext}` (cased per language)
+- Tests:         `test/{SystemName}.Tests/.../{Item}Tests.{ext}` (cased per language)
 
-OTS items have parallel artifacts in:
-- Requirements: `docs/reqstream/ots/{ots-name}.yaml` (kebab-case)
-- Verification: `docs/verification/ots/{ots-name}.md` (kebab-case)
-- Tests: `test/{OtsName}.Tests/...` (cased per language, if required)
+OTS items (no design documentation) have artifacts parallel to system folders:
+- Requirements: `docs/reqstream/ots/{ots-name}.yaml`
+- Verification: `docs/verification/ots/{ots-name}.md`
+- Tests (if required): `test/{OtsSoftwareTests}/...` (cased per language - see `software-items.md`)
 
 Review-sets: defined in `.reviewmark.yaml`
 ```
@@ -64,7 +71,8 @@ a `## References` section in `introduction.md` only - do not add one to any othe
 
 ## System Verification Design (MANDATORY)
 
-For each system, create a kebab-case folder and `{system-name}.md` covering:
+For each system, create `{system-name}.md` at `docs/verification/` root and a
+`{system-name}/` folder for subsystems. Cover:
 
 - System verification strategy and overall test approach
 - Test environments and configuration required
@@ -75,7 +83,8 @@ For each system, create a kebab-case folder and `{system-name}.md` covering:
 
 ## Subsystem Verification Design (MANDATORY)
 
-For each subsystem, create a kebab-case folder and `{subsystem-name}.md` covering:
+For each subsystem, place `{subsystem-name}.md` in the parent (system or subsystem)
+folder and create a `{subsystem-name}/` folder for its units. Cover:
 
 - Subsystem verification strategy and integration test approach
 - Dependencies that must be mocked or stubbed at the subsystem boundary
@@ -84,7 +93,7 @@ For each subsystem, create a kebab-case folder and `{subsystem-name}.md` coverin
 
 ## Unit Verification Design (MANDATORY)
 
-For each unit, create `{unit-name}.md` covering:
+Place `{unit-name}.md` in the parent (system or subsystem) folder. Cover:
 
 - Verification approach for each unit requirement
 - Named test scenarios including boundary conditions, error paths, and normal-operation cases
@@ -92,6 +101,10 @@ For each unit, create `{unit-name}.md` covering:
 - Coverage mapping of every unit requirement to at least one named test scenario
 
 ## OTS Verification Evidence (when OTS items are used)
+
+Create `docs/verification/ots.md` at the collection root with a `#` top-level heading. This
+file introduces the OTS verification approach and ensures OTS items compile as a top-level
+section in the PDF rather than as subsystems of the last in-house system.
 
 For each OTS item, create `docs/verification/ots/{ots-name}.md` covering:
 
@@ -121,8 +134,11 @@ Before submitting verification documentation, verify:
 - [ ] System verification documents cover end-to-end and integration scenarios
 - [ ] Subsystem verification documents identify mocked boundaries and integration scenarios
 - [ ] Unit verification documents identify individual scenarios including boundary and error paths
-- [ ] Subsystem documentation folders use kebab-case names mirroring the source subsystem structure
+- [ ] Files organized under `docs/verification/` following the folder structure pattern above
+- [ ] Each file's top-level heading depth matches its folder depth per the Heading Depth Rule
+- [ ] All documentation folders use kebab-case names mirroring source code structure
 - [ ] All documents follow technical documentation formatting standards
 - [ ] Content is current with requirements and test implementation
 - [ ] Every OTS item has `docs/verification/ots/{ots-name}.md` with requirement coverage
+- [ ] `docs/verification/ots.md` exists with a `#` heading when OTS items are present
 - [ ] Documents are integrated into ReviewMark review-sets for formal review

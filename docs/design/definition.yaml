@@ -5,7 +5,7 @@ resource-path:
 input-files:
   - docs/design/title.txt
   - docs/design/introduction.md
-  - docs/design/nuget-caching/nuget-caching.md
+  - docs/design/nuget-caching.md
   - docs/design/nuget-caching/nuget-cache.md
   - docs/design/nuget-caching/path-helpers.md
 template: template.html
