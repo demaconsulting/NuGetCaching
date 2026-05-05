@@ -18,19 +18,24 @@ because ReqStream discovers files via the includes chain in `requirements.yaml`
 and organizes report output by this hierarchy:
 
 ```text
-requirements.yaml                   # Root file (includes only)
+requirements.yaml                    # Root file (includes only)
 docs/reqstream/
-├── {system-name}/                  # System-level requirements folder (one per system)
-│   ├── {system-name}.yaml          # System-level requirements
+├── {system-name}.yaml               # System-level requirements
+├── {system-name}/                   # System folder (one per system)
 │   ├── platform-requirements.yaml  # Platform support requirements
-│   ├── {subsystem-name}/           # Subsystem (kebab-case); may nest recursively
-│   │   ├── {subsystem-name}.yaml   # Requirements for this subsystem
-│   │   ├── {child-subsystem}/      # Child subsystem (same structure as parent)
-│   │   └── {unit-name}.yaml        # Requirements for units within this subsystem
-│   └── {unit-name}.yaml            # Requirements for top-level units (outside subsystems)
-└── ots/                            # OTS items appear as a distinct section in reports
-    └── {ots-name}.yaml             # Requirements for OTS components
+│   ├── {subsystem-name}.yaml        # Subsystem requirements
+│   ├── {subsystem-name}/            # Subsystem folder (kebab-case); may nest recursively
+│   │   ├── {child-subsystem}.yaml   # Child subsystem requirements
+│   │   ├── {child-subsystem}/       # Child subsystem folder
+│   │   └── {unit-name}.yaml         # Unit requirements
+│   └── {unit-name}.yaml             # System-level unit requirements
+└── ots/                             # OTS items appear as a distinct section in reports
+    └── {ots-name}.yaml              # Requirements for OTS components
 ```
+
+In-house items have matching relative paths across `docs/reqstream/`, `docs/design/`, and
+`docs/verification/`. OTS items appear only in `docs/reqstream/ots/` and
+`docs/verification/ots/` - they have no design documentation.
 
 # Requirements File Format
 
@@ -62,7 +67,7 @@ sections:
     sections:
       - title: System.Text.Json
         requirements:
-          - id: TemplateTool-SystemTextJson-ReadJson
+          - id: SystemTextJson-Core-ReadJson
             title: System.Text.Json shall be able to read JSON files.
             tests:
               - JsonReaderTests.TestReadValidJson
@@ -124,8 +129,8 @@ Before submitting requirements, verify:
 - [ ] Every requirement links to at least one passing test
 - [ ] Platform-specific requirements use source filters (`platform@TestName`)
 - [ ] Comprehensive justification explains business/regulatory need
-- [ ] Files organized under `docs/reqstream/` following folder structure patterns
-- [ ] Subsystem folders use kebab-case naming matching source code
+- [ ] Files organized under `docs/reqstream/` following the folder structure pattern above
+- [ ] All documentation folders use kebab-case names matching source code structure
 - [ ] OTS requirements placed in `ots/` subfolder
 - [ ] Valid YAML syntax passes yamllint validation
 - [ ] Test result formats compatible (TRX, JUnit XML)

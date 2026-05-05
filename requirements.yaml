@@ -20,7 +20,7 @@
 #   list below (system files first, then platform, then subsystem/unit files, then ots files)
 
 includes:
-  - docs/reqstream/nuget-caching/nuget-caching.yaml
+  - docs/reqstream/nuget-caching.yaml
   - docs/reqstream/nuget-caching/platform-requirements.yaml
   - docs/reqstream/nuget-caching/nuget-cache.yaml
   - docs/reqstream/nuget-caching/path-helpers.yaml

@@ -35,26 +35,27 @@ reviews:
     paths:
       - "README.md"
       - "docs/user_guide/**/*.md"
-      - "docs/reqstream/nuget-caching/nuget-caching.yaml"
+      - "docs/reqstream/nuget-caching.yaml"
       - "docs/design/introduction.md"
-      - "docs/design/nuget-caching/nuget-caching.md"
+      - "docs/design/nuget-caching.md"
 
   # NuGetCaching - Specials
   - id: NuGetCaching-Architecture
     title: Review that NuGetCaching Architecture Satisfies Requirements
     paths:
-      - "docs/reqstream/nuget-caching/nuget-caching.yaml"
+      - "docs/reqstream/nuget-caching.yaml"
       - "docs/design/introduction.md"
-      - "docs/design/nuget-caching/nuget-caching.md"
-      - "docs/verification/nuget-caching/nuget-caching.md"
+      - "docs/design/nuget-caching.md"
+      - "docs/verification/nuget-caching.md"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCachingTests.cs"
 
   - id: NuGetCaching-Design
     title: Review that NuGetCaching Design is Consistent and Complete
     paths:
-      - "docs/reqstream/nuget-caching/nuget-caching.yaml"
+      - "docs/reqstream/nuget-caching.yaml"
       - "docs/reqstream/nuget-caching/platform-requirements.yaml"
       - "docs/design/introduction.md"
+      - "docs/design/nuget-caching.md"
       - "docs/design/nuget-caching/**/*.md"
       - "docs/verification/introduction.md"
 
@@ -62,6 +63,7 @@ reviews:
     title: Review that All NuGetCaching Requirements are Complete
     paths:
       - "requirements.yaml"
+      - "docs/reqstream/nuget-caching.yaml"
       - "docs/reqstream/nuget-caching/**/*.yaml"
       - "docs/reqstream/ots/**/*.yaml"
 

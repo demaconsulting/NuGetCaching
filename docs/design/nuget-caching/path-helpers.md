@@ -1,6 +1,6 @@
-# PathHelpers Design
+## PathHelpers Design
 
-## Overview
+### Overview
 
 `PathHelpers` is an internal static utility class providing a safe path-combination method
 in the DemaConsulting NuGet Caching library. It protects callers against path-traversal
@@ -11,9 +11,9 @@ points, so this check guards against string-level traversal only.
 The class is marked `internal` because it is an implementation detail of the library and is
 not part of the public API surface.
 
-## Class Structure
+### Class Structure
 
-### SafePathCombine Method
+#### SafePathCombine Method
 
 ```csharp
 internal static string SafePathCombine(string basePath, string relativePath)
@@ -33,22 +33,22 @@ the base directory.
    `Path.DirectorySeparatorChar` or `Path.AltDirectorySeparatorChar`, or is itself rooted
    (absolute), which would indicate the combined path escapes the base directory.
 
-## Design Decisions
+### Design Decisions
 
-### Internal Class
+#### Internal Class
 
 `PathHelpers` is declared `internal` to enforce encapsulation. Callers outside the
 assembly have no need to perform safe path combination using this class; they interact
 only with the `NuGetCache` public API. Keeping the class internal prevents accidental
 coupling to an implementation detail and keeps the public API surface minimal.
 
-### Static Class
+#### Static Class
 
 All operations in `PathHelpers` are pure functions that depend only on their input
 parameters and have no side effects. A static class is therefore appropriate: it
 requires no instantiation and has no lifecycle to manage.
 
-### `Path.GetRelativePath` for Containment Check
+#### `Path.GetRelativePath` for Containment Check
 
 Using `GetRelativePath` to verify containment handles root paths (e.g. `/`, `C:\`),
 platform case-sensitivity, and directory-separator normalization natively. The containment
@@ -56,13 +56,13 @@ test treats `..` as an escaping segment only when it is the entire relative resu
 followed by a directory separator, avoiding false positives for valid in-base names such
 as `..data`.
 
-### Post-Combine Canonical-Path Check
+#### Post-Combine Canonical-Path Check
 
 Resolving paths after combining handles all traversal patterns — `../`, embedded `/../`,
 absolute-path overrides, and platform edge cases — without fragile pre-combine string
 inspection of `relativePath`.
 
-### .NET Standard 2.0 Compatibility
+#### .NET Standard 2.0 Compatibility
 
 `Path.GetRelativePath` is available on all supported target frameworks via the Polyfill
 library, which provides a compatible implementation for `netstandard2.0`.
@@ -73,7 +73,7 @@ library, which provides a compatible implementation for `netstandard2.0`.
 > are therefore outside the scope of this protection; callers are responsible for ensuring
 > the base directory contains no untrusted symbolic links.
 
-### Rejection Strategy
+#### Rejection Strategy
 
 Rather than sanitizing or normalizing an invalid path, `SafePathCombine` throws an
 `ArgumentException` immediately when a violation is detected. Failing fast with a clear
@@ -81,14 +81,14 @@ exception is preferable to silently correcting or ignoring potentially malicious
 as it surfaces bugs in calling code during development and makes security boundaries
 explicit.
 
-### No Logging or Error Accumulation
+#### No Logging or Error Accumulation
 
 `SafePathCombine` is a pure utility method that throws on invalid input; it does not
 interact with any context or output mechanism.
 
-## Method Descriptions
+### Method Descriptions
 
-### `SafePathCombine(string basePath, string relativePath)`
+#### `SafePathCombine(string basePath, string relativePath)`
 
 Safely combines `basePath` and `relativePath`, returning the resulting path string.
 

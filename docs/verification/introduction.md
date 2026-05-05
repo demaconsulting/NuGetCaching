@@ -64,15 +64,15 @@ OTS Items
 
 In-house items have corresponding artifacts in parallel directory trees:
 
-- Requirements: `docs/reqstream/{system}/.../{item}.yaml` (kebab-case)
-- Design docs: `docs/design/{system}/.../{item}.md` (kebab-case)
-- Verification design: `docs/verification/{system}/.../{item}.md` (kebab-case)
-- Source code: `src/{System}/.../{Item}.cs` (PascalCase for C#)
-- Tests: `test/{System}.Tests/.../{Item}Tests.cs` (PascalCase for C#)
+- Requirements: `docs/reqstream/{system-name}.yaml`, `docs/reqstream/{system-name}/.../{item}.yaml`
+- Design: `docs/design/{system-name}.md`, `docs/design/{system-name}/.../{item}.md`
+- Verification: `docs/verification/{system-name}.md`, `docs/verification/{system-name}/.../{item}.md`
+- Source code: `src/{SystemName}/.../{Item}.cs` (PascalCase for C#)
+- Tests: `test/{SystemName}.Tests/.../{Item}Tests.cs` (PascalCase for C#)
 
 OTS items have parallel artifacts in:
 
-- Requirements: `docs/reqstream/ots/{ots-name}.yaml` (kebab-case)
-- Verification: `docs/verification/ots/{ots-name}.md` (kebab-case)
+- Requirements: `docs/reqstream/ots/{ots-name}.yaml`
+- Verification: `docs/verification/ots/{ots-name}.md`
 
 Review-sets: defined in `.reviewmark.yaml`

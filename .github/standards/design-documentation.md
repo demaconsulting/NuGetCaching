@@ -35,15 +35,20 @@ design to implementation:
 
 ```text
 docs/design/
-├── introduction.md              # Design overview with software structure
-└── {system-name}/               # System-level design folder (one per system)
-    ├── {system-name}.md         # System-level design documentation
-    ├── {subsystem-name}/        # Subsystem (kebab-case); may nest recursively
-    │   ├── {subsystem-name}.md  # Subsystem overview and design
-    │   ├── {child-subsystem}/   # Child subsystem (same structure as parent)
-    │   └── {unit-name}.md       # Unit-level design documents
-    └── {unit-name}.md           # Top-level unit design documents (if not in subsystem)
+├── introduction.md              # Document overview - heading depth #
+├── {system-name}.md             # System-level design - heading depth #
+└── {system-name}/               # System folder (one per system)
+    ├── {subsystem-name}.md      # Subsystem overview - heading depth ##
+    ├── {subsystem-name}/        # Subsystem folder (kebab-case); may nest recursively
+    │   ├── {child-subsystem}.md # Child subsystem overview - heading depth ###
+    │   ├── {child-subsystem}/   # Child subsystem folder (same structure as parent)
+    │   └── {unit-name}.md       # Unit design - heading depth ###
+    └── {unit-name}.md           # System-level unit design - heading depth ##
 ```
+
+Each scope's overview file lives in its **parent** folder, not inside the scope's own
+subfolder - this aligns heading depth with folder depth so the compiled PDF has a
+meaningful multi-level outline (see Heading Depth Rule in `technical-documentation.md`).
 
 ## introduction.md (MANDATORY)
 
@@ -124,23 +129,30 @@ artifact to all related files:
 Example format:
 
 ```text
-Each software item in the structure above has corresponding artifacts in
-parallel directory trees:
+Each in-house software item has corresponding artifacts in parallel directory trees:
 
-- Requirements: `docs/reqstream/{system}/.../{item}.yaml` (kebab-case)
-- Design docs: `docs/design/{system}/.../{item}.md` (kebab-case)
-- Verification design: `docs/verification/{system}/.../{item}.md` (kebab-case)
-- Source code: `src/{System}/.../{Item}.{ext}` (cased per language - see `software-items.md`)
-- Tests: `test/{System}.Tests/.../{Item}Tests.{ext}` (cased per language - see `software-items.md`)
-- Review-sets: defined in `.reviewmark.yaml`
+- Requirements: `docs/reqstream/{system-name}.yaml`, `docs/reqstream/{system-name}/.../{item}.yaml`
+- Design docs:  `docs/design/{system-name}.md`, `docs/design/{system-name}/.../{item}.md`
+- Verification: `docs/verification/{system-name}.md`, `docs/verification/{system-name}/.../{item}.md`
+- Source code:  `src/{SystemName}/.../{Item}.{ext}` (cased per language - see `software-items.md`)
+- Tests:        `test/{SystemName}.Tests/.../{Item}Tests.{ext}` (cased per language)
+
+OTS items have no design documentation; their artifacts sit parallel to system folders:
+
+- Requirements: `docs/reqstream/ots/{ots-name}.yaml`
+- Verification: `docs/verification/ots/{ots-name}.md`
+- Tests (optional): `test/{OtsSoftwareTests}/...` (cased per language - see `software-items.md`)
+
+Review-sets: defined in `.reviewmark.yaml`
 ```
 
 ## System Design Documentation (MANDATORY)
 
 For each system identified in the repository:
 
-- Create a kebab-case folder matching the system name
-- Include `{system-name}.md` with system-level design documentation such as:
+- Create `{system-name}.md` directly under `docs/design/` (heading depth `#`)
+- Create a kebab-case folder `{system-name}/` to hold its subsystems and units
+- `{system-name}.md` must cover:
   - System architecture and major components
   - External interfaces and dependencies
   - Data flow and control flow
@@ -151,16 +163,20 @@ For each system identified in the repository:
 
 For each subsystem identified in the software structure:
 
-- Create a kebab-case folder matching the subsystem name (enables automated tooling)
-- Include `{subsystem-name}.md` with subsystem overview and design
-- Include unit design documents for ALL units within the subsystem
+- Place `{subsystem-name}.md` inside the **parent** folder (the system folder, or parent
+  subsystem folder) - not inside its own subfolder
+- Create a kebab-case folder `{subsystem-name}/` to hold its child units and subsystems
+- `{subsystem-name}.md` must cover subsystem overview and design
 
 For every unit identified in the software structure:
 
+- Place `{unit-name}.md` inside its parent scope's folder (system or subsystem folder)
 - Document data models, algorithms, and key methods
 - Describe interactions with other units
 - Include sufficient detail for formal code review
-- Place in appropriate subsystem folder or at design root level
+
+Follow the Heading Depth Rule from `technical-documentation.md` - a file's top-level
+heading depth equals its folder depth under `docs/design/`.
 
 # Software Items Integration (CRITICAL)
 
@@ -191,9 +207,11 @@ Before submitting design documentation, verify:
 - [ ] `introduction.md` includes both Software Structure and Folder Layout sections
 - [ ] Software structure correctly categorizes items as System/Subsystem/Unit per `software-items.md`
 - [ ] Folder layout mirrors software structure organization
+- [ ] Files organized under `docs/design/` following the folder structure pattern above
+- [ ] Each file's top-level heading depth matches its folder depth per the Heading Depth Rule
 - [ ] Design documents provide sufficient detail for code review
 - [ ] System documentation provides comprehensive system-level design
-- [ ] Subsystem documentation folders use kebab-case names while mirroring source subsystem names and structure
+- [ ] All documentation folders use kebab-case names mirroring source code structure
 - [ ] All documents follow technical documentation formatting standards
 - [ ] Content is current with implementation and requirements
 - [ ] Documents are integrated into ReviewMark review-sets for formal review

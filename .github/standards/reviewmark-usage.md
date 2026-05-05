@@ -61,6 +61,17 @@ needs-review:
 # Source of review evidence
 evidence-source:
   type: none
+
+# Review-sets (each focuses on a single compliance question)
+reviews:
+  - id: Purpose
+    title: Review of user-facing capabilities and system promises
+    paths:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+      - "docs/reqstream/{system-name}.yaml"
+      - "docs/design/introduction.md"
+      - "docs/design/{system-name}.md"
 ```
 
 # Review-Set Design Principles
@@ -95,9 +106,9 @@ Reviews user-facing capabilities and system promises:
 - **File Path Patterns**:
   - README: `README.md`
   - User guide: `docs/user_guide/**/*.md`
-  - System requirements: `docs/reqstream/{system-name}/{system-name}.yaml`
+  - System requirements: `docs/reqstream/{system-name}.yaml`
   - Design introduction: `docs/design/introduction.md`
-  - System design: `docs/design/{system-name}/{system-name}.md`
+  - System design: `docs/design/{system-name}.md`
 
 ## `{System}-Architecture` Review (one per system)
 
@@ -108,11 +119,11 @@ Reviews system architecture and operational validation:
 - **Scope**: Excludes subsystem and unit files, relying on system-level design to describe
   what subsystems and units it uses
 - **File Path Patterns**:
-  - System requirements: `docs/reqstream/{system-name}/{system-name}.yaml`
+  - System requirements: `docs/reqstream/{system-name}.yaml`
   - Design introduction: `docs/design/introduction.md`
-  - System design: `docs/design/{system-name}/{system-name}.md`
+  - System design: `docs/design/{system-name}.md`
   - Verification introduction: `docs/verification/introduction.md`
-  - System verification design: `docs/verification/{system-name}/{system-name}.md`
+  - System verification design: `docs/verification/{system-name}.md`
   - System integration tests: `test/{SystemName}.Tests/{SystemName}Tests.{ext}`
 
 ## `{System}-Design` Review (one per system)
@@ -123,9 +134,10 @@ Reviews architectural and design consistency:
 - **Title**: "Review that {System} Design is Consistent and Complete"
 - **Scope**: Only brings in top-level requirements and relies on brevity of design documentation
 - **File Path Patterns**:
-  - System requirements: `docs/reqstream/{system-name}/{system-name}.yaml`
+  - System requirements: `docs/reqstream/{system-name}.yaml`
   - Platform requirements: `docs/reqstream/{system-name}/platform-requirements.yaml`
   - Design introduction: `docs/design/introduction.md`
+  - System design: `docs/design/{system-name}.md`
   - System design files: `docs/design/{system-name}/**/*.md`
 
 ## `{System}-AllRequirements` Review (one per system)
@@ -137,8 +149,8 @@ Reviews requirements quality and traceability:
 - **Scope**: Only brings in requirements files to keep review manageable
 - **File Path Patterns**:
   - Root requirements: `requirements.yaml`
-  - System requirements: `docs/reqstream/{system-name}/**/*.yaml`
-  - OTS requirements: `docs/reqstream/ots/**/*.yaml` (if applicable)
+  - System requirements: `docs/reqstream/{system-name}.yaml`
+  - Subsystem/unit requirements: `docs/reqstream/{system-name}/**/*.yaml`
 
 ## `{System}-{Subsystem[-Child...]}` Review (one per subsystem at any depth)
 
@@ -149,9 +161,9 @@ Reviews subsystem architecture and interfaces:
 - **Scope**: Excludes units under the subsystem, relying on subsystem design to describe
   what units it uses
 - **File Path Patterns**:
-  - Requirements: `docs/reqstream/{system-name}/.../{subsystem-name}/{subsystem-name}.yaml`
-  - Design: `docs/design/{system-name}/.../{subsystem-name}/{subsystem-name}.md`
-  - Verification design: `docs/verification/{system-name}/.../{subsystem-name}/{subsystem-name}.md`
+  - Requirements: `docs/reqstream/{system-name}/.../{subsystem-name}.yaml`
+  - Design: `docs/design/{system-name}/.../{subsystem-name}.md`
+  - Verification design: `docs/verification/{system-name}/.../{subsystem-name}.md`
   - Tests: `test/{SystemName}.Tests/.../{SubsystemName}/{SubsystemName}Tests.{ext}`
 
 ## `{System}-{Subsystem[-Child...]}-{Unit}` Review (one per unit)
@@ -167,6 +179,19 @@ Reviews individual software unit implementation:
   - Verification design: `docs/verification/{system-name}/.../{unit-name}.md`
   - Source: `src/{SystemName}/.../{UnitName}.{ext}`
   - Tests: `test/{SystemName}.Tests/.../{UnitName}Tests.{ext}`
+
+## `OTS-{OtsName}` Review (one per OTS item)
+
+Reviews OTS item requirements and verification evidence:
+
+- **Purpose**: Proves that the OTS item provides the required functionality
+- **Title**: "Review that {OtsName} Provides Required Functionality"
+- **Scope**: OTS items have no in-house design or source; review covers requirements and
+  verification evidence only
+- **File Path Patterns**:
+  - OTS requirements: `docs/reqstream/ots/{ots-name}.yaml`
+  - OTS verification: `docs/verification/ots/{ots-name}.md`
+  - Tests (if applicable): `test/{OtsSoftwareTests}/...` (cased per language)
 
 **Note**: File path patterns use `{ext}` as a placeholder for language-specific
 extensions (`.cs`, `.cpp`/`.hpp`, `.py`, etc.). Adapt to your repository's languages.
@@ -184,6 +209,7 @@ Before submitting ReviewMark configuration, verify:
 - [ ] Architecture review-sets include system verification design alongside system design
 - [ ] Subsystem review-sets include subsystem verification design
 - [ ] Unit review-sets include unit verification design
+- [ ] OTS review-sets include OTS requirements and verification evidence
 - [ ] Each review-set focuses on a single compliance question (single focus principle)
 - [ ] File patterns use correct glob syntax and match intended files
 - [ ] Review-set file counts remain manageable (context management principle)
