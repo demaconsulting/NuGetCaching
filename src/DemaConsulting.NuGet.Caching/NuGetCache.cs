@@ -123,6 +123,7 @@ public static class NuGetCache
                 globalPackagesFolder,
                 clientPolicyContext,
                 sourceCacheContext,
+                providers,
                 cancellationToken);
 
             // Return the installed package path on the first successful download
@@ -172,6 +173,7 @@ public static class NuGetCache
     /// <param name="globalPackagesFolder">Absolute path to the NuGet global packages folder.</param>
     /// <param name="clientPolicyContext">The client signing policy context from NuGet settings.</param>
     /// <param name="cacheContext">Shared <see cref="SourceCacheContext"/> for HTTP caching.</param>
+    /// <param name="providers">NuGet resource providers used when creating a v2 fallback repository.</param>
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
     /// <returns>
     ///     A <see cref="TryDownloadResult"/> whose <c>PackagePath</c> is the absolute path to the
@@ -187,6 +189,7 @@ public static class NuGetCache
         string globalPackagesFolder,
         ClientPolicyContext clientPolicyContext,
         SourceCacheContext cacheContext,
+        IEnumerable<Lazy<INuGetResourceProvider>> providers,
         CancellationToken cancellationToken)
     {
         // Build the package identity from the provided packageId and version
@@ -201,12 +204,35 @@ public static class NuGetCache
         }
         catch (NuGetProtocolException ex)
         {
-            // Protocol error loading the service index - most commonly caused by a v2-only
-            // feed being configured with a v3 URL ending in '.json'; surface a diagnostic
-            // message so the caller can include it in the final not-found exception
+            // Protocol error loading the service index. If the URL ends in '/index.json',
+            // automatically retry with the base URL as a v2 OData fallback - this
+            // transparently handles v2-only feeds (e.g. JFrog Artifactory) that are
+            // configured with a v3-style URL ending in '/index.json'.
             var source = sourceRepository.PackageSource.Source;
+            if (source.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseUrl = source[..^"/index.json".Length];
+                var fallbackSource = new PackageSource(baseUrl, sourceRepository.PackageSource.Name)
+                {
+                    Credentials = sourceRepository.PackageSource.Credentials,
+                };
+                var fallbackRepository = new SourceRepository(fallbackSource, providers);
+                var fallbackResult = await TryDownloadPackageAsync(
+                    fallbackRepository, packageId, version, globalPackagesFolder,
+                    clientPolicyContext, cacheContext, providers, cancellationToken);
+
+                // If the fallback succeeded, or definitively determined the package is absent,
+                // return that result - the URL mismatch was resolved transparently
+                if (fallbackResult.PackagePath != null || fallbackResult.ErrorMessage == null)
+                {
+                    return fallbackResult;
+                }
+            }
+
+            // Surface a diagnostic message so the caller can include it in the
+            // final not-found exception
             return new TryDownloadResult(null,
-                $"{source}: Failed to load source index. The feed may be v2-only; use the base URL without '/index.json'. ({ex.Message})");
+                $"{source}: Failed to load source index. ({ex.Message})");
         }
         catch (HttpRequestException)
         {

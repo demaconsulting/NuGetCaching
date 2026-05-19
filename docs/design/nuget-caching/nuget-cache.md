@@ -54,14 +54,25 @@ filters the set of queried sources to only those explicitly mapped to the reques
 package ID. This mirrors the security and governance behavior of the NuGet toolchain,
 ensuring packages are only fetched from their authorized feeds.
 
-#### Resilient Source Enumeration with Diagnostic Reporting
+#### Resilient Source Enumeration with Automatic v2 Fallback
 
-Sources are queried sequentially. If a source fails with a `NuGetProtocolException` (e.g.
-a v2-only feed configured with a v3 `.json` URL), the error message is captured and
-accumulated so it can be appended to the final `InvalidOperationException`. If a source
-fails with an `HttpRequestException` (transient network error), the failure is silently
-swallowed and the next source is tried — network outages on individual feeds should not
-surface actionable errors to the caller.
+Sources are queried sequentially. If a source fails with a `NuGetProtocolException` while
+loading the service index (e.g. a v2-only feed configured with a v3 `.json` URL), the
+library checks whether the source URL ends in `/index.json`. If it does, it automatically
+retries using the base URL (with `/index.json` stripped) as a v2 OData endpoint. This
+transparently handles the JFrog Artifactory pattern where administrators copy a v3-style
+URL that is actually a v2-only feed.
+
+- **Automatic v2 fallback**: If the fallback succeeds (or confirms the package is absent),
+  the result is returned with no diagnostic overhead — the URL mismatch is resolved
+  transparently.
+- **Both attempts fail**: If both the original URL and the v2 fallback fail with protocol
+  errors, the error from the original configured URL is captured and accumulated for the
+  final exception.
+- **Non-`/index.json` protocol errors**: If the URL does not end in `/index.json` and
+  a `NuGetProtocolException` occurs, the error is captured and accumulated.
+- **Network errors**: `HttpRequestException` (transient network error) is always silently
+  swallowed — network outages on individual feeds are non-actionable.
 
 If no source has the package, an `InvalidOperationException` is thrown. When at least one
 source produced a diagnostic message, those messages are appended to the exception in the
@@ -69,12 +80,11 @@ form:
 
 ```text
 Package 'X' version '1.0.0' was not found in any configured NuGet source.
-  - https://feed/index.json: Failed to load source index. The feed may be v2-only; ...
+  - https://feed/index.json: Failed to load source index. (...)
 ```
 
 This allows callers to distinguish a genuine "package absent" outcome from a feed
-misconfiguration (such as a JFrog Artifactory v2-only endpoint addressed with a v3 URL)
-without requiring additional logging infrastructure.
+misconfiguration, without requiring additional logging infrastructure.
 
 #### Separation of Private Helpers
 
@@ -124,9 +134,15 @@ Attempts to download a NuGet package from a single `SourceRepository`. Returns a
 success) or a diagnostic error message (on an actionable failure). The method:
 
 1. Obtains a `FindPackageByIdResource` from the source repository. On
-   `NuGetProtocolException` (e.g. v2-only feed at a v3 URL), returns an error result
-   with a diagnostic message. On `HttpRequestException` (transient network error) or a
-   null resource, returns an empty result so the caller silently tries the next source.
+   `NuGetProtocolException` (e.g. v2-only feed at a v3 URL):
+   - If the source URL ends in `/index.json`, automatically retries with the base URL
+     (stripping `/index.json`) as a v2 OData fallback, preserving the original source
+     name and credentials. Returns the fallback result if it succeeded or was silent
+     (package not found / network error).
+   - If the fallback also fails, or the URL does not end in `/index.json`, returns an
+     error result with a diagnostic message referencing the original configured URL.
+   On `HttpRequestException` (transient network error) or a null resource, returns an
+   empty result so the caller silently tries the next source.
 2. Streams the `.nupkg` bytes into a `MemoryStream` using `CopyNupkgToStreamAsync`,
    returning an empty result if the package is absent from this source, an error result
    on `NuGetProtocolException`, or an empty result on `HttpRequestException`.
