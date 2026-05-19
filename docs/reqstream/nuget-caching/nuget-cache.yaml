@@ -39,3 +39,4 @@ sections:
           or a transient network failure on a single source.
         tests:
           - NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion

@@ -106,13 +106,17 @@ public static class NuGetCache
             ? enabledSources.Where(s => packageSourceMapping.GetConfiguredPackageSources(packageId).Contains(s.Name))
             : enabledSources;
 
+        // Accumulate per-source diagnostic messages so they can be included in the
+        // final exception when all sources fail - giving callers actionable context
+        var sourceErrors = new List<string>();
+
         foreach (var packageSource in allowedSources)
         {
             // Build a source repository for this feed using the V3 provider chain
             var sourceRepository = new SourceRepository(packageSource, providers);
 
-            // Attempt to download the package from this source; null means not found here
-            var downloadedPath = await TryDownloadPackageAsync(
+            // Attempt to download the package from this source
+            var result = await TryDownloadPackageAsync(
                 sourceRepository,
                 packageId,
                 nugetVersion,
@@ -122,16 +126,41 @@ public static class NuGetCache
                 cancellationToken);
 
             // Return the installed package path on the first successful download
-            if (downloadedPath != null)
+            if (result.PackagePath != null)
             {
-                return downloadedPath;
+                return result.PackagePath;
+            }
+
+            // Record any source-level diagnostic message for inclusion in the final exception
+            if (result.ErrorMessage != null)
+            {
+                sourceErrors.Add(result.ErrorMessage);
             }
         }
 
-        // No configured source contained the requested package
-        throw new InvalidOperationException(
-            $"Package '{packageId}' version '{version}' was not found in any configured NuGet source.");
+        // Build the final exception message; append per-source diagnostics when available
+        // so callers can identify which sources failed and why (e.g. v2-only feed misconfiguration)
+        var baseMessage = $"Package '{packageId}' version '{version}' was not found in any configured NuGet source.";
+        var fullMessage = sourceErrors.Count > 0
+            ? baseMessage + Environment.NewLine + string.Join(Environment.NewLine, sourceErrors.Select(e => $"  - {e}"))
+            : baseMessage;
+
+        throw new InvalidOperationException(fullMessage);
     }
+
+    /// <summary>
+    ///     Represents the result of a single package download attempt from one NuGet source.
+    /// </summary>
+    /// <param name="PackagePath">
+    ///     The absolute path to the installed package folder, or <see langword="null"/> if the
+    ///     package was not available or could not be downloaded from this source.
+    /// </param>
+    /// <param name="ErrorMessage">
+    ///     A diagnostic message describing a source-level failure (e.g. protocol mismatch),
+    ///     or <see langword="null"/> when the source was reachable but simply did not carry
+    ///     the requested package, or when the failure is transient and non-actionable.
+    /// </param>
+    private readonly record struct TryDownloadResult(string? PackagePath, string? ErrorMessage);
 
     /// <summary>
     ///     Attempts to download a NuGet package from a single source repository and install it
@@ -145,10 +174,13 @@ public static class NuGetCache
     /// <param name="cacheContext">Shared <see cref="SourceCacheContext"/> for HTTP caching.</param>
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
     /// <returns>
-    ///     The absolute path to the installed package directory, or <see langword="null"/> if the
-    ///     package was not available from this source or the source could not be reached.
+    ///     A <see cref="TryDownloadResult"/> whose <c>PackagePath</c> is the absolute path to the
+    ///     installed package directory on success, or <see langword="null"/> when the package was
+    ///     not found or a non-actionable transient error occurred. <c>ErrorMessage</c> is populated
+    ///     with a diagnostic string when the source failed in an actionable way (e.g. protocol
+    ///     mismatch) so the caller can surface it in the final exception.
     /// </returns>
-    private static async Task<string?> TryDownloadPackageAsync(
+    private static async Task<TryDownloadResult> TryDownloadPackageAsync(
         SourceRepository sourceRepository,
         string packageId,
         NuGetVersion version,
@@ -167,21 +199,26 @@ public static class NuGetCache
         {
             resource = await sourceRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
         }
-        catch (NuGetProtocolException)
+        catch (NuGetProtocolException ex)
         {
-            // Source is unreachable or misconfigured - skip it and try the next one
-            return null;
+            // Protocol error loading the service index - most commonly caused by a v2-only
+            // feed being configured with a v3 URL ending in '.json'; surface a diagnostic
+            // message so the caller can include it in the final not-found exception
+            var source = sourceRepository.PackageSource.Source;
+            return new TryDownloadResult(null,
+                $"{source}: Failed to load source index. The feed may be v2-only; use the base URL without '/index.json'. ({ex.Message})");
         }
         catch (HttpRequestException)
         {
-            // Network-level failure talking to this source - skip it and try the next one
-            return null;
+            // Transient network-level failure talking to this source - not actionable,
+            // so skip silently and try the next source
+            return default;
         }
 
         // A null resource means this source does not support the required protocol
         if (resource == null)
         {
-            return null;
+            return default;
         }
 
         // Stream the .nupkg bytes into memory; returns false when the package is absent from
@@ -198,21 +235,24 @@ public static class NuGetCache
                 NullLogger.Instance,
                 cancellationToken);
         }
-        catch (NuGetProtocolException)
+        catch (NuGetProtocolException ex)
         {
-            // Download failure from this source - skip it and try the next one
-            return null;
+            // Protocol error during the download itself - surface a diagnostic message
+            // so the caller can include it in the final not-found exception
+            var source = sourceRepository.PackageSource.Source;
+            return new TryDownloadResult(null,
+                $"{source}: Protocol error downloading package. ({ex.Message})");
         }
         catch (HttpRequestException)
         {
-            // Network-level failure during download - skip it and try the next one
-            return null;
+            // Transient network-level failure during download - not actionable, skip silently
+            return default;
         }
 
         // The source confirmed it does not carry this package version
         if (!found)
         {
-            return null;
+            return default;
         }
 
         // Rewind the stream then install the package into the global packages folder.
@@ -229,7 +269,7 @@ public static class NuGetCache
             cancellationToken);
 
         // Return the conventional package path that NuGet uses on disk
-        return GetPackagePath(globalPackagesFolder, packageId, version.ToNormalizedString());
+        return new TryDownloadResult(GetPackagePath(globalPackagesFolder, packageId, version.ToNormalizedString()), null);
     }
 
     /// <summary>

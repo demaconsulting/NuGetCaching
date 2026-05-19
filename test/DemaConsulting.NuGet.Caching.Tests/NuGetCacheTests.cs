@@ -135,6 +135,35 @@ public class NuGetCacheTests
     }
 
     /// <summary>
+    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
+    ///     <see cref="InvalidOperationException"/> whose message identifies the package ID and version
+    ///     when the package cannot be found in any configured NuGet source.
+    /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-NuGetCache-NotFound: the exception message includes both the
+    ///     package ID and the version string so callers can correlate the error to their input.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion()
+    {
+        // Arrange - use a GUID-based package ID that cannot exist on any NuGet feed.
+        // The N format specifier produces a 32-character hex string without hyphens,
+        // which is valid in a NuGet package ID.
+        var packageId = $"DemaConsulting.NonExistent.{Guid.NewGuid():N}";
+        const string version = "1.0.0";
+
+        // Act - calling with a non-existent package must throw InvalidOperationException
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None));
+
+        // Assert - the exception message must identify both the package ID and the version
+        // so that callers have enough context to diagnose the problem
+        Assert.Contains(packageId, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(version, exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> is idempotent: calling it twice
     ///     with the same package returns the same path both times.
     /// </summary>

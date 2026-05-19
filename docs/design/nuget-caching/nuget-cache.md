@@ -54,25 +54,36 @@ filters the set of queried sources to only those explicitly mapped to the reques
 package ID. This mirrors the security and governance behavior of the NuGet toolchain,
 ensuring packages are only fetched from their authorized feeds.
 
-#### Resilient Source Enumeration
+#### Resilient Source Enumeration with Diagnostic Reporting
 
-Sources are queried sequentially. If a source is unreachable (`HttpRequestException`)
-or does not support the required NuGet protocol (`NuGetProtocolException`), the error
-is silently swallowed and the next source is tried. This design tolerates transient
-network failures and misconfigured feeds without propagating exceptions to the caller,
-as long as at least one source carries the requested package. If no source has the
-package, an `InvalidOperationException` is thrown with a descriptive message.
+Sources are queried sequentially. If a source fails with a `NuGetProtocolException` (e.g.
+a v2-only feed configured with a v3 `.json` URL), the error message is captured and
+accumulated so it can be appended to the final `InvalidOperationException`. If a source
+fails with an `HttpRequestException` (transient network error), the failure is silently
+swallowed and the next source is tried — network outages on individual feeds should not
+surface actionable errors to the caller.
 
-Note: The current implementation uses `NullLogger.Instance` throughout, which means
-per-source failures leave no diagnostic trace. Callers that need visibility into
-which sources were tried — for troubleshooting feed configuration or intermittent
-network issues — can wrap `EnsureCachedAsync` and correlate the
-`InvalidOperationException` message against their `nuget.config` source list.
+If no source has the package, an `InvalidOperationException` is thrown. When at least one
+source produced a diagnostic message, those messages are appended to the exception in the
+form:
+
+```text
+Package 'X' version '1.0.0' was not found in any configured NuGet source.
+  - https://feed/index.json: Failed to load source index. The feed may be v2-only; ...
+```
+
+This allows callers to distinguish a genuine "package absent" outcome from a feed
+misconfiguration (such as a JFrog Artifactory v2-only endpoint addressed with a v3 URL)
+without requiring additional logging infrastructure.
 
 #### Separation of Private Helpers
 
-Two private methods encapsulate distinct sub-responsibilities:
+Three private members encapsulate distinct sub-responsibilities:
 
+- `TryDownloadResult` — a private record struct pairing an optional package path with
+  an optional diagnostic error message, so `TryDownloadPackageAsync` can communicate
+  both success and actionable failure details to its caller without using out-parameters
+  or exceptions.
 - `TryDownloadPackageAsync` — all logic for querying and downloading from a single
   NuGet source repository.
 - `GetPackagePath` — the conventional on-disk path calculation that NuGet uses for
@@ -96,8 +107,11 @@ cache. The method:
 4. Computes the expected on-disk package path and returns it immediately if the
    `.nupkg.metadata` sentinel file exists (cache-hit fast path).
 5. Iterates over enabled, mapped package sources and delegates to
-   `TryDownloadPackageAsync` for each one until a download succeeds.
-6. Throws `InvalidOperationException` if no source provided the package.
+   `TryDownloadPackageAsync` for each one until a download succeeds. Source-level
+   diagnostic messages from `TryDownloadPackageAsync` are accumulated in a list.
+6. Throws `InvalidOperationException` if no source provided the package. When at
+   least one source returned a diagnostic message, those messages are appended to
+   the exception so the caller can identify the misconfigured source.
 
 Returns the absolute path to the cached package folder.
 
@@ -105,16 +119,20 @@ Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-Nu
 
 #### `TryDownloadPackageAsync` (private)
 
-Attempts to download a NuGet package from a single `SourceRepository`. The method:
+Attempts to download a NuGet package from a single `SourceRepository`. Returns a
+`TryDownloadResult` value whose fields carry either the installed package path (on
+success) or a diagnostic error message (on an actionable failure). The method:
 
-1. Obtains a `FindPackageByIdResource` from the source repository, returning `null`
-   if the source does not support the protocol or cannot be reached.
+1. Obtains a `FindPackageByIdResource` from the source repository. On
+   `NuGetProtocolException` (e.g. v2-only feed at a v3 URL), returns an error result
+   with a diagnostic message. On `HttpRequestException` (transient network error) or a
+   null resource, returns an empty result so the caller silently tries the next source.
 2. Streams the `.nupkg` bytes into a `MemoryStream` using `CopyNupkgToStreamAsync`,
-   returning `null` if the package is absent from this source or a protocol/network
-   error occurs.
+   returning an empty result if the package is absent from this source, an error result
+   on `NuGetProtocolException`, or an empty result on `HttpRequestException`.
 3. Installs the package into the global packages folder using
    `GlobalPackagesFolderUtility.AddPackageAsync`.
-4. Returns the conventional package path on success.
+4. Returns a success result containing the conventional package path.
 
 #### `GetPackagePath` (private)
 

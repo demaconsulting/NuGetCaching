@@ -61,6 +61,16 @@ any configured NuGet source.
 
 **Requirement coverage**: `Caching-NuGetCache-NotFound`.
 
+#### NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion
+
+**Scenario**: `EnsureCachedAsync` is called with a package ID and version that is not present in
+any configured NuGet source.
+
+**Expected**: Throws `InvalidOperationException` whose message contains both the package ID and
+the version string passed to the method.
+
+**Requirement coverage**: `Caching-NuGetCache-NotFound`.
+
 ### Requirements Coverage
 
 - **`Caching-NuGetCache-EnsureCached`**:
@@ -70,4 +80,5 @@ any configured NuGet source.
   NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException,
   NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
 - **`Caching-NuGetCache-NotFound`**:
-  NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException
+  NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
+  NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion
