@@ -88,19 +88,25 @@ misconfiguration, without requiring additional logging infrastructure.
 
 #### Separation of Private Helpers
 
-Three private members encapsulate distinct sub-responsibilities:
+Five private members encapsulate distinct sub-responsibilities:
 
 - `TryDownloadResult` — a private record struct pairing an optional package path with
-  an optional diagnostic error message, so `TryDownloadPackageAsync` can communicate
-  both success and actionable failure details to its caller without using out-parameters
-  or exceptions.
-- `TryDownloadPackageAsync` — all logic for querying and downloading from a single
-  NuGet source repository.
+  an optional diagnostic error message, allowing helpers to communicate both success
+  and actionable failure details without using out-parameters or exceptions.
+- `TryDownloadPackageAsync` — thin coordinator that resolves the resource (via
+  `GetFindPackageByIdResourceAsync`) and then delegates the download and install to
+  `TryDownloadFromResourceAsync`.
+- `GetFindPackageByIdResourceAsync` — resolves the `FindPackageByIdResource` for a
+  source, applying the automatic v2 OData fallback when a `/index.json` URL fails with
+  a `NuGetProtocolException`. Returns the effective repository (original or v2
+  fallback), the resolved resource, and any diagnostic error message.
+- `TryDownloadFromResourceAsync` — streams the `.nupkg` bytes and installs the package
+  into the global packages folder using an already-resolved resource.
 - `GetPackagePath` — the conventional on-disk path calculation that NuGet uses for
   installed packages (`{globalPackagesFolder}/{id.lower}/{version.lower}`).
 
-This separation keeps `EnsureCachedAsync` at a high level of abstraction and makes
-each sub-task individually readable.
+This separation keeps `EnsureCachedAsync` at a high level of abstraction, eliminates
+any recursion in the download path, and makes each sub-task individually readable.
 
 ### Method Descriptions
 
@@ -129,26 +135,41 @@ Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-Nu
 
 #### `TryDownloadPackageAsync` (private)
 
-Attempts to download a NuGet package from a single `SourceRepository`. Returns a
-`TryDownloadResult` value whose fields carry either the installed package path (on
-success) or a diagnostic error message (on an actionable failure). The method:
+Thin coordinator. Calls `GetFindPackageByIdResourceAsync` to resolve the
+`FindPackageByIdResource` for the source (applying the v2 fallback as needed), then
+calls `TryDownloadFromResourceAsync` to stream and install the package. Returns the
+`TryDownloadResult` from whichever step determines the outcome.
 
-1. Obtains a `FindPackageByIdResource` from the source repository. On
-   `NuGetProtocolException` (e.g. v2-only feed at a v3 URL):
-   - If the source URL ends in `/index.json`, automatically retries with the base URL
-     (stripping `/index.json`) as a v2 OData fallback, preserving the original source
-     name and credentials. Returns the fallback result if it succeeded or was silent
-     (package not found / network error).
-   - If the fallback also fails, or the URL does not end in `/index.json`, returns an
-     error result with a diagnostic message referencing the original configured URL.
-   On `HttpRequestException` (transient network error) or a null resource, returns an
-   empty result so the caller silently tries the next source.
-2. Streams the `.nupkg` bytes into a `MemoryStream` using `CopyNupkgToStreamAsync`,
-   returning an empty result if the package is absent from this source, an error result
+#### `GetFindPackageByIdResourceAsync` (private)
+
+Resolves the `FindPackageByIdResource` for a source repository, with automatic v2 OData
+fallback when a v3 `/index.json` URL fails with a `NuGetProtocolException`. The method:
+
+1. Calls `GetResourceAsync<FindPackageByIdResource>` on the source repository.
+2. On success, returns a tuple of `(sourceRepository, resource, null)`.
+3. On `NuGetProtocolException`:
+   - If the source URL ends in `/index.json`, constructs a fallback repository with
+     the base URL (stripping `/index.json`), preserving the source name and credentials,
+     and calls `GetResourceAsync` again.
+   - If the fallback succeeds, returns `(fallbackRepository, resource, null)`.
+   - If the fallback also throws `NuGetProtocolException`, falls through to return an
+     error result referencing the original configured URL.
+   - If the fallback throws `HttpRequestException`, returns a silent skip result.
+   - If the source URL does not end in `/index.json`, returns an error result.
+4. On `HttpRequestException` (either the original or the fallback), returns a silent
+   skip result — transient network errors are not actionable.
+
+#### `TryDownloadFromResourceAsync` (private)
+
+Downloads and installs a package using an already-resolved `FindPackageByIdResource`.
+The method:
+
+1. Streams the `.nupkg` bytes into a `MemoryStream` using `CopyNupkgToStreamAsync`.
+   Returns an empty result if the package is absent from this source, an error result
    on `NuGetProtocolException`, or an empty result on `HttpRequestException`.
-3. Installs the package into the global packages folder using
+2. Installs the package into the global packages folder using
    `GlobalPackagesFolderUtility.AddPackageAsync`.
-4. Returns a success result containing the conventional package path.
+3. Returns a success result containing the conventional package path.
 
 #### `GetPackagePath` (private)
 

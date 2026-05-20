@@ -192,15 +192,49 @@ public static class NuGetCache
         IEnumerable<Lazy<INuGetResourceProvider>> providers,
         CancellationToken cancellationToken)
     {
-        // Build the package identity from the provided packageId and version
-        var identity = new PackageIdentity(packageId, version);
+        // Resolve the FindPackageByIdResource for this source, applying a v2 fallback
+        // for sources whose URL ends in '/index.json'
+        var (effectiveRepository, resource, errorMessage) = await GetFindPackageByIdResourceAsync(
+            sourceRepository, providers, cancellationToken);
 
-        // Obtain the FindPackageByIdResource; some source types may not support it or may
-        // be unreachable - in either case skip this source and move on to the next
-        FindPackageByIdResource? resource;
+        if (resource == null)
+        {
+            return new TryDownloadResult(null, errorMessage);
+        }
+
+        return await TryDownloadFromResourceAsync(
+            effectiveRepository,
+            resource,
+            packageId,
+            version,
+            globalPackagesFolder,
+            clientPolicyContext,
+            cacheContext,
+            cancellationToken);
+    }
+
+    /// <summary>
+    ///     Resolves the <see cref="FindPackageByIdResource"/> for a source repository, with automatic
+    ///     v2 OData fallback when a v3 <c>/index.json</c> URL fails with a protocol error.
+    /// </summary>
+    /// <param name="sourceRepository">The source repository to resolve a resource for.</param>
+    /// <param name="providers">NuGet resource providers used when creating a v2 fallback repository.</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>
+    ///     A tuple of the effective <see cref="SourceRepository"/> to use (may be a v2 fallback),
+    ///     the resolved <see cref="FindPackageByIdResource"/> (or <see langword="null"/> on failure),
+    ///     and an optional diagnostic error message when the failure is actionable.
+    /// </returns>
+    private static async Task<(SourceRepository Repository, FindPackageByIdResource? Resource, string? ErrorMessage)>
+        GetFindPackageByIdResourceAsync(
+            SourceRepository sourceRepository,
+            IEnumerable<Lazy<INuGetResourceProvider>> providers,
+            CancellationToken cancellationToken)
+    {
         try
         {
-            resource = await sourceRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
+            var resource = await sourceRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
+            return (sourceRepository, resource, null);
         }
         catch (NuGetProtocolException ex)
         {
@@ -217,35 +251,61 @@ public static class NuGetCache
                     Credentials = sourceRepository.PackageSource.Credentials,
                 };
                 var fallbackRepository = new SourceRepository(fallbackSource, providers);
-                var fallbackResult = await TryDownloadPackageAsync(
-                    fallbackRepository, packageId, version, globalPackagesFolder,
-                    clientPolicyContext, cacheContext, providers, cancellationToken);
-
-                // If the fallback succeeded, or definitively determined the package is absent,
-                // return that result - the URL mismatch was resolved transparently
-                if (fallbackResult.PackagePath != null || fallbackResult.ErrorMessage == null)
+                try
                 {
-                    return fallbackResult;
+                    var fallbackResource = await fallbackRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
+                    return (fallbackRepository, fallbackResource, null);
+                }
+                catch (NuGetProtocolException)
+                {
+                    // Both v3 and v2 OData attempts failed; fall through to report the
+                    // original source URL in the diagnostic message below
+                }
+                catch (HttpRequestException)
+                {
+                    // Transient network error on the v2 fallback - not actionable
+                    return (sourceRepository, null, null);
                 }
             }
 
-            // Surface a diagnostic message so the caller can include it in the
-            // final not-found exception
-            return new TryDownloadResult(null,
-                $"{source}: Failed to load source index. ({ex.Message})");
+            return (sourceRepository, null, $"{source}: Failed to load source index. ({ex.Message})");
         }
         catch (HttpRequestException)
         {
             // Transient network-level failure talking to this source - not actionable,
             // so skip silently and try the next source
-            return default;
+            return (sourceRepository, null, null);
         }
+    }
 
-        // A null resource means this source does not support the required protocol
-        if (resource == null)
-        {
-            return default;
-        }
+    /// <summary>
+    ///     Downloads and installs a NuGet package using an already-resolved
+    ///     <see cref="FindPackageByIdResource"/>.
+    /// </summary>
+    /// <param name="sourceRepository">The source repository that owns the resource.</param>
+    /// <param name="resource">The resolved <see cref="FindPackageByIdResource"/> to download from.</param>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="version">The parsed <see cref="NuGetVersion"/> to download.</param>
+    /// <param name="globalPackagesFolder">Absolute path to the NuGet global packages folder.</param>
+    /// <param name="clientPolicyContext">The client signing policy context from NuGet settings.</param>
+    /// <param name="cacheContext">Shared <see cref="SourceCacheContext"/> for HTTP caching.</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>
+    ///     A <see cref="TryDownloadResult"/> with the installed package path on success, an empty
+    ///     result when the package is absent from this source or a transient error occurs, or an
+    ///     error result when a protocol error occurs during download.
+    /// </returns>
+    private static async Task<TryDownloadResult> TryDownloadFromResourceAsync(
+        SourceRepository sourceRepository,
+        FindPackageByIdResource resource,
+        string packageId,
+        NuGetVersion version,
+        string globalPackagesFolder,
+        ClientPolicyContext clientPolicyContext,
+        SourceCacheContext cacheContext,
+        CancellationToken cancellationToken)
+    {
+        var identity = new PackageIdentity(packageId, version);
 
         // Stream the .nupkg bytes into memory; returns false when the package is absent from
         // this source, and throws on transient or permanent protocol errors
