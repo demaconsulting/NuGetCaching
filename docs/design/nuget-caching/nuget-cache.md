@@ -93,13 +93,14 @@ Five private members encapsulate distinct sub-responsibilities:
 - `TryDownloadResult` — a private record struct pairing an optional package path with
   an optional diagnostic error message, allowing helpers to communicate both success
   and actionable failure details without using out-parameters or exceptions.
-- `TryDownloadPackageAsync` — thin coordinator that resolves the resource (via
-  `GetFindPackageByIdResourceAsync`) and then delegates the download and install to
-  `TryDownloadFromResourceAsync`.
-- `GetFindPackageByIdResourceAsync` — resolves the `FindPackageByIdResource` for a
-  source, applying the automatic v2 OData fallback when a `/index.json` URL fails with
-  a `NuGetProtocolException`. Returns the effective repository (original or v2
-  fallback), the resolved resource, and any diagnostic error message.
+- `GetFindPackageByIdResourceAsync` — iterates over the candidate repositories returned
+  by `BuildCandidateRepositories`, returning the first successfully resolved
+  `FindPackageByIdResource` and its effective repository. Silently skips on
+  `HttpRequestException`; accumulates the first `NuGetProtocolException` message for
+  the final error.
+- `BuildCandidateRepositories` — builds the ordered list of repositories to try for a
+  source. Returns a single-element list for non-`/index.json` URLs, or a two-element
+  list (original + v2 OData fallback at the base URL) for `/index.json` URLs.
 - `TryDownloadFromResourceAsync` — streams the `.nupkg` bytes and installs the package
   into the global packages folder using an already-resolved resource.
 - `GetPackagePath` — the conventional on-disk path calculation that NuGet uses for
@@ -122,9 +123,10 @@ cache. The method:
 3. Loads the default NuGet settings and resolves the global packages folder.
 4. Computes the expected on-disk package path and returns it immediately if the
    `.nupkg.metadata` sentinel file exists (cache-hit fast path).
-5. Iterates over enabled, mapped package sources and delegates to
-   `TryDownloadPackageAsync` for each one until a download succeeds. Source-level
-   diagnostic messages from `TryDownloadPackageAsync` are accumulated in a list.
+5. Iterates over enabled, mapped package sources. For each source, calls
+   `GetFindPackageByIdResourceAsync` to resolve the resource (applying v2 fallback as
+   needed), then `TryDownloadFromResourceAsync` to download and install the package.
+   Source-level diagnostic messages are accumulated in a list.
 6. Throws `InvalidOperationException` if no source provided the package. When at
    least one source returned a diagnostic message, those messages are appended to
    the exception so the caller can identify the misconfigured source.
@@ -133,31 +135,30 @@ Returns the absolute path to the cached package folder.
 
 Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullValidation`, and `Caching-NuGetCache-NotFound`.
 
-#### `TryDownloadPackageAsync` (private)
-
-Thin coordinator. Calls `GetFindPackageByIdResourceAsync` to resolve the
-`FindPackageByIdResource` for the source (applying the v2 fallback as needed), then
-calls `TryDownloadFromResourceAsync` to stream and install the package. Returns the
-`TryDownloadResult` from whichever step determines the outcome.
-
 #### `GetFindPackageByIdResourceAsync` (private)
 
 Resolves the `FindPackageByIdResource` for a source repository, with automatic v2 OData
-fallback when a v3 `/index.json` URL fails with a `NuGetProtocolException`. The method:
+fallback when a v3 `/index.json` URL fails with a protocol error. The method:
 
-1. Calls `GetResourceAsync<FindPackageByIdResource>` on the source repository.
-2. On success, returns a tuple of `(sourceRepository, resource, null)`.
-3. On `NuGetProtocolException`:
-   - If the source URL ends in `/index.json`, constructs a fallback repository with
-     the base URL (stripping `/index.json`), preserving the source name and credentials,
-     and calls `GetResourceAsync` again.
-   - If the fallback succeeds, returns `(fallbackRepository, resource, null)`.
-   - If the fallback also throws `NuGetProtocolException`, falls through to return an
-     error result referencing the original configured URL.
-   - If the fallback throws `HttpRequestException`, returns a silent skip result.
-   - If the source URL does not end in `/index.json`, returns an error result.
-4. On `HttpRequestException` (either the original or the fallback), returns a silent
-   skip result — transient network errors are not actionable.
+1. Calls `BuildCandidateRepositories` to get the ordered list of repositories to try.
+2. Iterates over the candidates, calling `GetResourceAsync<FindPackageByIdResource>` on
+   each one.
+3. Returns the first successful `(repository, resource, null)` result.
+4. On `HttpRequestException` from any candidate, returns a silent skip result —
+   transient network errors are not actionable.
+5. On `NuGetProtocolException`, captures the first (configured URL's) error message via
+   `??=` and tries the next candidate. After all candidates are exhausted, returns the
+   captured error message referencing the original configured URL.
+
+#### `BuildCandidateRepositories` (private)
+
+Builds the ordered list of candidate repositories to try for a source. Returns a
+single-element list `[sourceRepository]` when the source URL does not end in
+`/index.json`. When the URL ends in `/index.json`, returns a two-element list of the
+original repository followed by a v2 OData fallback repository constructed from the
+base URL (with `/index.json` stripped), preserving the source name and credentials.
+This transparently handles v2-only feeds (e.g. JFrog Artifactory) configured with a
+v3-style URL.
 
 #### `TryDownloadFromResourceAsync` (private)
 

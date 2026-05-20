@@ -115,24 +115,35 @@ public static class NuGetCache
             // Build a source repository for this feed using the V3 provider chain
             var sourceRepository = new SourceRepository(packageSource, providers);
 
-            // Attempt to download the package from this source
-            var result = await TryDownloadPackageAsync(
-                sourceRepository,
+            // Resolve the FindPackageByIdResource, applying v2 fallback as needed
+            var (effectiveRepository, resource, resourceError) = await GetFindPackageByIdResourceAsync(
+                sourceRepository, providers, cancellationToken);
+
+            if (resource == null)
+            {
+                if (resourceError != null)
+                {
+                    sourceErrors.Add(resourceError);
+                }
+                continue;
+            }
+
+            // Download and install the package from this source
+            var result = await TryDownloadFromResourceAsync(
+                effectiveRepository,
+                resource,
                 packageId,
                 nugetVersion,
                 globalPackagesFolder,
                 clientPolicyContext,
                 sourceCacheContext,
-                providers,
                 cancellationToken);
 
-            // Return the installed package path on the first successful download
             if (result.PackagePath != null)
             {
                 return result.PackagePath;
             }
 
-            // Record any source-level diagnostic message for inclusion in the final exception
             if (result.ErrorMessage != null)
             {
                 sourceErrors.Add(result.ErrorMessage);
@@ -164,56 +175,6 @@ public static class NuGetCache
     private readonly record struct TryDownloadResult(string? PackagePath, string? ErrorMessage);
 
     /// <summary>
-    ///     Attempts to download a NuGet package from a single source repository and install it
-    ///     into the global packages folder.
-    /// </summary>
-    /// <param name="sourceRepository">The source repository to query.</param>
-    /// <param name="packageId">The NuGet package identifier.</param>
-    /// <param name="version">The parsed <see cref="NuGetVersion"/> to download.</param>
-    /// <param name="globalPackagesFolder">Absolute path to the NuGet global packages folder.</param>
-    /// <param name="clientPolicyContext">The client signing policy context from NuGet settings.</param>
-    /// <param name="cacheContext">Shared <see cref="SourceCacheContext"/> for HTTP caching.</param>
-    /// <param name="providers">NuGet resource providers used when creating a v2 fallback repository.</param>
-    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
-    /// <returns>
-    ///     A <see cref="TryDownloadResult"/> whose <c>PackagePath</c> is the absolute path to the
-    ///     installed package directory on success, or <see langword="null"/> when the package was
-    ///     not found or a non-actionable transient error occurred. <c>ErrorMessage</c> is populated
-    ///     with a diagnostic string when the source failed in an actionable way (e.g. protocol
-    ///     mismatch) so the caller can surface it in the final exception.
-    /// </returns>
-    private static async Task<TryDownloadResult> TryDownloadPackageAsync(
-        SourceRepository sourceRepository,
-        string packageId,
-        NuGetVersion version,
-        string globalPackagesFolder,
-        ClientPolicyContext clientPolicyContext,
-        SourceCacheContext cacheContext,
-        IEnumerable<Lazy<INuGetResourceProvider>> providers,
-        CancellationToken cancellationToken)
-    {
-        // Resolve the FindPackageByIdResource for this source, applying a v2 fallback
-        // for sources whose URL ends in '/index.json'
-        var (effectiveRepository, resource, errorMessage) = await GetFindPackageByIdResourceAsync(
-            sourceRepository, providers, cancellationToken);
-
-        if (resource == null)
-        {
-            return new TryDownloadResult(null, errorMessage);
-        }
-
-        return await TryDownloadFromResourceAsync(
-            effectiveRepository,
-            resource,
-            packageId,
-            version,
-            globalPackagesFolder,
-            clientPolicyContext,
-            cacheContext,
-            cancellationToken);
-    }
-
-    /// <summary>
     ///     Resolves the <see cref="FindPackageByIdResource"/> for a source repository, with automatic
     ///     v2 OData fallback when a v3 <c>/index.json</c> URL fails with a protocol error.
     /// </summary>
@@ -231,51 +192,64 @@ public static class NuGetCache
             IEnumerable<Lazy<INuGetResourceProvider>> providers,
             CancellationToken cancellationToken)
     {
-        try
-        {
-            var resource = await sourceRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
-            return (sourceRepository, resource, null);
-        }
-        catch (NuGetProtocolException ex)
-        {
-            // Protocol error loading the service index. If the URL ends in '/index.json',
-            // automatically retry with the base URL as a v2 OData fallback - this
-            // transparently handles v2-only feeds (e.g. JFrog Artifactory) that are
-            // configured with a v3-style URL ending in '/index.json'.
-            var source = sourceRepository.PackageSource.Source;
-            if (source.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase))
-            {
-                var baseUrl = source[..^"/index.json".Length];
-                var fallbackSource = new PackageSource(baseUrl, sourceRepository.PackageSource.Name)
-                {
-                    Credentials = sourceRepository.PackageSource.Credentials,
-                };
-                var fallbackRepository = new SourceRepository(fallbackSource, providers);
-                try
-                {
-                    var fallbackResource = await fallbackRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
-                    return (fallbackRepository, fallbackResource, null);
-                }
-                catch (NuGetProtocolException)
-                {
-                    // Both v3 and v2 OData attempts failed; fall through to report the
-                    // original source URL in the diagnostic message below
-                }
-                catch (HttpRequestException)
-                {
-                    // Transient network error on the v2 fallback - not actionable
-                    return (sourceRepository, null, null);
-                }
-            }
+        var originalSource = sourceRepository.PackageSource.Source;
+        var candidates = BuildCandidateRepositories(sourceRepository, providers);
+        string? protocolErrorMessage = null;
 
-            return (sourceRepository, null, $"{source}: Failed to load source index. ({ex.Message})");
-        }
-        catch (HttpRequestException)
+        foreach (var candidate in candidates)
         {
-            // Transient network-level failure talking to this source - not actionable,
-            // so skip silently and try the next source
-            return (sourceRepository, null, null);
+            try
+            {
+                var resource = await candidate.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
+                return (candidate, resource, null);
+            }
+            catch (HttpRequestException)
+            {
+                // Transient network-level failure - not actionable, skip silently
+                return (sourceRepository, null, null);
+            }
+            catch (NuGetProtocolException ex)
+            {
+                // Capture the first (configured URL's) error message; try the next candidate if available
+                protocolErrorMessage ??= $"{originalSource}: Failed to load source index. ({ex.Message})";
+            }
         }
+
+        return (sourceRepository, null, protocolErrorMessage);
+    }
+
+    /// <summary>
+    ///     Builds the ordered list of candidate repositories to try when resolving a
+    ///     <see cref="FindPackageByIdResource"/> for a package source.
+    /// </summary>
+    /// <param name="sourceRepository">The configured source repository.</param>
+    /// <param name="providers">NuGet resource providers used when creating the v2 fallback repository.</param>
+    /// <returns>
+    ///     A single-element list containing <paramref name="sourceRepository"/> when its URL does not
+    ///     end in <c>/index.json</c>, or a two-element list of <paramref name="sourceRepository"/>
+    ///     followed by a v2 OData fallback repository when it does.
+    /// </returns>
+    private static IReadOnlyList<SourceRepository> BuildCandidateRepositories(
+        SourceRepository sourceRepository,
+        IEnumerable<Lazy<INuGetResourceProvider>> providers)
+    {
+        var source = sourceRepository.PackageSource.Source;
+
+        if (!source.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return [sourceRepository];
+        }
+
+        // When the configured URL ends in '/index.json', also try the base URL as a v2 OData
+        // endpoint. Some feeds (e.g. JFrog Artifactory) expose a v2-only feed at the base URL
+        // even though the administrator configured a v3-style '/index.json' URL.
+        var baseUrl = source[..^"/index.json".Length];
+        var fallbackSource = new PackageSource(baseUrl, sourceRepository.PackageSource.Name)
+        {
+            Credentials = sourceRepository.PackageSource.Credentials,
+        };
+
+        return [sourceRepository, new SourceRepository(fallbackSource, providers)];
     }
 
     /// <summary>
