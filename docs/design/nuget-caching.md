@@ -52,6 +52,9 @@ On .NET 5.0 and later, the BCL implementation is used directly.
 6. On successful download, the package is installed into the global packages folder
 7. The absolute path to the cached package folder is returned
 
+The returned path follows the NuGet global packages folder convention:
+`{globalPackagesFolder}/{packageId.lower}/{normalizedVersion.lower}`.
+
 ## Error Handling
 
 The system communicates error states to callers through exceptions:
@@ -79,6 +82,6 @@ sources have been exhausted without a successful download.
   vulnerabilities when processing package identifiers and version strings from
   external NuGet feeds
 
-Satisfies requirements `Caching-Sys-PackageCaching`, `Caching-PLT-Windows`, `Caching-PLT-Linux`,
+Satisfies requirements `Caching-Sys-PackageCaching`, `Caching-Sys-NullValidation`, `Caching-PLT-Windows`, `Caching-PLT-Linux`,
 `Caching-PLT-MacOS`, `Caching-PLT-Net8`, `Caching-PLT-Net9`, `Caching-PLT-Net10`, and
 `Caching-PLT-NetStd20`.

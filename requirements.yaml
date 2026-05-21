@@ -27,6 +27,7 @@ includes:
   - docs/reqstream/ots/nuget.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/wiremock.yaml
+  - docs/reqstream/ots/polyfill.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml
   - docs/reqstream/ots/versionmark.yaml

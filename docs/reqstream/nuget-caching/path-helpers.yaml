@@ -8,20 +8,18 @@
 sections:
   - title: PathHelpers Unit Requirements
     requirements:
-      - id: Caching-PathHelpers-SafeCombine
+      - id: Caching-PathHelpers-Combine
         title: >-
           The path-combination utility shall safely combine a base path and a
-          relative path, rejecting any combination that would escape the base
-          directory.
+          relative path that stays within the base directory, returning the
+          resulting path.
         justification: |
-          Prevents path-traversal vulnerabilities when constructing file paths from
-          user-supplied or external inputs, which could otherwise allow access to
-          files outside the intended cache directory.
+          Provides the nominal path-combination capability used by NuGetCache to
+          construct the on-disk locations for package identifiers and version strings
+          sourced from external NuGet feeds, ensuring each segment is appended to the
+          correct base directory.
         tests:
           - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
-          - PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException
-          - PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException
-          - PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException
           - PathHelpers_SafePathCombine_DotDotPrefixedName_CombinesCorrectly
           - PathHelpers_SafePathCombine_NestedPaths_CombinesCorrectly
           - PathHelpers_SafePathCombine_SimpleFilename_CombinesCorrectly
@@ -30,3 +28,16 @@ sections:
           - PathHelpers_SafePathCombine_CurrentDirectoryReference_CombinesCorrectly
           - PathHelpers_SafePathCombine_NullBasePath_ThrowsArgumentNullException
           - PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException
+
+      - id: Caching-PathHelpers-RejectTraversal
+        title: >-
+          The path-combination utility shall reject any combination that would
+          escape the base directory, throwing ArgumentException.
+        justification: |
+          Prevents path-traversal vulnerabilities when constructing file paths from
+          user-supplied or external inputs, which could otherwise allow access to
+          files outside the intended cache directory.
+        tests:
+          - PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException
+          - PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException
+          - PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException

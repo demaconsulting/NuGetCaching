@@ -28,8 +28,16 @@ internal static class PathHelpers
     /// <summary>
     ///     Safely combines two paths, ensuring the resolved combined path stays within the base directory.
     /// </summary>
-    /// <param name="basePath">The base path.</param>
-    /// <param name="relativePath">The relative path to combine.</param>
+    /// <param name="basePath">
+    ///     The absolute or relative base directory path. Must not be <see langword="null"/>. The path
+    ///     is resolved to its full absolute form before the containment check.
+    /// </param>
+    /// <param name="relativePath">
+    ///     The relative path to append to <paramref name="basePath"/>. Must not be <see langword="null"/>,
+    ///     must be a relative path (not rooted), and must not contain traversal sequences (such as
+    ///     <c>..</c>) that would resolve to a location outside <paramref name="basePath"/>. An empty
+    ///     string is accepted and returns the base path unchanged.
+    /// </param>
     /// <returns>The combined path.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="basePath"/> or <paramref name="relativePath"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
@@ -37,6 +45,26 @@ internal static class PathHelpers
     /// </exception>
     /// <exception cref="NotSupportedException">Thrown when a supplied path contains an unsupported format.</exception>
     /// <exception cref="PathTooLongException">Thrown when the combined or resolved path exceeds the system-defined maximum length.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         This method exists to prevent directory traversal attacks. Without this check, a caller
+    ///         supplying a crafted relative path (such as <c>../../etc/passwd</c>) could read or write
+    ///         files outside the intended base directory. The method rejects rather than sanitises such
+    ///         paths: if the resolved path escapes the base, an <see cref="ArgumentException"/> is thrown
+    ///         instead of silently normalising the path to something safe.
+    ///     </para>
+    ///     <para>
+    ///         The containment check is performed at the string level using
+    ///         <see cref="Path.GetFullPath(string)"/> to normalise both paths. Symbolic links are
+    ///         <em>not</em> resolved: a symlink inside the base directory that points outside it will
+    ///         pass this check. Callers that require symlink-safe behaviour must perform additional
+    ///         validation after resolving real paths (e.g., via the OS).
+    ///     </para>
+    ///     <para>
+    ///         This method is stateless and does not perform any file-system I/O. It is safe to call
+    ///         concurrently from multiple threads.
+    ///     </para>
+    /// </remarks>
     internal static string SafePathCombine(string basePath, string relativePath)
     {
         // Validate inputs

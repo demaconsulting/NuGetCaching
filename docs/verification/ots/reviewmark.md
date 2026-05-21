@@ -1,7 +1,8 @@
 ## ReviewMark Verification
 
 This document provides the verification evidence for the ReviewMark OTS software item. Requirements
-for this OTS item are defined in the ReviewMark OTS Software Requirements document.
+for this OTS item are defined in the ReviewMark OTS Software Requirements document
+(`docs/reqstream/ots/reviewmark.yaml`).
 
 ### Required Functionality
 

@@ -92,6 +92,18 @@ reviews:
       - "test/DemaConsulting.NuGet.Caching.Tests/PathHelpersTests.cs"
 
   # OTS Items
+  - id: OTS-NuGet
+    title: Review of NuGet Client SDK OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/nuget.yaml"
+      - "docs/verification/ots/nuget.md"
+
+  - id: OTS-Polyfill
+    title: Review of Polyfill OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/polyfill.yaml"
+      - "docs/verification/ots/polyfill.md"
+
   - id: OTS-BuildMark
     title: Review of BuildMark OTS verification evidence
     paths:

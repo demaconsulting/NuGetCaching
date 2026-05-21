@@ -35,6 +35,8 @@ namespace DemaConsulting.NuGet.Caching;
 ///     This class reads NuGet configuration (sources and global packages folder) from
 ///     the default NuGet settings on the local machine, mirroring the behavior of
 ///     the <c>dotnet</c> CLI and Visual Studio package restore.
+///     This class is stateless — all state is local to each <c>EnsureCachedAsync</c> call — and is
+///     safe for concurrent use.
 /// </remarks>
 public static class NuGetCache
 {

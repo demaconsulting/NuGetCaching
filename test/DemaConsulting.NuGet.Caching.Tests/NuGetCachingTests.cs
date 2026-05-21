@@ -56,6 +56,10 @@ public class NuGetCachingTests
         Assert.True(
             File.Exists(metadataFilePath),
             $"Expected package folder to contain .nupkg.metadata at: {metadataFilePath}");
+
+        // Assert the path ends with the normalized package ID and version (NuGet convention)
+        var expectedSuffix = Path.Combine(packageId.ToLowerInvariant(), version.ToLowerInvariant());
+        Assert.EndsWith(expectedSuffix, packageFolder, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

@@ -14,7 +14,7 @@ sections:
           - id: Caching-OTS-WireMock-Stub
             title: WireMock.Net shall serve configured HTTP stub responses to the NuGet client.
             justification: |
-              WireMock.Net (version 2.6.0) is the HTTP stub server used exclusively by the
+              WireMock.Net is the HTTP stub server used exclusively by the
               controlled integration test suite. It is a test-only dependency and is not
               shipped with or required by the production library. It binds to a random
               localhost port and serves pre-configured responses for NuGet v3 service index,

@@ -58,6 +58,11 @@ Generated documentation includes:
 - **Requirements Justifications**: Detailed requirement rationale
 - **Trace Matrix**: Requirements to test traceability
 
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md][link-contributing] for development setup and
+contribution guidelines.
+
 ## License
 
 Copyright (c) DEMA Consulting. Licensed under the MIT License. See [LICENSE][link-license] for details.
@@ -84,3 +89,4 @@ By contributing to this project, you agree that your contributions will be licen
 [link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-nuget]: https://www.nuget.org/packages/DemaConsulting.NuGet.Caching
 [link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance
+[link-contributing]: https://github.com/demaconsulting/NuGetCaching/blob/main/CONTRIBUTING.md

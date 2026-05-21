@@ -5,8 +5,8 @@ unit are defined in the PathHelpers Unit Requirements document.
 
 ### Required Functionality
 
-The `PathHelpers` unit shall safely combine a base path and a relative path, rejecting any
-combination that would escape the base directory.
+The `PathHelpers` unit shall safely combine a base path and a relative path that stays within the
+base directory, and shall reject any combination that would escape the base directory.
 
 ### Verification Approach
 
@@ -23,7 +23,7 @@ stays within the base.
 
 **Expected**: Returns the correctly combined path without throwing.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 #### PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException
 
@@ -32,7 +32,7 @@ directory.
 
 **Expected**: Throws `ArgumentException`.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-RejectTraversal`.
 
 #### PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException
 
@@ -41,7 +41,7 @@ would escape the base directory.
 
 **Expected**: Throws `ArgumentException`.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-RejectTraversal`.
 
 #### PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException
 
@@ -49,7 +49,7 @@ would escape the base directory.
 
 **Expected**: Throws `ArgumentException` because an absolute path escapes the base directory.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-RejectTraversal`.
 
 #### PathHelpers_SafePathCombine_DotDotPrefixedName_CombinesCorrectly
 
@@ -58,7 +58,7 @@ does not perform traversal (e.g., `..data`).
 
 **Expected**: Returns the correctly combined path without throwing, confirming no false positive.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 #### PathHelpers_SafePathCombine_NestedPaths_CombinesCorrectly
 
@@ -67,7 +67,7 @@ that stay within the base.
 
 **Expected**: Returns the correctly combined path without throwing.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 #### PathHelpers_SafePathCombine_SimpleFilename_CombinesCorrectly
 
@@ -75,7 +75,7 @@ that stay within the base.
 
 **Expected**: Returns the correctly combined path without throwing.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 #### PathHelpers_SafePathCombine_GuidBasedFilename_CombinesSuccessfully
 
@@ -83,7 +83,7 @@ that stay within the base.
 
 **Expected**: Returns the correctly combined path without throwing.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 #### PathHelpers_SafePathCombine_EmptyRelativePath_ReturnsBasePath
 
@@ -91,16 +91,16 @@ that stay within the base.
 
 **Expected**: Returns the base path without throwing.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 #### PathHelpers_SafePathCombine_CurrentDirectoryReference_CombinesCorrectly
 
-**Scenario**: `SafePathCombine` is called with `.` or a path starting with `./` as the relative
+**Scenario**: `SafePathCombine` is called with a path starting with `./` as the relative
 component.
 
 **Expected**: Returns the correctly combined path without throwing.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 #### PathHelpers_SafePathCombine_NullBasePath_ThrowsArgumentNullException
 
@@ -108,7 +108,7 @@ component.
 
 **Expected**: Throws `ArgumentNullException` with parameter name `basePath`.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 #### PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException
 
@@ -116,15 +116,12 @@ component.
 
 **Expected**: Throws `ArgumentNullException` with parameter name `relativePath`.
 
-**Requirement coverage**: `Caching-PathHelpers-SafeCombine`.
+**Requirement coverage**: `Caching-PathHelpers-Combine`.
 
 ### Requirements Coverage
 
-- **`Caching-PathHelpers-SafeCombine`**:
+- **`Caching-PathHelpers-Combine`**:
   PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly,
-  PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException,
-  PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException,
-  PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException,
   PathHelpers_SafePathCombine_DotDotPrefixedName_CombinesCorrectly,
   PathHelpers_SafePathCombine_NestedPaths_CombinesCorrectly,
   PathHelpers_SafePathCombine_SimpleFilename_CombinesCorrectly,
@@ -133,3 +130,7 @@ component.
   PathHelpers_SafePathCombine_CurrentDirectoryReference_CombinesCorrectly,
   PathHelpers_SafePathCombine_NullBasePath_ThrowsArgumentNullException,
   PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException
+- **`Caching-PathHelpers-RejectTraversal`**:
+  PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException,
+  PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException,
+  PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException

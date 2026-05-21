@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using NuGet.Versioning;
+
 namespace DemaConsulting.NuGet.Caching.Tests;
 
 /// <summary>
@@ -238,7 +240,7 @@ public class NuGetCacheServerTests
         return string.Equals(path, "/", StringComparison.Ordinal)
             || string.Equals(path, "/$metadata", StringComparison.OrdinalIgnoreCase)
             || string.Equals(path, "/FindPackagesById()", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/Packages(", StringComparison.OrdinalIgnoreCase);
+            || path!.StartsWith("/Packages(", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -575,10 +577,11 @@ public class NuGetCacheServerTests
             const string version = "1.0.0";
 
             // Compute the expected path that NuGetCache would use for this package identity
+            var normalizedVersion = NuGetVersion.Parse(version).ToNormalizedString().ToLowerInvariant();
             var expectedPath = Path.Combine(
                 globalPackagesFolder,
                 packageId.ToLowerInvariant(),
-                version);
+                normalizedVersion);
 
             // Create the directory and write the sentinel file to simulate a completed installation
             Directory.CreateDirectory(expectedPath);

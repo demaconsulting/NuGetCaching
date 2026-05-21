@@ -9,13 +9,21 @@ sections:
       - title: ReqStream Requirements
         requirements:
           - id: Caching-OTS-ReqStream
-            title: ReqStream shall enforce that every requirement is linked to passing test evidence.
+            title: ReqStream shall process requirements and test evidence to produce reports, a justifications document, and
+              a trace matrix, and shall enforce that every requirement is linked to passing test evidence.
             justification: |
-              DemaConsulting.ReqStream processes requirements.yaml and the TRX test-result files to
-              produce a requirements report, justifications document, and traceability matrix. When
-              run with --enforce, it exits with a non-zero code if any requirement lacks test evidence,
-              making unproven requirements a build-breaking condition. A successful pipeline run with
-              --enforce proves all requirements are covered and that ReqStream is functioning.
+              DemaConsulting.ReqStream processes requirements YAML files and TRX test-result files
+              to produce a requirements report, justifications document, and traceability matrix.
+              It supports filtering requirements by tags and linting requirements files for issues.
+              When run with --enforce, it exits with a non-zero code if any requirement lacks test
+              evidence, making unproven requirements a build-breaking condition. A successful
+              pipeline run with --enforce proves all requirements are covered and that ReqStream
+              is functioning correctly across all of these capabilities.
             tags: [ots]
             tests:
+              - ReqStream_RequirementsProcessing
+              - ReqStream_TraceMatrix
+              - ReqStream_ReportExport
+              - ReqStream_TagsFiltering
               - ReqStream_EnforcementMode
+              - ReqStream_Lint

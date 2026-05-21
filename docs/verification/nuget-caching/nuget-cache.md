@@ -60,6 +60,15 @@ consistent results.
 
 **Requirement coverage**: `Caching-NuGetCache-NullValidation`.
 
+#### NuGetCache_EnsureCachedAsync_InvalidVersion_ThrowsArgumentException
+
+**Scenario**: `EnsureCachedAsync` is called with a `version` string that is not a valid NuGet
+version (e.g. `"not-a-version"`).
+
+**Expected**: Throws `ArgumentException` (propagated from `NuGetVersion.Parse`).
+
+**Requirement coverage**: `Caching-NuGetCache-InvalidVersion`.
+
 #### NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException
 
 **Scenario**: `EnsureCachedAsync` is called with a package ID and version that is not present in
@@ -111,7 +120,7 @@ throws `InvalidOperationException` while the WireMock server log shows a v2-spec
 (`/$metadata`, `/FindPackagesById()`, `/Packages(...)`, or `/`) — confirming
 `BuildCandidateRepositories` attempted the v2 fallback.
 
-**Requirement coverage**: `Caching-NuGetCache-EnsureCached`.
+**Requirement coverage**: `Caching-NuGetCache-V2Fallback`.
 
 #### NuGetCache_EnsureCachedAsync_V3AndV2BothFail_ThrowsInvalidOperationException
 
@@ -131,7 +140,7 @@ and continues to the next source.
 
 **Expected**: Throws `InvalidOperationException` when no source provides the package.
 
-**Requirement coverage**: `Caching-NuGetCache-NotFound`.
+**Requirement coverage**: `Caching-NuGetCache-TransientFailure`.
 
 #### NuGetCache_EnsureCachedAsync_V3IndexFailsNetworkFailureOnFallback_ThrowsInvalidOperationException
 
@@ -141,7 +150,7 @@ paths.
 
 **Expected**: Throws `InvalidOperationException`.
 
-**Requirement coverage**: `Caching-NuGetCache-NotFound`.
+**Requirement coverage**: `Caching-NuGetCache-TransientFailure`.
 
 #### NuGetCache_EnsureCachedAsync_DifferentPackageRegistered_ThrowsInvalidOperationException
 
@@ -183,7 +192,7 @@ loop.
 **Expected**: Returns a non-null path to a real directory containing the `.nupkg.metadata`
 sentinel file, proving the loop continued past the first source.
 
-**Requirement coverage**: `Caching-NuGetCache-EnsureCached`.
+**Requirement coverage**: `Caching-NuGetCache-MultiSource`.
 
 #### NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
 
@@ -194,27 +203,33 @@ the source.
 **Expected**: Returns the pre-populated path immediately without making any HTTP calls (confirmed
 by asserting the WireMock server's request log is empty).
 
-**Requirement coverage**: `Caching-NuGetCache-EnsureCached`.
+**Requirement coverage**: `Caching-NuGetCache-CacheHit`.
 
 ### Requirements Coverage
 
 - **`Caching-NuGetCache-EnsureCached`**:
   NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder,
   NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath,
-  NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath,
-  NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath,
-  NuGetCache_EnsureCachedAsync_PackageInSecondSourceOnly_ReturnsExistingPackagePath,
-  NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
+  NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath
 - **`Caching-NuGetCache-NullValidation`**:
   NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException,
   NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
+- **`Caching-NuGetCache-InvalidVersion`**:
+  NuGetCache_EnsureCachedAsync_InvalidVersion_ThrowsArgumentException
+- **`Caching-NuGetCache-TransientFailure`**:
+  NuGetCache_EnsureCachedAsync_NetworkFailureOnIndex_ThrowsInvalidOperationException,
+  NuGetCache_EnsureCachedAsync_V3IndexFailsNetworkFailureOnFallback_ThrowsInvalidOperationException
+- **`Caching-NuGetCache-MultiSource`**:
+  NuGetCache_EnsureCachedAsync_PackageInSecondSourceOnly_ReturnsExistingPackagePath
+- **`Caching-NuGetCache-V2Fallback`**:
+  NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
+- **`Caching-NuGetCache-CacheHit`**:
+  NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
 - **`Caching-NuGetCache-NotFound`**:
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion,
   NuGetCache_EnsureCachedAsync_V3PackageAbsent_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_V3AndV2BothFail_ThrowsInvalidOperationException,
-  NuGetCache_EnsureCachedAsync_NetworkFailureOnIndex_ThrowsInvalidOperationException,
-  NuGetCache_EnsureCachedAsync_V3IndexFailsNetworkFailureOnFallback_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_DifferentPackageRegistered_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_DownloadProtocolError_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_DownloadNetworkFailure_ThrowsInvalidOperationException

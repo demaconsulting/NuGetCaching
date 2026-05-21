@@ -241,20 +241,20 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Makes the base URL endpoint (<c>/</c>) return HTTP 500 to simulate a v2 protocol error
+    ///     Makes the base URL endpoint (<c>/</c>) return HTTP 500 to simulate a failure
     ///     when the NuGet SDK tries the base URL as a v2 OData fallback.
     /// </summary>
     /// <remarks>
-    ///     When both the v3 service index and the v2 fallback base URL return HTTP 500, the NuGet SDK
-    ///     throws <c>NuGetProtocolException</c> for both candidates.
-    ///     <see cref="NuGetCache"/> accumulates the first protocol error message (referencing the
-    ///     original configured URL) and includes it in the final <see cref="InvalidOperationException"/>
-    ///     — allowing callers to distinguish a feed misconfiguration from a genuine package-absent outcome.
+    ///     HTTP 500 from the base URL causes the NuGet SDK to throw
+    ///     <see cref="System.Net.Http.HttpRequestException"/> rather than
+    ///     <c>NuGetProtocolException</c>. <see cref="NuGetCache"/> treats this as a transient
+    ///     network error and silently skips the source — no per-source diagnostic message is
+    ///     accumulated and the final exception contains only the base package-not-found message.
     /// </remarks>
     internal void SimulateBaseUrlProtocolError()
     {
-        // Returning 500 on the base URL causes NuGetProtocolException rather than HttpRequestException,
-        // so the accumulated error message is preserved and included in the final exception
+        // Returning 500 on the base URL causes HttpRequestException (not NuGetProtocolException),
+        // which NuGetCache treats as transient and silently skips — no diagnostic is accumulated
         _server
             .Given(Request.Create().WithPath("/").UsingAnyMethod())
             .RespondWith(Response.Create()
@@ -305,7 +305,7 @@ internal sealed class NuGetTestServer : IAsyncDisposable
             .Given(Request.Create().WithPath("/$metadata").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
-                .WithBody(BuildV2MetadataXml(packageId))
+                .WithBody(BuildV2MetadataXml())
                 .WithHeader("Content-Type", "application/xml"));
 
         // Register the FindPackagesById OData function endpoint; the NuGet SDK appends
@@ -512,15 +512,9 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     ///     Builds the minimal OData EDMX metadata XML that the NuGet SDK needs to recognize
     ///     the <c>V2FeedPackage</c> entity type and the <c>FindPackagesById</c> function import.
     /// </summary>
-    /// <param name="packageId">
-    ///     Unused at present; reserved for future per-package metadata customization.
-    /// </param>
     /// <returns>An EDMX XML string describing the v2 feed schema.</returns>
-    private static string BuildV2MetadataXml(string packageId)
+    private static string BuildV2MetadataXml()
     {
-        // Suppress unused parameter warning - reserved for potential future use
-        _ = packageId;
-
         return """
             <?xml version="1.0" encoding="utf-8"?>
             <edmx:Edmx Version="1.0"

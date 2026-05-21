@@ -1,7 +1,7 @@
 ## xUnit Verification
 
 This document provides the verification evidence for the xUnit OTS software item. Requirements
-for this OTS item are defined in the xUnit OTS Software Requirements document.
+for this OTS item are defined in the xUnit OTS Software Requirements document (`docs/reqstream/ots/xunit.yaml`).
 
 ### Required Functionality
 

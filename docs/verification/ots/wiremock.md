@@ -1,11 +1,11 @@
 ## WireMock.Net Verification
 
 This document provides the verification evidence for the WireMock.Net OTS software item.
-Requirements for this OTS item are defined in the WireMock.Net OTS Software Requirements document.
+Requirements for this OTS item are defined in the WireMock.Net OTS Software Requirements document (`docs/reqstream/ots/wiremock.yaml`).
 
 ### Required Functionality
 
-WireMock.Net (WireMock.Net 2.6.0) is the HTTP stub server used exclusively by the controlled
+WireMock.Net is the HTTP stub server used exclusively by the controlled
 integration test suite. It is a **test-only dependency** — it is not shipped with or required by
 the production library. It binds to a random localhost port, serves pre-configured responses for
 NuGet v3 and v2 feed endpoints, and records all received requests for post-test inspection. Its

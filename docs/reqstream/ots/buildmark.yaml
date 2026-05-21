@@ -9,12 +9,20 @@ sections:
       - title: BuildMark Requirements
         requirements:
           - id: Caching-OTS-BuildMark
-            title: BuildMark shall generate build-notes documentation from GitHub Actions metadata.
+            title: BuildMark shall generate build-notes documentation from GitHub Actions metadata, Git history, issue and
+              pull-request tracking, known-issues reporting, and rules-based routing.
             justification: |
-              DemaConsulting.BuildMark queries the GitHub API to capture workflow run details and
-              renders them as a markdown build-notes document included in the release artifacts.
-              It runs as part of the same CI pipeline that produces the TRX test results, so a
-              successful pipeline run is evidence that BuildMark executed without error.
+              DemaConsulting.BuildMark queries the GitHub API to capture workflow run details,
+              reads Git version tags and commit history, fetches and processes GitHub issues and
+              pull requests, includes open known issues in the generated report, and routes items
+              to report sections based on label and type rules. It renders all of this as a
+              markdown build-notes document included in the release artifacts. It runs as part of
+              the same CI pipeline that produces the TRX test results, so a successful pipeline
+              run is evidence that BuildMark executed without error.
             tags: [ots]
             tests:
               - BuildMark_MarkdownReportGeneration
+              - BuildMark_GitIntegration
+              - BuildMark_IssueTracking
+              - BuildMark_KnownIssuesReporting
+              - BuildMark_RulesRouting

@@ -21,7 +21,8 @@ the NuGet client SDK to download packages when they are not already present loca
 a package is cached — that does not require instance state. All configuration is
 read from the machine-level NuGet settings on each call, making the class naturally
 stateless. A static class avoids unnecessary object instantiation and provides a
-simple, flat API surface for callers.
+simple, flat API surface for callers. Because all state is local to each call,
+`NuGetCache` is safe for concurrent use.
 
 #### Async Approach
 
@@ -137,7 +138,10 @@ for the complete processing steps.
 
 Returns the absolute path to the cached package folder.
 
-Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullValidation`, and `Caching-NuGetCache-NotFound`.
+Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullValidation`,
+`Caching-NuGetCache-InvalidVersion`, `Caching-NuGetCache-TransientFailure`,
+`Caching-NuGetCache-MultiSource`, `Caching-NuGetCache-V2Fallback`,
+`Caching-NuGetCache-CacheHit`, and `Caching-NuGetCache-NotFound`.
 
 #### `EnsureCachedAsync(string packageId, string version, ISettings settings, CancellationToken)` (internal)
 

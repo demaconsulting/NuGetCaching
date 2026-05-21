@@ -29,7 +29,9 @@ The following OTS items are also covered:
 
 - **BuildMark** — build-notes documentation tool
 - **FileAssert** — document assertion tool
+- **NuGet Client SDK** — NuGet.Protocol and NuGet.Configuration packages used at runtime
 - **Pandoc** — Markdown-to-HTML conversion tool
+- **Polyfill** — `Path.GetRelativePath` compatibility shim for netstandard2.0
 - **ReqStream** — requirements traceability tool
 - **ReviewMark** — file review enforcement tool
 - **SarifMark** — SARIF report conversion tool
@@ -44,14 +46,18 @@ The following OTS items are also covered:
 The following tree shows the software items covered by this document:
 
 ```text
-NuGetCaching (System)
+DemaConsulting.NuGet.Caching (System)
 ├── NuGetCache (Unit)
 └── PathHelpers (Unit)
 
 OTS Items
 ├── BuildMark
 ├── FileAssert
+├── NuGet Client SDK
+│   ├── NuGet.Protocol
+│   └── NuGet.Configuration
 ├── Pandoc
+├── Polyfill
 ├── ReqStream
 ├── ReviewMark
 ├── SarifMark

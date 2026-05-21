@@ -12,7 +12,7 @@ sections:
           - id: Caching-OTS-NuGetProtocol
             title: NuGet.Protocol shall communicate with NuGet package sources and download packages.
             justification: |
-              NuGet.Protocol (version 7.3.0) provides the NuGet client SDK used by the library to
+              NuGet.Protocol provides the NuGet client SDK used by the library to
               communicate with v2 and v3 NuGet package sources, stream package content, and install
               packages into the global packages folder. It is a direct runtime dependency of the
               library. Passing tests that exercise the full download-and-cache path confirm that the
@@ -24,7 +24,7 @@ sections:
           - id: Caching-OTS-NuGetConfiguration
             title: NuGet.Configuration shall read NuGet settings from the local machine configuration.
             justification: |
-              NuGet.Configuration (version 7.3.0) provides the settings infrastructure used by the
+              NuGet.Configuration provides the settings infrastructure used by the
               library to load the NuGet configuration hierarchy (machine-wide, user, and
               project-level), resolve the global packages folder path, load package source
               definitions, and read package source mapping rules. It is a direct runtime dependency
