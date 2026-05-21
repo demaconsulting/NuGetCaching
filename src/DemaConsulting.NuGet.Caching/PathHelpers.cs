@@ -49,15 +49,15 @@ internal static class PathHelpers
     ///     <para>
     ///         This method exists to prevent directory traversal attacks. Without this check, a caller
     ///         supplying a crafted relative path (such as <c>../../etc/passwd</c>) could read or write
-    ///         files outside the intended base directory. The method rejects rather than sanitises such
+    ///         files outside the intended base directory. The method rejects rather than sanitizes such
     ///         paths: if the resolved path escapes the base, an <see cref="ArgumentException"/> is thrown
-    ///         instead of silently normalising the path to something safe.
+    ///         instead of silently normalizing the path to something safe.
     ///     </para>
     ///     <para>
     ///         The containment check is performed at the string level using
-    ///         <see cref="Path.GetFullPath(string)"/> to normalise both paths. Symbolic links are
+    ///         <see cref="Path.GetFullPath(string)"/> to normalize both paths. Symbolic links are
     ///         <em>not</em> resolved: a symlink inside the base directory that points outside it will
-    ///         pass this check. Callers that require symlink-safe behaviour must perform additional
+    ///         pass this check. Callers that require symlink-safe behavior must perform additional
     ///         validation after resolving real paths (e.g., via the OS).
     ///     </para>
     ///     <para>

@@ -9,8 +9,10 @@ sections:
       - title: ReqStream Requirements
         requirements:
           - id: Caching-OTS-ReqStream
-            title: ReqStream shall process requirements and test evidence to produce reports, a justifications document, and
-              a trace matrix, and shall enforce that every requirement is linked to passing test evidence.
+            title: >-
+              ReqStream shall process requirements and test evidence to produce
+              reports, a justifications document, and a trace matrix, and shall
+              enforce that every requirement is linked to passing test evidence.
             justification: |
               DemaConsulting.ReqStream processes requirements YAML files and TRX test-result files
               to produce a requirements report, justifications document, and traceability matrix.

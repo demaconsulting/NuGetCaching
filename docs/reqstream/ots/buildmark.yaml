@@ -9,8 +9,10 @@ sections:
       - title: BuildMark Requirements
         requirements:
           - id: Caching-OTS-BuildMark
-            title: BuildMark shall generate build-notes documentation from GitHub Actions metadata, Git history, issue and
-              pull-request tracking, known-issues reporting, and rules-based routing.
+            title: >-
+              BuildMark shall generate build-notes documentation from GitHub Actions
+              metadata, Git history, issue and pull-request tracking, known-issues
+              reporting, and rules-based routing.
             justification: |
               DemaConsulting.BuildMark queries the GitHub API to capture workflow run details,
               reads Git version tags and commit history, fetches and processes GitHub issues and
