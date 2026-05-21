@@ -94,7 +94,8 @@ public static class NuGetCache
     ///     The absolute path to the cached package folder inside the global packages folder.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    ///     Thrown when <paramref name="packageId"/> or <paramref name="version"/> is <see langword="null"/>.
+    ///     Thrown when <paramref name="packageId"/>, <paramref name="version"/>, or
+    ///     <paramref name="settings"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
@@ -111,6 +112,7 @@ public static class NuGetCache
         // Validate input parameters before performing any I/O
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(version);
+        ArgumentNullException.ThrowIfNull(settings);
 
         // Parse the version string early to validate it and obtain the normalized form;
         // NuGet stores packages using the normalized version (e.g. "1.0" becomes "1.0.0")

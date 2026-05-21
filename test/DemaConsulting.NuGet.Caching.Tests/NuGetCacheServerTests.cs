@@ -247,11 +247,10 @@ public class NuGetCacheServerTests
     ///     fallback base URL return HTTP 500.
     /// </summary>
     /// <remarks>
-    ///     HTTP 500 responses from WireMock are wrapped by the NuGet SDK as
-    ///     <see cref="System.Net.Http.HttpRequestException"/>, which the implementation treats
-    ///     as a transient network failure and skips silently. The final exception therefore carries
-    ///     only the base package-not-found message. This test verifies the method throws the correct
-    ///     exception type even when all feed candidates fail.
+    ///     In this WireMock scenario, HTTP 500 responses from both candidates surface as
+    ///     <see cref="System.Net.Http.HttpRequestException"/> in the NuGet SDK. Those failures are
+    ///     treated as transient by <see cref="NuGetCache"/>, so no per-source diagnostic is appended
+    ///     and the final exception remains the base package-not-found message.
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
@@ -267,7 +266,7 @@ public class NuGetCacheServerTests
 
             await using var server = new NuGetTestServer();
 
-            // Both endpoints return 500 - the NuGet SDK wraps these as HttpRequestException
+            // Both endpoints return 500
             server.SimulateV3IndexProtocolError();
             server.SimulateBaseUrlProtocolError();
 
@@ -277,8 +276,9 @@ public class NuGetCacheServerTests
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 async () => await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None));
 
-            // Assert - a not-found exception is thrown with a message referencing the package identity
+            // Assert - this path produces the base not-found message without per-source diagnostics
             Assert.Contains(packageId, exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("Failed to load source index.", exception.Message, StringComparison.Ordinal);
         }
         finally
         {
@@ -412,13 +412,13 @@ public class NuGetCacheServerTests
     /// <summary>
     ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> throws
     ///     <see cref="InvalidOperationException"/> when the .nupkg download endpoint returns
-    ///     HTTP 500 (protocol error during download).
+    ///     HTTP 500 (protocol-style failure during download).
     /// </summary>
     /// <remarks>
-    ///     HTTP 500 from WireMock during download is wrapped by the NuGet SDK as
-    ///     <see cref="System.Net.Http.HttpRequestException"/>, which the implementation treats
-    ///     as a transient network failure and skips silently. The package is not found in any
-    ///     source so the final exception carries only the base package-not-found message.
+    ///     In this WireMock scenario, HTTP 500 from the download endpoint is surfaced by the NuGet
+    ///     SDK as <see cref="System.Net.Http.HttpRequestException"/>. <see cref="NuGetCache"/>
+    ///     treats that as a transient network failure and returns the base package-not-found
+    ///     message without per-source diagnostics.
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
@@ -440,8 +440,9 @@ public class NuGetCacheServerTests
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 async () => await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None));
 
-            // Assert - a not-found exception is thrown with a message referencing the package identity
+            // Assert - this path produces the base not-found message without download diagnostics
             Assert.Contains(packageId, exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("Protocol error downloading package.", exception.Message, StringComparison.Ordinal);
         }
         finally
         {
