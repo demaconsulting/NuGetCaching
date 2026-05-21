@@ -131,7 +131,8 @@ public class NuGetCacheServerTests
     ///     <para>
     ///         If the v2 OData response format is not accepted by the NuGet SDK, the test verifies
     ///         the fallback was <em>attempted</em> by asserting that the server received at least one
-    ///         request to the base URL — confirming the v2 fallback code path was executed.
+    ///         v2-specific request (<c>/</c>, <c>/$metadata</c>, <c>/FindPackagesById()</c>, or
+    ///         <c>/Packages(...)</c>) — confirming the v2 fallback code path was executed.
     ///     </para>
     /// </remarks>
     [Fact]
@@ -183,12 +184,12 @@ public class NuGetCacheServerTests
             else
             {
                 // ...or the v2 response was not fully accepted by the SDK, but the fallback
-                // URL must have been tried - at least one request to the base URL must appear
+                // URL must have been tried - at least one v2-specific request must appear
                 // in the log entries, proving BuildCandidateRepositories attempted the v2 path
                 Assert.NotNull(notFoundEx);
                 Assert.True(
-                    server.LogEntries.Any(),
-                    "Expected the server to have received at least one request when v2 fallback was attempted.");
+                    server.LogEntries.Any(IsV2FallbackRequest),
+                    "Expected at least one v2 fallback request ('/', '/$metadata', '/FindPackagesById()', or '/Packages(...)').");
             }
         }
         finally
@@ -198,6 +199,46 @@ public class NuGetCacheServerTests
                 Directory.Delete(globalPackagesFolder, recursive: true);
             }
         }
+    }
+
+    private static bool IsV2FallbackRequest(object logEntry)
+    {
+        object? requestMessage = logEntry
+            .GetType()
+            .GetProperty("RequestMessage")
+            ?.GetValue(logEntry);
+
+        if (requestMessage is null)
+        {
+            return false;
+        }
+
+        var path = requestMessage
+            .GetType()
+            .GetProperty("Path")
+            ?.GetValue(requestMessage)
+            ?.ToString();
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            var url = requestMessage
+                .GetType()
+                .GetProperty("Url")
+                ?.GetValue(requestMessage)
+                ?.ToString();
+
+            if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var requestUri))
+            {
+                return false;
+            }
+
+            path = requestUri.AbsolutePath;
+        }
+
+        return string.Equals(path, "/", StringComparison.Ordinal)
+            || string.Equals(path, "/$metadata", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "/FindPackagesById()", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/Packages(", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

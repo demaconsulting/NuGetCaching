@@ -47,11 +47,12 @@ the absence of HTTP activity.
 #### NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
 
 **Scenario**: The v3 `/index.json` stub returns HTTP 500 and the v2 base URL stub serves a valid
-OData response. After the act phase, the test asserts that at least one request reached the
-WireMock server, confirming the v2 fallback URL was attempted.
+OData response. After the act phase, the test asserts that at least one v2-specific request
+(`/$metadata`, `/FindPackagesById()`, `/Packages(...)`, or `/`) reached the WireMock server,
+confirming the v2 fallback URL was attempted.
 
-**Expected**: WireMock.Net records at least one request, confirming the request log correctly
-reflects HTTP activity from the fallback attempt.
+**Expected**: WireMock.Net records at least one v2-specific request, confirming the request log
+correctly reflects HTTP activity from the fallback attempt.
 
 **Requirement coverage**: `Caching-OTS-WireMock-Inspect`.
 

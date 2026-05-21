@@ -107,8 +107,9 @@ while the base URL serves a valid v2 OData feed containing the requested package
 the automatic v2 fallback path used for JFrog Artifactory-style feeds.
 
 **Expected**: Either returns a non-null path to the installed package (v2 download succeeded), or
-throws `InvalidOperationException` while the WireMock server log shows the base URL was requested
-— confirming `BuildCandidateRepositories` attempted the v2 fallback.
+throws `InvalidOperationException` while the WireMock server log shows a v2-specific request
+(`/$metadata`, `/FindPackagesById()`, `/Packages(...)`, or `/`) — confirming
+`BuildCandidateRepositories` attempted the v2 fallback.
 
 **Requirement coverage**: `Caching-NuGetCache-EnsureCached`.
 
