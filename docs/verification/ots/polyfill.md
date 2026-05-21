@@ -7,8 +7,8 @@ Requirements for this OTS item are defined in the Polyfill OTS Software Requirem
 ### Required Functionality
 
 The Polyfill package is a source-generator-based compatibility library. The library project
-targets `netstandard2.0`; on that target Polyfill injects compatible implementations of two APIs
-absent from the BCL:
+targets `netstandard2.0`; on that target Polyfill injects compatible implementations of BCL APIs
+that are absent on that framework. Currently relied-upon APIs include:
 
 1. `Path.GetRelativePath` — called inside `PathHelpers.SafePathCombine` to verify the resolved
    combined path has not escaped the base directory.
