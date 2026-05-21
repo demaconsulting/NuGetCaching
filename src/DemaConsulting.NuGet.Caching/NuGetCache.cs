@@ -264,7 +264,7 @@ public static class NuGetCache
             catch (NuGetProtocolException ex)
             {
                 // Capture the first (configured URL's) error message; try the next candidate if available
-                protocolErrorMessage ??= $"{originalSource}: Failed to load source index. ({ex.Message})";
+                protocolErrorMessage ??= $"{originalSource}: Failed to load package source. ({ex.Message})";
             }
         }
 
