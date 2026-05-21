@@ -86,7 +86,23 @@ Package 'X' version '1.0.0' was not found in any configured NuGet source.
 This allows callers to distinguish a genuine "package absent" outcome from a feed
 misconfiguration, without requiring additional logging infrastructure.
 
-#### Separation of Private Helpers
+#### Testability via Injected Settings
+
+The public `EnsureCachedAsync` method is a thin wrapper that calls the internal overload
+with `Settings.LoadDefaultSettings(null)`. The internal overload accepts an `ISettings`
+parameter that replaces the call to `LoadDefaultSettings`. This design gives tests full
+control over the NuGet source and global packages folder without touching the developer's
+real machine configuration:
+
+- A test can point the settings at a local WireMock server running on a random port.
+- A test can specify a disposable temp directory as the global packages folder, preventing
+  cross-test pollution and avoiding accidental use of the developer's real package cache.
+- All caching logic lives in one place (the internal overload), so there is a single
+  implementation path shared by both the production (default-settings) call and all tests.
+
+The internal overload is only accessible to the `DemaConsulting.NuGet.Caching.Tests`
+assembly, enforced via `InternalsVisibleTo` in the library project file. This keeps the
+public API surface minimal while enabling complete test coverage of the download path.
 
 Five private members encapsulate distinct sub-responsibilities:
 
@@ -111,16 +127,27 @@ any recursion in the download path, and makes each sub-task individually readabl
 
 ### Method Descriptions
 
-#### `EnsureCachedAsync(string packageId, string version, CancellationToken)`
+#### `EnsureCachedAsync(string packageId, string version, CancellationToken)` (public)
 
-Ensures a specific NuGet package version is available in the local global packages
-cache. The method:
+Thin wrapper that delegates immediately to the internal `EnsureCachedAsync` overload,
+passing `Settings.LoadDefaultSettings(null)` as the `settings` argument. This ensures
+the public API continues to behave identically to the pre-testability implementation
+while the full logic lives in one place. See the internal overload description below
+for the complete processing steps.
+
+Returns the absolute path to the cached package folder.
+
+Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullValidation`, and `Caching-NuGetCache-NotFound`.
+
+#### `EnsureCachedAsync(string packageId, string version, ISettings settings, CancellationToken)` (internal)
+
+Contains all caching logic for the public method. The method:
 
 1. Validates that `packageId` and `version` are not null, throwing
    `ArgumentNullException` for either null argument.
 2. Parses the `version` string using `NuGetVersion.Parse`, throwing
    `ArgumentException` when the version string is not a valid NuGet version.
-3. Loads the default NuGet settings and resolves the global packages folder.
+3. Resolves the global packages folder from the injected `settings`.
 4. Computes the expected on-disk package path and returns it immediately if the
    `.nupkg.metadata` sentinel file exists (cache-hit fast path).
 5. Iterates over enabled, mapped package sources. For each source, calls
@@ -133,8 +160,6 @@ cache. The method:
 
 Returns the absolute path to the cached package folder.
 
-Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullValidation`, and `Caching-NuGetCache-NotFound`.
-
 #### `GetFindPackageByIdResourceAsync` (private)
 
 Resolves the `FindPackageByIdResource` for a source repository, with automatic v2 OData
@@ -143,7 +168,9 @@ fallback when a v3 `/index.json` URL fails with a protocol error. The method:
 1. Calls `BuildCandidateRepositories` to get the ordered list of repositories to try.
 2. Iterates over the candidates, calling `GetResourceAsync<FindPackageByIdResource>` on
    each one.
-3. Returns the first successful `(repository, resource, null)` result.
+3. Returns the first successful `(repository, resource, null)` result where the resource
+   is non-null. A null resource is treated as "not supported by this candidate" and the
+   loop continues to the next candidate.
 4. On `HttpRequestException` from any candidate, returns a silent skip result —
    transient network errors are not actionable.
 5. On `NuGetProtocolException`, captures the first (configured URL's) error message via

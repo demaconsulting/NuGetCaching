@@ -18,6 +18,10 @@ sections:
         tests:
           - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
           - NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath
+          - NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath
+          - NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
+          - NuGetCache_EnsureCachedAsync_PackageInSecondSourceOnly_ReturnsExistingPackagePath
+          - NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
 
       - id: Caching-NuGetCache-NullValidation
         title: The library shall reject null arguments with a clear, actionable error.
@@ -40,3 +44,10 @@ sections:
         tests:
           - NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException
           - NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion
+          - NuGetCache_EnsureCachedAsync_V3PackageAbsent_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_V3AndV2BothFail_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_NetworkFailureOnIndex_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_V3IndexFailsNetworkFailureOnFallback_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_DifferentPackageRegistered_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_DownloadProtocolError_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_DownloadNetworkFailure_ThrowsInvalidOperationException

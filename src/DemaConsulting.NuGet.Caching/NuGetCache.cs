@@ -41,6 +41,12 @@ public static class NuGetCache
     /// <summary>
     ///     Ensures a specific NuGet package version is available in the local global packages cache.
     /// </summary>
+    /// <remarks>
+    ///     Reads NuGet configuration from the default machine settings via
+    ///     <c>Settings.LoadDefaultSettings</c>, mirroring the behavior of the <c>dotnet</c>
+    ///     CLI and Visual Studio package restore. All caching logic is delegated to the internal
+    ///     overload that accepts an explicit <see cref="ISettings"/> instance.
+    /// </remarks>
     /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
     /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
     /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
@@ -61,6 +67,47 @@ public static class NuGetCache
         string version,
         CancellationToken cancellationToken = default)
     {
+        // Delegate to the overload that accepts an explicit ISettings instance, using the
+        // default machine / user NuGet configuration as the settings source
+        return await EnsureCachedAsync(packageId, version, Settings.LoadDefaultSettings(null), cancellationToken);
+    }
+
+    /// <summary>
+    ///     Ensures a specific NuGet package version is available in the local global packages cache,
+    ///     using the provided NuGet <paramref name="settings"/> instance.
+    /// </summary>
+    /// <remarks>
+    ///     This overload exists to support testing: by injecting a custom <see cref="ISettings"/>
+    ///     (e.g. one pointing at a local WireMock test server with a dedicated global packages
+    ///     folder), the full download-and-cache behavior can be exercised without touching the
+    ///     developer's real global packages cache or contacting external NuGet feeds. All caching
+    ///     logic lives here so there is a single implementation path shared by the public overload.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
+    /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
+    /// <param name="settings">
+    ///     The NuGet settings instance used to resolve package sources, the global packages folder,
+    ///     and package source mapping. Must not be <see langword="null"/>.
+    /// </param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>
+    ///     The absolute path to the cached package folder inside the global packages folder.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/> or <paramref name="version"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the package cannot be found in any configured NuGet source.
+    /// </exception>
+    internal static async Task<string> EnsureCachedAsync(
+        string packageId,
+        string version,
+        ISettings settings,
+        CancellationToken cancellationToken = default)
+    {
         // Validate input parameters before performing any I/O
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(version);
@@ -69,8 +116,7 @@ public static class NuGetCache
         // NuGet stores packages using the normalized version (e.g. "1.0" becomes "1.0.0")
         var nugetVersion = NuGetVersion.Parse(version);
 
-        // Load the default NuGet settings from the machine / user configuration files
-        var settings = Settings.LoadDefaultSettings(null);
+        // Resolve the global packages folder from the injected settings
         var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(settings);
 
         // Compute the expected on-disk path for the package; NuGet stores packages under
@@ -201,7 +247,10 @@ public static class NuGetCache
             try
             {
                 var resource = await candidate.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
-                return (candidate, resource, null);
+                if (resource != null)
+                {
+                    return (candidate, resource, null);
+                }
             }
             catch (HttpRequestException)
             {

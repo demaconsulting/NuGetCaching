@@ -21,6 +21,7 @@ input-files:
   - docs/verification/ots/sonarmark.md
   - docs/verification/ots/versionmark.md
   - docs/verification/ots/weasyprint.md
+  - docs/verification/ots/wiremock.md
   - docs/verification/ots/xunit.md
 template: template.html
 table-of-contents: true

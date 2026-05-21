@@ -36,6 +36,7 @@ The following OTS items are also covered:
 - **SonarMark** — SonarCloud quality report tool
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
+- **WireMock.Net** — HTTP stub server (test-only; not shipped with the production library)
 - **xUnit** — unit-testing framework
 
 ## Software Structure
@@ -57,6 +58,7 @@ OTS Items
 ├── SonarMark
 ├── VersionMark
 ├── WeasyPrint
+├── WireMock.Net (test-only)
 └── xUnit
 ```
 

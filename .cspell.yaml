@@ -16,7 +16,11 @@ language: en
 words:
   - buildmark
   - Dema
+  - Edmx
+  - edmx
+  - EDMX
   - fileassert
+  - flatcontainer
   - mstest
   - xunit
   - netstandard

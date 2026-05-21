@@ -1,0 +1,39 @@
+---
+# WireMock.Net OTS Software Requirements
+#
+# Requirements for the WireMock.Net HTTP stubbing library used exclusively
+# by the controlled integration test suite to simulate NuGet feed behavior
+# without making real network calls. WireMock.Net is a test-only dependency
+# and is not shipped with or required by the production library.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: WireMock.Net Requirements
+        requirements:
+          - id: Caching-OTS-WireMock-Stub
+            title: WireMock.Net shall serve configured HTTP stub responses to the NuGet client.
+            justification: |
+              WireMock.Net (version 2.6.0) is the HTTP stub server used exclusively by the
+              controlled integration test suite. It is a test-only dependency and is not
+              shipped with or required by the production library. It binds to a random
+              localhost port and serves pre-configured responses for NuGet v3 service index,
+              flat-container, v2 OData, and error simulation endpoints. Tests that exercise
+              the full download path confirm the stub server is correctly delivering configured
+              responses to the NuGet client SDK.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath
+
+          - id: Caching-OTS-WireMock-Inspect
+            title: WireMock.Net shall record received HTTP requests for post-test inspection.
+            justification: |
+              WireMock.Net records all received HTTP requests in a log that tests can inspect
+              after the act phase. This test-only capability allows tests to assert that the
+              cache-hit fast path made no network calls, and that the v2 fallback path reached
+              the base URL. Tests that assert on the request log confirm the inspection
+              capability is functional.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
+              - NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath

@@ -26,7 +26,7 @@ namespace DemaConsulting.NuGet.Caching.Tests;
 public class NuGetCacheTests
 {
     /// <summary>
-    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> returns the path to an existing
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> returns the path to an existing
     ///     package folder after downloading a known small package from nuget.org.
     /// </summary>
     /// <remarks>
@@ -61,7 +61,7 @@ public class NuGetCacheTests
     }
 
     /// <summary>
-    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> throws
     ///     <see cref="InvalidOperationException"/> when the package cannot be found in any configured NuGet source.
     /// </summary>
     /// <remarks>
@@ -81,7 +81,7 @@ public class NuGetCacheTests
     }
 
     /// <summary>
-    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> throws
     ///     <see cref="ArgumentNullException"/> when <c>packageId</c> is <see langword="null"/>.
     /// </summary>
     /// <remarks>
@@ -100,7 +100,7 @@ public class NuGetCacheTests
     }
 
     /// <summary>
-    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> throws
     ///     <see cref="ArgumentNullException"/> when <c>version</c> is <see langword="null"/>.
     /// </summary>
     /// <remarks>
@@ -119,7 +119,7 @@ public class NuGetCacheTests
     }
 
     /// <summary>
-    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> throws
     ///     <see cref="ArgumentException"/> when <c>version</c> is not a valid NuGet version string.
     /// </summary>
     [Fact]
@@ -135,7 +135,7 @@ public class NuGetCacheTests
     }
 
     /// <summary>
-    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> throws
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> throws
     ///     <see cref="InvalidOperationException"/> whose message identifies the package ID and version
     ///     when the package cannot be found in any configured NuGet source.
     /// </summary>
@@ -164,7 +164,7 @@ public class NuGetCacheTests
     }
 
     /// <summary>
-    ///     Tests that <see cref="NuGetCache.EnsureCachedAsync"/> is idempotent: calling it twice
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> is idempotent: calling it twice
     ///     with the same package returns the same path both times.
     /// </summary>
     /// <remarks>
