@@ -2,7 +2,7 @@
 
 This document provides the verification evidence for the NuGet Client SDK OTS software items.
 Requirements for these OTS items are defined in the NuGet Client SDK OTS Software Requirements
-document (`docs/reqstream/ots/nuget.yaml`).
+document: `docs/reqstream/ots/nuget.yaml`.
 
 ### Required Functionality
 
