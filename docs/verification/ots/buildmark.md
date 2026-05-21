@@ -1,6 +1,8 @@
 ## BuildMark Verification
 
 This document provides the verification evidence for the `BuildMark` OTS software item.
+Requirements for this OTS item are defined in the BuildMark OTS Software Requirements document
+(`docs/reqstream/ots/buildmark.yaml`).
 
 ### Required Functionality
 

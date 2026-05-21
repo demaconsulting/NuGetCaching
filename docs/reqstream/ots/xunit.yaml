@@ -9,7 +9,7 @@ sections:
       - title: xUnit Requirements
         requirements:
           - id: Caching-OTS-xUnit-Execute
-            title: xUnit shall discover and execute unit tests.
+            title: xUnit shall execute all discovered unit tests.
             justification: |
               xUnit v3 (xunit.v3 and xunit.runner.visualstudio) is the unit-testing framework
               used by the project. It discovers and runs all test methods, confirming the

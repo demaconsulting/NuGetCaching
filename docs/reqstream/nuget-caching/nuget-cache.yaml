@@ -14,17 +14,28 @@ sections:
           Provides the core caching functionality of the library, allowing callers to ensure
           a specific NuGet package version is available in the local cache before use.
         children:
-          - Caching-PathHelpers-SafeCombine
+          - Caching-PathHelpers-Combine
+          - Caching-PathHelpers-RejectTraversal
+          - Caching-NuGetCache-InvalidVersion
+          - Caching-NuGetCache-TransientFailure
+          - Caching-NuGetCache-MultiSource
+          - Caching-NuGetCache-V2Fallback
+          - Caching-NuGetCache-CacheHit
         tests:
           - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
           - NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath
+          - NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath
 
       - id: Caching-NuGetCache-NullValidation
-        title: The library shall reject null arguments with a clear, actionable error.
+        title: >-
+          The EnsureCachedAsync method shall throw ArgumentNullException when
+          packageId is null and when version is null.
         justification: |
-          Null parameter validation ensures callers receive clear, actionable error messages
-          when required arguments are missing, preventing unexpected errors from propagating
-          through the system.
+          Null validation on the EnsureCachedAsync method ensures callers receive
+          a clear ArgumentNullException that identifies which parameter was null
+          (packageId or version). This is the unit-level decomposition of
+          Caching-Sys-NullValidation, specifying that the public API method
+          performs the check before any I/O or version parsing occurs.
         tests:
           - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
           - NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
@@ -39,3 +50,75 @@ sections:
           or a transient network failure on a single source.
         tests:
           - NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion
+          - NuGetCache_EnsureCachedAsync_V3PackageAbsent_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_V3AndV2BothFail_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_NetworkFailureOnIndex_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_V3IndexFailsNetworkFailureOnFallback_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_DifferentPackageRegistered_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_DownloadProtocolError_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_DownloadNetworkFailure_ThrowsInvalidOperationException
+
+      - id: Caching-NuGetCache-InvalidVersion
+        title: >-
+          The EnsureCachedAsync method shall reject a version string that is not
+          a valid NuGet version with an ArgumentException.
+        justification: |
+          NuGetVersion.Parse is used to validate and normalize the version string
+          early in the call. Propagating its ArgumentException provides callers
+          with a clear, actionable signal that the version string is malformed,
+          distinguishing this condition from a null argument or a package-not-found
+          error.
+        tests:
+          - NuGetCache_EnsureCachedAsync_InvalidVersion_ThrowsArgumentException
+
+      - id: Caching-NuGetCache-TransientFailure
+        title: >-
+          The EnsureCachedAsync method shall continue querying remaining configured
+          sources when a source is unreachable or returns a transient network error.
+        justification: |
+          Network outages on individual feeds are non-actionable and should not
+          prevent the library from finding a package on another available source.
+          Silently skipping unreachable sources mirrors the behavior of the dotnet
+          CLI restore, ensuring the library remains functional when one of several
+          configured feeds is temporarily unavailable.
+        tests:
+          - NuGetCache_EnsureCachedAsync_NetworkFailureOnIndex_ThrowsInvalidOperationException
+          - NuGetCache_EnsureCachedAsync_V3IndexFailsNetworkFailureOnFallback_ThrowsInvalidOperationException
+
+      - id: Caching-NuGetCache-MultiSource
+        title: >-
+          The EnsureCachedAsync method shall search all configured and enabled
+          NuGet sources in order until the package is found.
+        justification: |
+          Users may configure multiple NuGet sources (corporate feed plus nuget.org
+          fallback). Searching all sources ensures the package is found even when it
+          is not available in the first source, mirroring the behavior of the dotnet
+          CLI restore.
+        tests:
+          - NuGetCache_EnsureCachedAsync_PackageInSecondSourceOnly_ReturnsExistingPackagePath
+
+      - id: Caching-NuGetCache-V2Fallback
+        title: >-
+          The EnsureCachedAsync method shall fall back to a v2 OData endpoint when
+          a configured v3 index URL fails with a protocol error.
+        justification: |
+          Some package feeds expose a v2-only endpoint at the base URL even when a
+          v3-style index.json URL is configured. Automatic fallback to the base URL
+          as a v2 OData endpoint allows the library to serve these feeds without
+          requiring configuration changes by the user.
+        tests:
+          - NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
+
+      - id: Caching-NuGetCache-CacheHit
+        title: >-
+          The EnsureCachedAsync method shall return the cached path without network
+          communication when the package is already fully installed in the global
+          packages folder.
+        justification: |
+          Avoiding redundant network calls improves performance and enables offline
+          operation for packages already present locally. The .nupkg.metadata
+          sentinel file is used as the cache-hit indicator to avoid returning a
+          partially-extracted package.
+        tests:
+          - NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls

@@ -7,7 +7,8 @@ This document provides the verification evidence for the `VersionMark` OTS softw
 DemaConsulting.VersionMark reads version metadata for each dotnet tool used in the pipeline and
 writes a versions markdown document included in the release artifacts. It runs in the same CI
 pipeline that produces the TRX test results, so a successful pipeline run is evidence that
-VersionMark executed without error.
+VersionMark executed without error. The full requirement is recorded in the VersionMark OTS
+Software Requirements document (`docs/reqstream/ots/versionmark.yaml`).
 
 ### Verification Approach
 
@@ -48,7 +49,7 @@ config.
 
 **Expected**: Exits 0 and reports no errors.
 
-**Requirement coverage**: `Caching-OTS-VersionMark`.
+**Requirement coverage**: `Caching-OTS-VersionMark-Lint`.
 
 #### VersionMark_LintReportsErrorsForInvalidConfig
 
@@ -57,9 +58,10 @@ deliberate errors.
 
 **Expected**: Correctly identifies and reports the configuration errors.
 
-**Requirement coverage**: `Caching-OTS-VersionMark`.
+**Requirement coverage**: `Caching-OTS-VersionMark-Lint`.
 
 ### Requirements Coverage
 
-- **`Caching-OTS-VersionMark`**: VersionMark_CapturesVersions, VersionMark_GeneratesMarkdownReport,
-  VersionMark_LintPassesForValidConfig, VersionMark_LintReportsErrorsForInvalidConfig
+- **`Caching-OTS-VersionMark`**: VersionMark_CapturesVersions, VersionMark_GeneratesMarkdownReport
+- **`Caching-OTS-VersionMark-Lint`**: VersionMark_LintPassesForValidConfig,
+  VersionMark_LintReportsErrorsForInvalidConfig

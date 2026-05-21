@@ -19,3 +19,14 @@ sections:
             tests:
               - ReviewMark_ReviewPlanGeneration
               - ReviewMark_ReviewReportGeneration
+          - id: Caching-OTS-ReviewMark-Operations
+            title: >-
+              ReviewMark shall support index scanning, working-directory override,
+              enforcement, elaboration, and linting operations.
+            tags: [ots]
+            tests:
+              - ReviewMark_IndexScan
+              - ReviewMark_WorkingDirectoryOverride
+              - ReviewMark_Enforce
+              - ReviewMark_Elaborate
+              - ReviewMark_Lint

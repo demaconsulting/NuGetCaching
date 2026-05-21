@@ -29,13 +29,16 @@ The following OTS items are also covered:
 
 - **BuildMark** — build-notes documentation tool
 - **FileAssert** — document assertion tool
+- **NuGet Client SDK** — NuGet.Protocol and NuGet.Configuration packages used at runtime
 - **Pandoc** — Markdown-to-HTML conversion tool
+- **Polyfill** — `Path.GetRelativePath` compatibility shim for netstandard2.0
 - **ReqStream** — requirements traceability tool
 - **ReviewMark** — file review enforcement tool
 - **SarifMark** — SARIF report conversion tool
 - **SonarMark** — SonarCloud quality report tool
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
+- **WireMock.Net** — HTTP stub server (test-only; not shipped with the production library)
 - **xUnit** — unit-testing framework
 
 ## Software Structure
@@ -43,20 +46,25 @@ The following OTS items are also covered:
 The following tree shows the software items covered by this document:
 
 ```text
-NuGetCaching (System)
+DemaConsulting.NuGet.Caching (System)
 ├── NuGetCache (Unit)
 └── PathHelpers (Unit)
 
 OTS Items
 ├── BuildMark
 ├── FileAssert
+├── NuGet Client SDK
+│   ├── NuGet.Protocol
+│   └── NuGet.Configuration
 ├── Pandoc
+├── Polyfill
 ├── ReqStream
 ├── ReviewMark
 ├── SarifMark
 ├── SonarMark
 ├── VersionMark
 ├── WeasyPrint
+├── WireMock.Net (test-only)
 └── xUnit
 ```
 

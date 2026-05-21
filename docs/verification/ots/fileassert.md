@@ -54,6 +54,23 @@ to verify file content.
 
 **Requirement coverage**: `Caching-OTS-FileAssert`.
 
+#### FileAssert_VersionDisplay
+
+**Scenario**: FileAssert self-validation exercises the `--version` option.
+
+**Expected**: Prints the tool version to standard output and exits 0.
+
+**Requirement coverage**: `Caching-OTS-FileAssert`.
+
+#### FileAssert_HelpDisplay
+
+**Scenario**: FileAssert self-validation exercises the `--help` option.
+
+**Expected**: Prints usage information to standard output and exits 0.
+
+**Requirement coverage**: `Caching-OTS-FileAssert`.
+
 ### Requirements Coverage
 
-- **`Caching-OTS-FileAssert`**: FileAssert_Results, FileAssert_Exists, FileAssert_Contains
+- **`Caching-OTS-FileAssert`**: FileAssert_Results, FileAssert_Exists, FileAssert_Contains,
+  FileAssert_VersionDisplay, FileAssert_HelpDisplay

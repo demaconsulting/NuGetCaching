@@ -77,6 +77,9 @@ reviews:
       - "docs/verification/nuget-caching/nuget-cache.md"
       - "src/DemaConsulting.NuGet.Caching/NuGetCache.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheServerTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetTestServer.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetPackageBuilder.cs"
 
   # NuGetCaching - PathHelpers
   - id: NuGetCaching-PathHelpers
@@ -89,6 +92,18 @@ reviews:
       - "test/DemaConsulting.NuGet.Caching.Tests/PathHelpersTests.cs"
 
   # OTS Items
+  - id: OTS-NuGet
+    title: Review of NuGet Client SDK OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/nuget.yaml"
+      - "docs/verification/ots/nuget.md"
+
+  - id: OTS-Polyfill
+    title: Review of Polyfill OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/polyfill.yaml"
+      - "docs/verification/ots/polyfill.md"
+
   - id: OTS-BuildMark
     title: Review of BuildMark OTS verification evidence
     paths:
@@ -142,6 +157,12 @@ reviews:
     paths:
       - "docs/reqstream/ots/weasyprint.yaml"
       - "docs/verification/ots/weasyprint.md"
+
+  - id: OTS-WireMock
+    title: Review of WireMock.Net OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/wiremock.yaml"
+      - "docs/verification/ots/wiremock.md"
 
   - id: OTS-xUnit
     title: Review of xUnit OTS verification evidence

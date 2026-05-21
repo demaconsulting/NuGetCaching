@@ -19,3 +19,8 @@ sections:
             tests:
               - SarifMark_SarifReading
               - SarifMark_MarkdownReportGeneration
+          - id: Caching-OTS-SarifMark-Enforcement
+            title: SarifMark shall return a non-zero exit code when SARIF issues are found in enforcement mode.
+            tags: [ots]
+            tests:
+              - SarifMark_Enforcement

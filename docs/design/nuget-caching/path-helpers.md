@@ -106,4 +106,4 @@ The method propagates `NotSupportedException` from `Path.GetFullPath` when a sup
 contains an unsupported format, and propagates `PathTooLongException` from `Path.GetFullPath`
 or `Path.Combine` when the combined or resolved path exceeds the system-defined maximum length.
 
-Satisfies requirement `Caching-PathHelpers-SafeCombine`.
+Satisfies requirements `Caching-PathHelpers-Combine` and `Caching-PathHelpers-RejectTraversal`.

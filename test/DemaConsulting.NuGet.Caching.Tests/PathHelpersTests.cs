@@ -218,8 +218,9 @@ public class PathHelpersTests
         var relativePath = "file.txt";
 
         // Act & Assert - SafePathCombine must throw ArgumentNullException for null basePath
-        _ = Assert.Throws<ArgumentNullException>(() =>
+        var ex = Assert.Throws<ArgumentNullException>(() =>
             PathHelpers.SafePathCombine(basePath!, relativePath));
+        Assert.Equal("basePath", ex.ParamName);
     }
 
     /// <summary>
@@ -233,7 +234,8 @@ public class PathHelpersTests
         const string? relativePath = null;
 
         // Act & Assert - SafePathCombine must throw ArgumentNullException for null relativePath
-        _ = Assert.Throws<ArgumentNullException>(() =>
+        var ex = Assert.Throws<ArgumentNullException>(() =>
             PathHelpers.SafePathCombine(basePath, relativePath!));
+        Assert.Equal("relativePath", ex.ParamName);
     }
 }

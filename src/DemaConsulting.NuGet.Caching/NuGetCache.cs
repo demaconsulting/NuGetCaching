@@ -35,12 +35,20 @@ namespace DemaConsulting.NuGet.Caching;
 ///     This class reads NuGet configuration (sources and global packages folder) from
 ///     the default NuGet settings on the local machine, mirroring the behavior of
 ///     the <c>dotnet</c> CLI and Visual Studio package restore.
+///     This class is stateless — all state is local to each <c>EnsureCachedAsync</c> call — and is
+///     safe for concurrent use.
 /// </remarks>
 public static class NuGetCache
 {
     /// <summary>
     ///     Ensures a specific NuGet package version is available in the local global packages cache.
     /// </summary>
+    /// <remarks>
+    ///     Reads NuGet configuration from the default machine settings via
+    ///     <c>Settings.LoadDefaultSettings</c>, mirroring the behavior of the <c>dotnet</c>
+    ///     CLI and Visual Studio package restore. All caching logic is delegated to the internal
+    ///     overload that accepts an explicit <see cref="ISettings"/> instance.
+    /// </remarks>
     /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
     /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
     /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
@@ -61,16 +69,58 @@ public static class NuGetCache
         string version,
         CancellationToken cancellationToken = default)
     {
+        // Delegate to the overload that accepts an explicit ISettings instance, using the
+        // default machine / user NuGet configuration as the settings source
+        return await EnsureCachedAsync(packageId, version, Settings.LoadDefaultSettings(null), cancellationToken);
+    }
+
+    /// <summary>
+    ///     Ensures a specific NuGet package version is available in the local global packages cache,
+    ///     using the provided NuGet <paramref name="settings"/> instance.
+    /// </summary>
+    /// <remarks>
+    ///     This overload exists to support testing: by injecting a custom <see cref="ISettings"/>
+    ///     (e.g. one pointing at a local WireMock test server with a dedicated global packages
+    ///     folder), the full download-and-cache behavior can be exercised without touching the
+    ///     developer's real global packages cache or contacting external NuGet feeds. All caching
+    ///     logic lives here so there is a single implementation path shared by the public overload.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
+    /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
+    /// <param name="settings">
+    ///     The NuGet settings instance used to resolve package sources, the global packages folder,
+    ///     and package source mapping. Must not be <see langword="null"/>.
+    /// </param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>
+    ///     The absolute path to the cached package folder inside the global packages folder.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/>, <paramref name="version"/>, or
+    ///     <paramref name="settings"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the package cannot be found in any configured NuGet source.
+    /// </exception>
+    internal static async Task<string> EnsureCachedAsync(
+        string packageId,
+        string version,
+        ISettings settings,
+        CancellationToken cancellationToken = default)
+    {
         // Validate input parameters before performing any I/O
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(version);
+        ArgumentNullException.ThrowIfNull(settings);
 
         // Parse the version string early to validate it and obtain the normalized form;
         // NuGet stores packages using the normalized version (e.g. "1.0" becomes "1.0.0")
         var nugetVersion = NuGetVersion.Parse(version);
 
-        // Load the default NuGet settings from the machine / user configuration files
-        var settings = Settings.LoadDefaultSettings(null);
+        // Resolve the global packages folder from the injected settings
         var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(settings);
 
         // Compute the expected on-disk path for the package; NuGet stores packages under
@@ -106,14 +156,32 @@ public static class NuGetCache
             ? enabledSources.Where(s => packageSourceMapping.GetConfiguredPackageSources(packageId).Contains(s.Name))
             : enabledSources;
 
+        // Accumulate per-source diagnostic messages so they can be included in the
+        // final exception when all sources fail - giving callers actionable context
+        var sourceErrors = new List<string>();
+
         foreach (var packageSource in allowedSources)
         {
             // Build a source repository for this feed using the V3 provider chain
             var sourceRepository = new SourceRepository(packageSource, providers);
 
-            // Attempt to download the package from this source; null means not found here
-            var downloadedPath = await TryDownloadPackageAsync(
-                sourceRepository,
+            // Resolve the FindPackageByIdResource, applying v2 fallback as needed
+            var (effectiveRepository, resource, resourceError) = await GetFindPackageByIdResourceAsync(
+                sourceRepository, providers, cancellationToken);
+
+            if (resource == null)
+            {
+                if (resourceError != null)
+                {
+                    sourceErrors.Add(resourceError);
+                }
+                continue;
+            }
+
+            // Download and install the package from this source
+            var result = await TryDownloadFromResourceAsync(
+                effectiveRepository,
+                resource,
                 packageId,
                 nugetVersion,
                 globalPackagesFolder,
@@ -121,23 +189,128 @@ public static class NuGetCache
                 sourceCacheContext,
                 cancellationToken);
 
-            // Return the installed package path on the first successful download
-            if (downloadedPath != null)
+            if (result.PackagePath != null)
             {
-                return downloadedPath;
+                return result.PackagePath;
+            }
+
+            if (result.ErrorMessage != null)
+            {
+                sourceErrors.Add(result.ErrorMessage);
             }
         }
 
-        // No configured source contained the requested package
-        throw new InvalidOperationException(
-            $"Package '{packageId}' version '{version}' was not found in any configured NuGet source.");
+        // Build the final exception message; append per-source diagnostics when available
+        // so callers can identify which sources failed and why (e.g. v2-only feed misconfiguration)
+        var baseMessage = $"Package '{packageId}' version '{version}' was not found in any configured NuGet source.";
+        var fullMessage = sourceErrors.Count > 0
+            ? baseMessage + Environment.NewLine + string.Join(Environment.NewLine, sourceErrors.Select(e => $"  - {e}"))
+            : baseMessage;
+
+        throw new InvalidOperationException(fullMessage);
     }
 
     /// <summary>
-    ///     Attempts to download a NuGet package from a single source repository and install it
-    ///     into the global packages folder.
+    ///     Represents the result of a single package download attempt from one NuGet source.
     /// </summary>
-    /// <param name="sourceRepository">The source repository to query.</param>
+    /// <param name="PackagePath">
+    ///     The absolute path to the installed package folder, or <see langword="null"/> if the
+    ///     package was not available or could not be downloaded from this source.
+    /// </param>
+    /// <param name="ErrorMessage">
+    ///     A diagnostic message describing a source-level failure (e.g. protocol mismatch),
+    ///     or <see langword="null"/> when the source was reachable but simply did not carry
+    ///     the requested package, or when the failure is transient and non-actionable.
+    /// </param>
+    private readonly record struct TryDownloadResult(string? PackagePath, string? ErrorMessage);
+
+    /// <summary>
+    ///     Resolves the <see cref="FindPackageByIdResource"/> for a source repository, with automatic
+    ///     v2 OData fallback when a v3 <c>/index.json</c> URL fails with a protocol error.
+    /// </summary>
+    /// <param name="sourceRepository">The source repository to resolve a resource for.</param>
+    /// <param name="providers">NuGet resource providers used when creating a v2 fallback repository.</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>
+    ///     A tuple of the effective <see cref="SourceRepository"/> to use (may be a v2 fallback),
+    ///     the resolved <see cref="FindPackageByIdResource"/> (or <see langword="null"/> on failure),
+    ///     and an optional diagnostic error message when the failure is actionable.
+    /// </returns>
+    private static async Task<(SourceRepository Repository, FindPackageByIdResource? Resource, string? ErrorMessage)>
+        GetFindPackageByIdResourceAsync(
+            SourceRepository sourceRepository,
+            IEnumerable<Lazy<INuGetResourceProvider>> providers,
+            CancellationToken cancellationToken)
+    {
+        var originalSource = sourceRepository.PackageSource.Source;
+        var candidates = BuildCandidateRepositories(sourceRepository, providers);
+        string? protocolErrorMessage = null;
+
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                var resource = await candidate.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
+                if (resource != null)
+                {
+                    return (candidate, resource, null);
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // Transient network-level failure - not actionable, skip silently
+                return (sourceRepository, null, null);
+            }
+            catch (NuGetProtocolException ex)
+            {
+                // Capture the first (configured URL's) error message; try the next candidate if available
+                protocolErrorMessage ??= $"{originalSource}: Failed to load package source. ({ex.Message})";
+            }
+        }
+
+        return (sourceRepository, null, protocolErrorMessage);
+    }
+
+    /// <summary>
+    ///     Builds the ordered list of candidate repositories to try when resolving a
+    ///     <see cref="FindPackageByIdResource"/> for a package source.
+    /// </summary>
+    /// <param name="sourceRepository">The configured source repository.</param>
+    /// <param name="providers">NuGet resource providers used when creating the v2 fallback repository.</param>
+    /// <returns>
+    ///     A single-element list containing <paramref name="sourceRepository"/> when its URL does not
+    ///     end in <c>/index.json</c>, or a two-element list of <paramref name="sourceRepository"/>
+    ///     followed by a v2 OData fallback repository when it does.
+    /// </returns>
+    private static IReadOnlyList<SourceRepository> BuildCandidateRepositories(
+        SourceRepository sourceRepository,
+        IEnumerable<Lazy<INuGetResourceProvider>> providers)
+    {
+        var source = sourceRepository.PackageSource.Source;
+
+        if (!source.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return [sourceRepository];
+        }
+
+        // When the configured URL ends in '/index.json', also try the base URL as a v2 OData
+        // endpoint. Some feeds (e.g. JFrog Artifactory) expose a v2-only feed at the base URL
+        // even though the administrator configured a v3-style '/index.json' URL.
+        var baseUrl = source[..^"/index.json".Length];
+        var fallbackSource = new PackageSource(baseUrl, sourceRepository.PackageSource.Name)
+        {
+            Credentials = sourceRepository.PackageSource.Credentials,
+        };
+
+        return [sourceRepository, new SourceRepository(fallbackSource, providers)];
+    }
+
+    /// <summary>
+    ///     Downloads and installs a NuGet package using an already-resolved
+    ///     <see cref="FindPackageByIdResource"/>.
+    /// </summary>
+    /// <param name="sourceRepository">The source repository that owns the resource.</param>
+    /// <param name="resource">The resolved <see cref="FindPackageByIdResource"/> to download from.</param>
     /// <param name="packageId">The NuGet package identifier.</param>
     /// <param name="version">The parsed <see cref="NuGetVersion"/> to download.</param>
     /// <param name="globalPackagesFolder">Absolute path to the NuGet global packages folder.</param>
@@ -145,11 +318,13 @@ public static class NuGetCache
     /// <param name="cacheContext">Shared <see cref="SourceCacheContext"/> for HTTP caching.</param>
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
     /// <returns>
-    ///     The absolute path to the installed package directory, or <see langword="null"/> if the
-    ///     package was not available from this source or the source could not be reached.
+    ///     A <see cref="TryDownloadResult"/> with the installed package path on success, an empty
+    ///     result when the package is absent from this source or a transient error occurs, or an
+    ///     error result when a protocol error occurs during download.
     /// </returns>
-    private static async Task<string?> TryDownloadPackageAsync(
+    private static async Task<TryDownloadResult> TryDownloadFromResourceAsync(
         SourceRepository sourceRepository,
+        FindPackageByIdResource resource,
         string packageId,
         NuGetVersion version,
         string globalPackagesFolder,
@@ -157,32 +332,7 @@ public static class NuGetCache
         SourceCacheContext cacheContext,
         CancellationToken cancellationToken)
     {
-        // Build the package identity from the provided packageId and version
         var identity = new PackageIdentity(packageId, version);
-
-        // Obtain the FindPackageByIdResource; some source types may not support it or may
-        // be unreachable - in either case skip this source and move on to the next
-        FindPackageByIdResource? resource;
-        try
-        {
-            resource = await sourceRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
-        }
-        catch (NuGetProtocolException)
-        {
-            // Source is unreachable or misconfigured - skip it and try the next one
-            return null;
-        }
-        catch (HttpRequestException)
-        {
-            // Network-level failure talking to this source - skip it and try the next one
-            return null;
-        }
-
-        // A null resource means this source does not support the required protocol
-        if (resource == null)
-        {
-            return null;
-        }
 
         // Stream the .nupkg bytes into memory; returns false when the package is absent from
         // this source, and throws on transient or permanent protocol errors
@@ -198,21 +348,24 @@ public static class NuGetCache
                 NullLogger.Instance,
                 cancellationToken);
         }
-        catch (NuGetProtocolException)
+        catch (NuGetProtocolException ex)
         {
-            // Download failure from this source - skip it and try the next one
-            return null;
+            // Protocol error during the download itself - surface a diagnostic message
+            // so the caller can include it in the final not-found exception
+            var source = sourceRepository.PackageSource.Source;
+            return new TryDownloadResult(null,
+                $"{source}: Protocol error downloading package. ({ex.Message})");
         }
         catch (HttpRequestException)
         {
-            // Network-level failure during download - skip it and try the next one
-            return null;
+            // Transient network-level failure during download - not actionable, skip silently
+            return default;
         }
 
         // The source confirmed it does not carry this package version
         if (!found)
         {
-            return null;
+            return default;
         }
 
         // Rewind the stream then install the package into the global packages folder.
@@ -229,7 +382,7 @@ public static class NuGetCache
             cancellationToken);
 
         // Return the conventional package path that NuGet uses on disk
-        return GetPackagePath(globalPackagesFolder, packageId, version.ToNormalizedString());
+        return new TryDownloadResult(GetPackagePath(globalPackagesFolder, packageId, version.ToNormalizedString()), null);
     }
 
     /// <summary>

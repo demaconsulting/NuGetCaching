@@ -1,6 +1,8 @@
 ## Pandoc Verification
 
 This document provides the verification evidence for the `Pandoc` OTS software item.
+Requirements for this OTS item are defined in the Pandoc OTS Software Requirements document
+(`docs/reqstream/ots/pandoc.yaml`).
 
 ### Required Functionality
 
