@@ -32,14 +32,14 @@
          - PrivateAssets="all" keeps this test-coverage tool out of any consuming project's dependencies.
          - IncludeAssets lists all asset types (including 'build' and 'buildtransitive') to ensure the
            data collector MSBuild targets are activated so coverage is collected during test runs. -->
-    <PackageReference Include="coverlet.collector" Version="10.0.0">
+    <PackageReference Include="coverlet.collector" Version="10.0.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
     <!-- WireMock.Net provides an in-process HTTP mock server used by the LocalIntegration tests
          to simulate NuGet v3 and v2 feeds without hitting the network. -->
-    <PackageReference Include="WireMock.Net" Version="2.6.0" />
+    <PackageReference Include="WireMock.Net" Version="2.7.0" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>
@@ -58,7 +58,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.25.0.139117">
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.26.0.140279">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
