@@ -36,7 +36,7 @@ results containing both passing and failing outcomes.
 
 **Requirement coverage**: `Caching-OTS-FileAssert`.
 
-#### FileAssert_Exists
+#### FileAssert_File
 
 **Scenario**: FileAssert self-validation exercises a test configuration using a glob pattern to
 assert file existence.
@@ -45,7 +45,7 @@ assert file existence.
 
 **Requirement coverage**: `Caching-OTS-FileAssert`.
 
-#### FileAssert_Contains
+#### FileAssert_Text
 
 **Scenario**: FileAssert self-validation exercises a test configuration using a `contains` assertion
 to verify file content.
@@ -72,5 +72,5 @@ to verify file content.
 
 ### Requirements Coverage
 
-- **`Caching-OTS-FileAssert`**: FileAssert_Results, FileAssert_Exists, FileAssert_Contains,
+- **`Caching-OTS-FileAssert`**: FileAssert_Results, FileAssert_File, FileAssert_Text,
   FileAssert_VersionDisplay, FileAssert_HelpDisplay
