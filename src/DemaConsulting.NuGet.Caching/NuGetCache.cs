@@ -429,7 +429,16 @@ public static class NuGetCache
     ///     Matches an HTTP status code embedded in a NuGet SDK exception message, e.g.
     ///     <c>"Response status code does not indicate success: 401 (Unauthorized)."</c>
     /// </summary>
-    private static readonly Regex HttpStatusCodePattern = new(@"\b(401|403)\b", RegexOptions.Compiled);
+    /// <remarks>
+    ///     Requires the status code to be immediately followed by its standard HTTP reason phrase
+    ///     in parentheses (e.g. <c>401 (Unauthorized)</c> / <c>403 (Forbidden)</c>) - the exact text
+    ///     format emitted for a failed <see cref="HttpRequestException"/> and surfaced through
+    ///     NuGet's wrapped protocol exceptions - rather than a bare <c>\b(401|403)\b</c> match, which
+    ///     could misclassify unrelated standalone numbers elsewhere in a message (e.g. a port
+    ///     number) as an authentication failure.
+    /// </remarks>
+    private static readonly Regex HttpStatusCodePattern =
+        new(@"\b(401)\s*\(Unauthorized\)|\b(403)\s*\(Forbidden\)", RegexOptions.Compiled);
 
     /// <summary>
     ///     Guards <see cref="EnsureCredentialServiceRegistered"/> so the (idempotent but
@@ -477,6 +486,48 @@ public static class NuGetCache
             // CLI, so credential providers must not attempt to show a UI prompt
             DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
             _credentialServiceRegistered = true;
+        }
+    }
+
+    /// <summary>
+    ///     Resets the process-wide credential-service registration guard so a subsequent call to
+    ///     <c>EnsureCachedAsync</c> will re-invoke <see cref="EnsureCredentialServiceRegistered"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Exists solely to support a deterministic, order-independent regression test for
+    ///     credential-service registration: because <see cref="_credentialServiceRegistered"/> is a
+    ///     static, process-wide flag, other tests running earlier in the same test process would
+    ///     otherwise leave it permanently <see langword="true"/>, making a null-before/non-null-after
+    ///     assertion on <c>HttpHandlerResourceV3.CredentialService</c> depend on test execution
+    ///     order. Not intended for use outside tests.
+    /// </remarks>
+    internal static void ResetCredentialServiceRegistrationForTests()
+    {
+        lock (CredentialServiceLock)
+        {
+            _credentialServiceRegistered = false;
+        }
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="EnsureCredentialServiceRegistered"/> has
+    ///     already performed its (guarded, once-per-process) registration.
+    /// </summary>
+    /// <remarks>
+    ///     Exists solely so tests can assert the false-&gt;true transition of the internal
+    ///     registration guard directly, rather than inferring it indirectly via the shared,
+    ///     process-wide <c>HttpHandlerResourceV3.CredentialService</c> property - which other tests
+    ///     running concurrently in different test classes may also set, making it an unreliable
+    ///     signal for this specific transition. Not intended for use outside tests.
+    /// </remarks>
+    internal static bool IsCredentialServiceRegisteredForTests
+    {
+        get
+        {
+            lock (CredentialServiceLock)
+            {
+                return _credentialServiceRegistered;
+            }
         }
     }
 
@@ -552,9 +603,9 @@ public static class NuGetCache
 #endif
 
             var match = HttpStatusCodePattern.Match(current.Message);
-            if (match.Success && int.TryParse(match.Groups[1].Value, out var parsedCode))
+            if (match.Success)
             {
-                statusCode = parsedCode;
+                statusCode = match.Groups[1].Success ? 401 : 403;
                 return true;
             }
         }

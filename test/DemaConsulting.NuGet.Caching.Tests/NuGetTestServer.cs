@@ -174,17 +174,18 @@ internal sealed class NuGetTestServer : IAsyncDisposable
         RegisterAuthenticatedBinaryEndpoint(
             $"/v3-flatcontainer/{id}/{ver}/{id}.{ver}.nupkg", expectedAuthHeader, nupkgBytes, "application/zip");
 
-        // Catch-all guard: any other request path (e.g. a v2 OData fallback endpoint tried by
-        // NuGetCache's automatic v2-fallback logic) also receives 401 without valid credentials,
-        // ensuring the entire feed is authentication-gated rather than leaving unmapped paths to
-        // WireMock's default 404 (which would be misread as "package absent" instead of "unauthorized")
+        // Catch-all guards for any other request path (e.g. a v2 OData fallback endpoint tried by
+        // NuGetCache's automatic v2-fallback logic): with valid credentials, unmapped paths return
+        // a realistic 404 (not a fabricated 200) so a probe of an unexpected endpoint surfaces as
+        // "not found" rather than masking a bug as success; without valid credentials, unmapped
+        // paths still return 401 so the entire feed remains authentication-gated rather than
+        // falling through to WireMock's default 404 (which would be misread as "package absent"
+        // instead of "unauthorized").
         _server
             .Given(Request.Create().UsingAnyMethod().WithHeader("Authorization", expectedAuthHeader))
             .AtPriority(10)
             .RespondWith(Response.Create()
-                .WithStatusCode(200)
-                .WithBody("{}")
-                .WithHeader("Content-Type", "application/json"));
+                .WithStatusCode(404));
 
         _server
             .Given(Request.Create().UsingAnyMethod())
@@ -601,7 +602,9 @@ internal sealed class NuGetTestServer : IAsyncDisposable
         string password)
     {
         // Write a nuget.config with a single source plus a matching packageSourceCredentials
-        // block, using the same "test-source" key name as the single-source CreateSettings overload
+        // block, using the same "test-source" key name as the single-source CreateSettings overload.
+        // Credential values are XML-attribute-escaped so usernames/passwords containing '&', '<',
+        // '"', etc. still produce a well-formed config file instead of failing to parse.
         var configPath = Path.Combine(_tempConfigDir, $"nuget-{Guid.NewGuid():N}.config");
         File.WriteAllText(configPath, $"""
             <?xml version="1.0" encoding="utf-8"?>
@@ -615,8 +618,8 @@ internal sealed class NuGetTestServer : IAsyncDisposable
               </packageSources>
               <packageSourceCredentials>
                 <test-source>
-                  <add key="Username" value="{username}" />
-                  <add key="ClearTextPassword" value="{password}" />
+                  <add key="Username" value="{EscapeXmlAttribute(username)}" />
+                  <add key="ClearTextPassword" value="{EscapeXmlAttribute(password)}" />
                 </test-source>
               </packageSourceCredentials>
             </configuration>
@@ -626,6 +629,23 @@ internal sealed class NuGetTestServer : IAsyncDisposable
             Path.GetDirectoryName(configPath)!,
             Path.GetFileName(configPath));
     }
+
+    /// <summary>
+    ///     Escapes a string for safe inclusion inside a double-quoted XML attribute value.
+    /// </summary>
+    /// <remarks>
+    ///     Used when interpolating arbitrary (test-supplied) credential values into hand-written
+    ///     <c>nuget.config</c> XML, so values containing <c>&amp;</c>, <c>&lt;</c>, <c>&gt;</c>, or
+    ///     <c>"</c> still produce well-formed XML instead of a parse failure.
+    /// </remarks>
+    /// <param name="value">The raw attribute value to escape.</param>
+    /// <returns>The escaped value, safe to place inside a double-quoted XML attribute.</returns>
+    private static string EscapeXmlAttribute(string value) =>
+        value
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;")
+            .Replace("\"", "&quot;");
 
     /// <inheritdoc />
     public ValueTask DisposeAsync()

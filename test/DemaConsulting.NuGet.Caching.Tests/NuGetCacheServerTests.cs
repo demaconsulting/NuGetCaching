@@ -714,25 +714,35 @@ public class NuGetCacheServerTests
 
     /// <summary>
     ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> registers the NuGet SDK's default
-    ///     credential service (i.e. that <c>HttpHandlerResourceV3.CredentialService</c> becomes
-    ///     non-null) as a direct, white-box regression test for the credential-service registration
-    ///     half of the fix - independent of whether any particular scenario needs it to resolve
-    ///     credentials.
+    ///     credential service - i.e. that the internal registration guard transitions from
+    ///     unregistered to registered - as a direct, white-box regression test for the
+    ///     credential-service registration half of the fix, independent of whether any particular
+    ///     scenario needs it to resolve credentials.
     /// </summary>
     /// <remarks>
     ///     The authenticated-source tests above exercise only static <c>packageSourceCredentials</c>,
     ///     which succeed with or without credential-service registration (see their remarks). This
-    ///     test instead directly asserts that <c>EnsureCachedAsync</c> performs the registration
-    ///     call, so a future regression that removes or breaks
-    ///     <c>EnsureCredentialServiceRegistered</c> is caught even though it would not otherwise be
-    ///     observable through the static-credential test scenarios.
+    ///     test instead directly asserts the false-&gt;true transition of
+    ///     <see cref="NuGetCache.IsCredentialServiceRegisteredForTests"/> - the guard flag that
+    ///     <c>EnsureCredentialServiceRegistered</c> checks and sets - rather than inferring
+    ///     registration indirectly via the shared, process-wide
+    ///     <c>HttpHandlerResourceV3.CredentialService</c> property, which other tests running
+    ///     concurrently in different test classes may also set. Asserting on the dedicated internal
+    ///     flag (reset immediately beforehand via
+    ///     <see cref="NuGetCache.ResetCredentialServiceRegistrationForTests"/>) establishes a real
+    ///     null-before/non-null-after precondition for this specific call, so a future regression
+    ///     that removes or breaks <c>EnsureCredentialServiceRegistered</c> is reliably caught even
+    ///     though it would not otherwise be observable through the static-credential test scenarios.
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
     public async Task NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService()
     {
         // Arrange - a plain (unauthenticated) v3 feed is sufficient; credential-service
-        // registration happens unconditionally before any source is queried
+        // registration happens unconditionally before any source is queried. Reset the internal
+        // registration guard immediately before acting so the subsequent assertion reflects a real
+        // false -> true transition caused by this call, rather than a leftover true value from an
+        // earlier test.
         var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         try
         {
@@ -745,10 +755,15 @@ public class NuGetCacheServerTests
             server.RegisterV3Package(packageId, version, nupkgBytes);
             var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
 
+            NuGetCache.ResetCredentialServiceRegistrationForTests();
+            Assert.False(NuGetCache.IsCredentialServiceRegisteredForTests);
+
             // Act
             await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None);
 
-            // Assert - the NuGet SDK's default credential service must have been registered
+            // Assert - the registration guard must have transitioned to true, and the NuGet SDK's
+            // default credential service must be registered
+            Assert.True(NuGetCache.IsCredentialServiceRegisteredForTests);
             Assert.NotNull(HttpHandlerResourceV3.CredentialService);
         }
         finally
