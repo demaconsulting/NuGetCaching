@@ -17,11 +17,11 @@ This unit has no dedicated test file, since its only externally observable behav
 end-to-end through the public `NuGetCache.EnsureCachedAsync` API. Unit requirements are verified
 by the existing `NuGetCacheServerTests` integration tests, which inject an
 `ICredentialServiceRegistrar` test double to confirm `EnsureRegistered` is invoked on every call
-regardless of authentication outcome, and separately exercise the real,
-production `CredentialServiceRegistrar.DefaultCredentialRegistrar` instance (resetting its
-internal memoization via the test-only `ResetForTesting()` seam) to confirm it registers a real
-`ICredentialService` via a genuine null-to-non-null transition. Each test scenario names a
-specific test method that provides evidence for the unit requirement.
+regardless of authentication outcome, and separately construct a fresh, real
+`CredentialServiceRegistrar` instance - passed explicitly via the internal registrar-accepting
+`EnsureCachedAsync` overload - to confirm it registers a real `ICredentialService` via a genuine
+null-to-non-null transition. Each test scenario names a specific test method that provides
+evidence for the unit requirement.
 
 ### Test Scenarios
 
@@ -38,20 +38,21 @@ enumeration.
 
 #### NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
 
-**Scenario**: `EnsureCachedAsync` is called using the real, production
-`CredentialServiceRegistrar.DefaultCredentialRegistrar` instance (the default used when no
-registrar is explicitly supplied). Because that instance is shared, process-wide, and memoizes
-registration exactly once for its lifetime, the test first resets
-`HttpHandlerResourceV3.CredentialService` to `null` and calls the internal `ResetForTesting()`
-seam to clear the memoization, guaranteeing this specific call - not a memoized no-op left over
-from an earlier test - performs the registration.
+**Scenario**: `EnsureCachedAsync` is called with a freshly-constructed, real
+`CredentialServiceRegistrar` instance (the same concrete implementation used by the shared,
+process-wide `CredentialServiceRegistrar.DefaultCredentialRegistrar` default) passed explicitly
+via the internal registrar-accepting overload. A fresh instance starts with its own memoization
+not yet triggered, so the test only needs to reset `HttpHandlerResourceV3.CredentialService` to `null`
+beforehand to guarantee this specific call - not leftover state from an earlier test - performs
+the registration.
 
 **Expected**: After the call, `HttpHandlerResourceV3.CredentialService` is non-null, proving a
-genuine null-to-non-null transition caused by this call, confirming the default registrar is
-correctly wired to the real NuGet SDK `DefaultCredentialServiceUtility.SetupDefaultCredentialService`
-call in an idempotent manner (safe to call on every request without overwriting an existing
-registration or throwing on repeated invocation), complementing the spy-based test above (which
-proves invocation but never touches the real NuGet SDK).
+genuine null-to-non-null transition caused by this call, confirming the real registrar
+implementation is correctly wired to the real NuGet SDK
+`DefaultCredentialServiceUtility.SetupDefaultCredentialService` call in an idempotent manner (safe
+to call on every request without overwriting an existing registration or throwing on repeated
+invocation), complementing the spy-based test above (which proves invocation but never touches the
+real NuGet SDK).
 
 **Requirement coverage**: `Caching-CredentialServiceRegistrar-DefaultWiredToRealFlow`.
 

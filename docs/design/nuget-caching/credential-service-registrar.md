@@ -36,7 +36,6 @@ internal sealed class CredentialServiceRegistrar : ICredentialServiceRegistrar
     internal static readonly ICredentialServiceRegistrar DefaultCredentialRegistrar = new CredentialServiceRegistrar();
 
     public void EnsureRegistered();
-    internal void ResetForTesting();
 }
 ```
 
@@ -104,15 +103,3 @@ restore pipeline. Subsequent calls on the same instance are a cheap, thread-safe
 
 Satisfies requirements `Caching-CredentialServiceRegistrar-RegisterOnce` and
 `Caching-CredentialServiceRegistrar-DefaultWiredToRealFlow`.
-
-#### `ResetForTesting()` (internal)
-
-Test-only seam that replaces the instance's memoized `Lazy<bool>` with a freshly constructed one,
-clearing the one-time registration memoization so a subsequent call to `EnsureRegistered()`
-genuinely re-invokes `DefaultCredentialServiceUtility.SetupDefaultCredentialService`. This exists
-because `DefaultCredentialRegistrar` is a single, process-wide instance whose memoization would
-otherwise make its registration effectively "already happened" for the rest of the test run once
-any earlier test's call has triggered it - without this seam, a test that resets
-`HttpHandlerResourceV3.CredentialService` to `null` and re-invokes `EnsureCachedAsync` could not
-distinguish a genuine registration from a memoized no-op. It is not part of the public API surface
-and has no effect on production behavior, which never calls it.

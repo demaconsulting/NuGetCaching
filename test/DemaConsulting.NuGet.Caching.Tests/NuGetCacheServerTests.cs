@@ -774,30 +774,27 @@ public class NuGetCacheServerTests
     }
 
     /// <summary>
-    ///     Tests that the default (production) credential-service registration path, reached via
-    ///     the public <c>ISettings</c>-only <c>EnsureCachedAsync</c> overload, actually wires up the
-    ///     real NuGet SDK credential service.
+    ///     Tests that the real (production) <c>CredentialServiceRegistrar</c> implementation
+    ///     actually wires up the NuGet SDK's default credential service.
     /// </summary>
     /// <remarks>
     ///     This is a supplementary integration/sanity check: it proves the real
-    ///     <c>CredentialServiceRegistrar</c> default is correctly wired to
+    ///     <c>CredentialServiceRegistrar</c> is correctly wired to
     ///     <c>DefaultCredentialServiceUtility.SetupDefaultCredentialService</c>, complementing the
     ///     spy-based test above (which proves <em>that</em> registration is invoked, but uses a fake
-    ///     that never touches the real NuGet SDK). <c>HttpHandlerResourceV3.CredentialService</c> is
-    ///     a shared, process-wide property, and <c>DefaultCredentialRegistrar</c>'s registration is
-    ///     memoized exactly once for the lifetime of that shared instance - so many earlier tests in
-    ///     this file (which also use the <c>ISettings</c>-only overload) will typically have already
-    ///     triggered registration before this test runs. Resetting
-    ///     <c>HttpHandlerResourceV3.CredentialService</c> to <see langword="null"/> alone would not
-    ///     be sufficient proof, because a subsequent call would be a memoized no-op and the field
-    ///     would incorrectly appear to remain null forever. This test therefore also calls the
-    ///     internal <c>ResetForTesting</c> seam on <c>DefaultCredentialRegistrar</c>, which clears its
-    ///     one-time memoization, guaranteeing that this call's registrar - not leftover state or a
-    ///     memoized no-op from another test - performs a genuine null-to-non-null transition. Other
-    ///     test classes in this assembly (e.g. <c>NuGetCachingTests</c>, <c>NuGetCacheTests</c>) also
-    ///     invoke <c>EnsureCachedAsync</c> via the same real, default credential registrar and could
-    ///     otherwise race with this test's reset/assert on the shared static
-    ///     <c>HttpHandlerResourceV3.CredentialService</c> property; the assembly-level
+    ///     that never touches the real NuGet SDK). It constructs its own, freshly-created
+    ///     <c>CredentialServiceRegistrar</c> instance and passes it explicitly via the internal
+    ///     registrar-accepting <c>EnsureCachedAsync</c> overload, rather than exercising the shared,
+    ///     process-wide <c>DefaultCredentialRegistrar</c> singleton used by production callers - a
+    ///     fresh instance starts with its own, not-yet-triggered <c>Lazy&lt;bool&gt;</c>, so this
+    ///     test can observe a genuine null-to-non-null
+    ///     <c>HttpHandlerResourceV3.CredentialService</c> transition without needing any test-only
+    ///     reset hook on production code.
+    ///     <c>HttpHandlerResourceV3.CredentialService</c> itself is still a shared, process-wide
+    ///     NuGet SDK property, so this test still resets it to <see langword="null"/> before
+    ///     asserting; other test classes in this assembly (e.g. <c>NuGetCachingTests</c>,
+    ///     <c>NuGetCacheTests</c>) also invoke <c>EnsureCachedAsync</c> and could otherwise race
+    ///     with this test's reset/assert on that shared static property - the assembly-level
     ///     <c>[assembly: CollectionBehavior(DisableTestParallelization = true)]</c> attribute in
     ///     <c>AssemblyInfo.cs</c> serializes all test collections in this assembly to eliminate that
     ///     race.
@@ -818,15 +815,17 @@ public class NuGetCacheServerTests
             server.RegisterV3Package(packageId, version, nupkgBytes);
             var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
 
-            // Arrange - reset the shared, process-wide credential service to null, and reset the
-            // default registrar's one-time registration memoization, so a non-null value afterward
-            // can only be explained by this specific call's registration - not leftover state or a
-            // memoized no-op from a previous test
+            // Arrange - a freshly-constructed registrar has not yet triggered its memoization, so
+            // resetting the shared, process-wide credential service to null is sufficient here to
+            // guarantee a non-null value afterward can only be explained by this specific call's
+            // registration
             HttpHandlerResourceV3.CredentialService = null;
-            ((CredentialServiceRegistrar)CredentialServiceRegistrar.DefaultCredentialRegistrar).ResetForTesting();
+            var registrar = new CredentialServiceRegistrar();
 
-            // Act - use the ISettings-only overload, which delegates to the real default registrar
-            await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None);
+            // Act - pass the fresh registrar explicitly via the internal registrar-accepting
+            // overload, exercising the real production implementation without touching the
+            // shared DefaultCredentialRegistrar singleton
+            await NuGetCache.EnsureCachedAsync(packageId, version, settings, registrar, CancellationToken.None);
 
             // Assert - the NuGet SDK's default credential service must now be registered, proving
             // this call's registrar performed a genuine null-to-non-null transition

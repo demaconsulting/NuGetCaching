@@ -70,30 +70,16 @@ internal sealed class CredentialServiceRegistrar : ICredentialServiceRegistrar
     /// </summary>
     internal static readonly ICredentialServiceRegistrar DefaultCredentialRegistrar = new CredentialServiceRegistrar();
 
-    private Lazy<bool> _registered = CreateRegistrationLazy();
-
-    private static Lazy<bool> CreateRegistrationLazy() =>
-        new(
-            () =>
-            {
-                // nonInteractive: true - this is a library used in build tooling, not an
-                // interactive CLI, so credential providers must not attempt to show a UI prompt
-                DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
-                return true;
-            },
-            LazyThreadSafetyMode.ExecutionAndPublication);
+    private readonly Lazy<bool> _registered = new(
+        () =>
+        {
+            // nonInteractive: true - this is a library used in build tooling, not an
+            // interactive CLI, so credential providers must not attempt to show a UI prompt
+            DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
+            return true;
+        },
+        LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <inheritdoc />
     public void EnsureRegistered() => _ = _registered.Value;
-
-    /// <summary>
-    ///     Test-only seam that resets this instance's one-time registration memoization,
-    ///     forcing the next call to <see cref="EnsureRegistered"/> to genuinely re-invoke
-    ///     <see cref="DefaultCredentialServiceUtility.SetupDefaultCredentialService"/>. This lets
-    ///     a test prove a real null-to-non-null <c>HttpHandlerResourceV3.CredentialService</c>
-    ///     transition caused by a specific call to the shared, process-wide
-    ///     <see cref="DefaultCredentialRegistrar"/>, rather than observing a stale non-null value
-    ///     left behind by an earlier call elsewhere in the same test run.
-    /// </summary>
-    internal void ResetForTesting() => _registered = CreateRegistrationLazy();
 }
