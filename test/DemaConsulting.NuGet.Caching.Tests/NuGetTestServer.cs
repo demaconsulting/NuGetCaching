@@ -359,19 +359,21 @@ internal sealed class NuGetTestServer : IAsyncDisposable
 
     /// <summary>
     ///     Makes the base URL endpoint (<c>/</c>) return HTTP 500 to simulate a failure
-    ///     when the NuGet SDK tries the base URL as a v2 OData fallback.
+    ///     when the NuGet SDK's v2 (OData) client eventually makes a request against the v2
+    ///     fallback base URL.
     /// </summary>
     /// <remarks>
-    ///     HTTP 500 from the base URL causes the NuGet SDK to throw
-    ///     <see cref="System.Net.Http.HttpRequestException"/> rather than
-    ///     <c>NuGetProtocolException</c>. <see cref="NuGetCache"/> treats this as a transient
-    ///     network error and silently skips the source — no per-source diagnostic message is
-    ///     accumulated and the final exception contains only the base package-not-found message.
+    ///     Resolving a <c>FindPackageByIdResource</c> for a v2 OData source does not itself make an
+    ///     HTTP request, so this endpoint is only exercised when that resource is subsequently used
+    ///     to search for or download a package - not at candidate-resolution time. Any diagnostic
+    ///     already captured from an earlier candidate (e.g. a <c>NuGetProtocolException</c>-based
+    ///     diagnostic from the v3 service index) is discarded by <see cref="NuGetCache"/> as soon as
+    ///     the v2 candidate's resource resolves successfully, before this endpoint is ever reached.
     /// </remarks>
     internal void SimulateBaseUrlProtocolError()
     {
-        // Returning 500 on the base URL causes HttpRequestException (not NuGetProtocolException),
-        // which NuGetCache treats as transient and silently skips — no diagnostic is accumulated
+        // Returning 500 on the base URL simulates a v2 OData request failure; resource resolution
+        // for a v2 source succeeds without an HTTP call, so this is only reached later, if at all
         _server
             .Given(Request.Create().WithPath("/").UsingAnyMethod())
             .RespondWith(Response.Create()
@@ -467,14 +469,16 @@ internal sealed class NuGetTestServer : IAsyncDisposable
 
     /// <summary>
     ///     Makes the base URL endpoint (<c>/</c>) return an empty response to simulate a network-level
-    ///     failure when the NuGet SDK tries the base URL as a v2 OData fallback.
+    ///     failure when the NuGet SDK's v2 (OData) client eventually makes a request against the v2
+    ///     fallback base URL.
     /// </summary>
     /// <remarks>
-    ///     An empty HTTP response at the base URL causes the NuGet SDK to throw
-    ///     <see cref="System.Net.Http.HttpRequestException"/>. When this happens as part of the v2
-    ///     fallback attempt, <see cref="NuGetCache"/> treats it as non-actionable: the accumulated
-    ///     v3 protocol error message is discarded and the final exception contains only the base
-    ///     package-not-found message.
+    ///     Resolving a <c>FindPackageByIdResource</c> for a v2 OData source does not itself make an
+    ///     HTTP request, so this endpoint is only exercised when that resource is subsequently used
+    ///     to search for or download a package - not at candidate-resolution time. Any diagnostic
+    ///     already captured from an earlier candidate (e.g. a <c>NuGetProtocolException</c>-based
+    ///     diagnostic from the v3 service index) is discarded by <see cref="NuGetCache"/> as soon as
+    ///     the v2 candidate's resource resolves successfully, before this endpoint is ever reached.
     /// </remarks>
     internal void SimulateNetworkFailureOnFallback()
     {
@@ -603,18 +607,18 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     {
         // Write a nuget.config with a single source plus a matching packageSourceCredentials
         // block, using the same "test-source" key name as the single-source CreateSettings overload.
-        // Credential values are XML-attribute-escaped so usernames/passwords containing '&', '<',
+        // All interpolated values are XML-attribute-escaped so any of them containing '&', '<',
         // '"', etc. still produce a well-formed config file instead of failing to parse.
         var configPath = Path.Combine(_tempConfigDir, $"nuget-{Guid.NewGuid():N}.config");
         File.WriteAllText(configPath, $"""
             <?xml version="1.0" encoding="utf-8"?>
             <configuration>
               <config>
-                <add key="globalPackagesFolder" value="{globalPackagesFolder}" />
+                <add key="globalPackagesFolder" value="{EscapeXmlAttribute(globalPackagesFolder)}" />
               </config>
               <packageSources>
                 <clear />
-                <add key="test-source" value="{sourceUrl}" />
+                <add key="test-source" value="{EscapeXmlAttribute(sourceUrl)}" />
               </packageSources>
               <packageSourceCredentials>
                 <test-source>

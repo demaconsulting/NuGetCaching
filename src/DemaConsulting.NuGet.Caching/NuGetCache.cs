@@ -113,10 +113,59 @@ public static class NuGetCache
         ISettings settings,
         CancellationToken cancellationToken = default)
     {
+        return await EnsureCachedAsync(packageId, version, settings, DefaultCredentialRegistrar, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Ensures a specific NuGet package version is available in the local global packages cache,
+    ///     using the provided NuGet <paramref name="settings"/> instance and an explicit
+    ///     <paramref name="credentialRegistrar"/>.
+    /// </summary>
+    /// <remarks>
+    ///     This overload exists to support testing: injecting a test double
+    ///     <see cref="ICredentialServiceRegistrar"/> lets a test assert that
+    ///     <c>EnsureCachedAsync</c> invokes credential-service registration, without observing or
+    ///     resetting any shared, process-wide static state. All non-test callers use the
+    ///     <see cref="ISettings"/>-only overload, which delegates here with
+    ///     <see cref="DefaultCredentialRegistrar"/> - a single static instance shared by every real
+    ///     call in the process, preserving the required once-per-process registration semantics.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
+    /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
+    /// <param name="settings">
+    ///     The NuGet settings instance used to resolve package sources, the global packages folder,
+    ///     and package source mapping. Must not be <see langword="null"/>.
+    /// </param>
+    /// <param name="credentialRegistrar">
+    ///     The credential-service registrar to invoke before resolving any source.
+    /// </param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>
+    ///     The absolute path to the cached package folder inside the global packages folder.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/>, <paramref name="version"/>,
+    ///     <paramref name="settings"/>, or <paramref name="credentialRegistrar"/> is
+    ///     <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the package cannot be found in any configured NuGet source.
+    /// </exception>
+    internal static async Task<string> EnsureCachedAsync(
+        string packageId,
+        string version,
+        ISettings settings,
+        ICredentialServiceRegistrar credentialRegistrar,
+        CancellationToken cancellationToken = default)
+    {
         // Validate input parameters before performing any I/O
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(version);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(credentialRegistrar);
 
         // Parse the version string early to validate it and obtain the normalized form;
         // NuGet stores packages using the normalized version (e.g. "1.0" becomes "1.0.0")
@@ -151,7 +200,7 @@ public static class NuGetCache
         // scenarios that need a credential-provider plugin or an ICredentialService-mediated
         // retry (e.g. Azure Artifacts or JFrog credential-provider plugins), which are not
         // exercised by static credentials alone.
-        EnsureCredentialServiceRegistered();
+        credentialRegistrar.EnsureRegistered();
 
         // Get the core V3 providers needed to communicate with NuGet v3 and v2 feeds
         var providers = Repository.Provider.GetCoreV3();
@@ -278,8 +327,12 @@ public static class NuGetCache
             }
             catch (HttpRequestException)
             {
-                // Transient network-level failure - not actionable, skip silently
-                return (sourceRepository, null, null);
+                // Transient network-level failure on this candidate - not actionable on its own,
+                // but preserve any actionable 401/403 diagnostic already captured from an earlier
+                // candidate (e.g. the v3 service index) so a later candidate's unrelated transient
+                // failure (e.g. the v2 fallback) doesn't downgrade a real authentication failure
+                // into a generic, indistinguishable "not found" result.
+                return (sourceRepository, null, protocolErrorMessage);
             }
             catch (NuGetProtocolException ex) when (TryDescribeAuthFailure(ex, sourceName, originalSource, out var authMessage))
             {
@@ -441,95 +494,64 @@ public static class NuGetCache
         new(@"\b(401)\s*\(Unauthorized\)|\b(403)\s*\(Forbidden\)", RegexOptions.Compiled);
 
     /// <summary>
-    ///     Guards <see cref="EnsureCredentialServiceRegistered"/> so the (idempotent but
-    ///     non-trivial) NuGet credential-service setup only runs once per process.
+    ///     Abstracts NuGet SDK credential-service registration so it can be substituted with a test
+    ///     double, letting a test assert that <c>EnsureCachedAsync</c> invokes registration without
+    ///     observing or resetting any shared, static process-wide state.
     /// </summary>
-    private static bool _credentialServiceRegistered;
+    internal interface ICredentialServiceRegistrar
+    {
+        /// <summary>
+        ///     Ensures the NuGet SDK's default credential service is registered.
+        /// </summary>
+        void EnsureRegistered();
+    }
 
     /// <summary>
-    ///     Ensures a lock object protecting <see cref="_credentialServiceRegistered"/>.
-    /// </summary>
-    private static readonly object CredentialServiceLock = new();
-
-    /// <summary>
-    ///     Registers the default NuGet credential service (once per process), mirroring the setup
-    ///     performed internally by the <c>dotnet</c> CLI and MSBuild restore pipeline. Static
-    ///     <c>packageSourceCredentials</c> configured in <c>nuget.config</c> are applied directly to
-    ///     the underlying <c>HttpClientHandler</c> and are honored on a source's HTTP 401 challenge
-    ///     regardless of whether a credential service is registered. Registration instead matters
-    ///     when a NuGet credential-provider plugin must be consulted, or an
-    ///     <see cref="ICredentialService"/>-mediated retry is required (e.g. for JFrog Artifactory
-    ///     or Azure Artifacts), which static credentials alone do not exercise.
+    ///     Default <see cref="ICredentialServiceRegistrar"/> implementation that registers the
+    ///     NuGet SDK's default credential service, mirroring the setup performed internally by the
+    ///     <c>dotnet</c> CLI and MSBuild restore pipeline. Static <c>packageSourceCredentials</c>
+    ///     configured in <c>nuget.config</c> are applied directly to the underlying
+    ///     <c>HttpClientHandler</c> and are honored on a source's HTTP 401 challenge regardless of
+    ///     whether a credential service is registered. Registration instead matters when a NuGet
+    ///     credential-provider plugin must be consulted, or an <see cref="ICredentialService"/>-
+    ///     mediated retry is required (e.g. for JFrog Artifactory or Azure Artifacts), which static
+    ///     credentials alone do not exercise.
     /// </summary>
     /// <remarks>
-    ///     <see cref="DefaultCredentialServiceUtility.SetupDefaultCredentialService"/> is itself
-    ///     idempotent (it only assigns <c>HttpHandlerResourceV3.CredentialService</c> when it is
-    ///     still <see langword="null"/>), but it always re-creates the delegating logger. Guarding
-    ///     with a process-wide flag avoids that redundant work on every call to
-    ///     <c>EnsureCachedAsync</c> while still registering the service before the first use.
+    ///     Registration work is memoized per instance via <see cref="Lazy{T}"/> with
+    ///     <see cref="LazyThreadSafetyMode.ExecutionAndPublication"/>, so
+    ///     <see cref="EnsureRegistered"/> is cheap and thread-safe to call repeatedly on the same
+    ///     instance. <see cref="DefaultCredentialServiceUtility.SetupDefaultCredentialService"/> is
+    ///     itself idempotent (it only assigns <c>HttpHandlerResourceV3.CredentialService</c> when it
+    ///     is still <see langword="null"/>), but it always re-creates the delegating logger, so
+    ///     memoizing avoids that redundant work on every call. A single static instance
+    ///     (<see cref="DefaultCredentialRegistrar"/>) is shared by every real (non-test)
+    ///     <c>EnsureCachedAsync</c> call in the process, giving the required once-per-process
+    ///     registration semantics; a freshly constructed instance (as used by tests) naturally
+    ///     starts unregistered.
     /// </remarks>
-    private static void EnsureCredentialServiceRegistered()
+    private sealed class CredentialServiceRegistrar : ICredentialServiceRegistrar
     {
-        if (_credentialServiceRegistered)
-        {
-            return;
-        }
-
-        lock (CredentialServiceLock)
-        {
-            if (_credentialServiceRegistered)
+        private readonly Lazy<bool> _registered = new(
+            () =>
             {
-                return;
-            }
+                // nonInteractive: true - this is a library used in build tooling, not an
+                // interactive CLI, so credential providers must not attempt to show a UI prompt
+                DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
+                return true;
+            },
+            LazyThreadSafetyMode.ExecutionAndPublication);
 
-            // nonInteractive: true - this is a library used in build tooling, not an interactive
-            // CLI, so credential providers must not attempt to show a UI prompt
-            DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
-            _credentialServiceRegistered = true;
-        }
+        /// <inheritdoc />
+        public void EnsureRegistered() => _ = _registered.Value;
     }
 
     /// <summary>
-    ///     Resets the process-wide credential-service registration guard so a subsequent call to
-    ///     <c>EnsureCachedAsync</c> will re-invoke <see cref="EnsureCredentialServiceRegistered"/>.
+    ///     The single, process-wide <see cref="ICredentialServiceRegistrar"/> instance used by every
+    ///     real (non-test) <c>EnsureCachedAsync</c> call, giving once-per-process registration
+    ///     semantics for the real NuGet SDK credential service.
     /// </summary>
-    /// <remarks>
-    ///     Exists solely to support a deterministic, order-independent regression test for
-    ///     credential-service registration: because <see cref="_credentialServiceRegistered"/> is a
-    ///     static, process-wide flag, other tests running earlier in the same test process would
-    ///     otherwise leave it permanently <see langword="true"/>, making a null-before/non-null-after
-    ///     assertion on <c>HttpHandlerResourceV3.CredentialService</c> depend on test execution
-    ///     order. Not intended for use outside tests.
-    /// </remarks>
-    internal static void ResetCredentialServiceRegistrationForTests()
-    {
-        lock (CredentialServiceLock)
-        {
-            _credentialServiceRegistered = false;
-        }
-    }
-
-    /// <summary>
-    ///     Gets a value indicating whether <see cref="EnsureCredentialServiceRegistered"/> has
-    ///     already performed its (guarded, once-per-process) registration.
-    /// </summary>
-    /// <remarks>
-    ///     Exists solely so tests can assert the false-&gt;true transition of the internal
-    ///     registration guard directly, rather than inferring it indirectly via the shared,
-    ///     process-wide <c>HttpHandlerResourceV3.CredentialService</c> property - which other tests
-    ///     running concurrently in different test classes may also set, making it an unreliable
-    ///     signal for this specific transition. Not intended for use outside tests.
-    /// </remarks>
-    internal static bool IsCredentialServiceRegisteredForTests
-    {
-        get
-        {
-            lock (CredentialServiceLock)
-            {
-                return _credentialServiceRegistered;
-            }
-        }
-    }
+    private static readonly ICredentialServiceRegistrar DefaultCredentialRegistrar = new CredentialServiceRegistrar();
 
     /// <summary>
     ///     Determines whether <paramref name="exception"/> (or any exception in its

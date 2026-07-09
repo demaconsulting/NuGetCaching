@@ -150,4 +150,5 @@ sections:
         tests:
           - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath
           - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
-          - NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService
+          - NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar
+          - NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService

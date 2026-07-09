@@ -250,10 +250,16 @@ public class NuGetCacheServerTests
     ///     fallback base URL return HTTP 500.
     /// </summary>
     /// <remarks>
-    ///     In this WireMock scenario, HTTP 500 responses from both candidates surface as
-    ///     <see cref="System.Net.Http.HttpRequestException"/> in the NuGet SDK. Those failures are
-    ///     treated as transient by <see cref="NuGetCache"/>, so no per-source diagnostic is appended
-    ///     and the final exception remains the base package-not-found message.
+    ///     In this WireMock scenario, the v3 candidate's HTTP 500 on <c>/index.json</c> surfaces
+    ///     as a <c>NuGetProtocolException</c> (captured into the candidate loop's diagnostic), so
+    ///     <see cref="NuGetCache"/> tries the v2 fallback candidate next. Resolving a
+    ///     <c>FindPackageByIdResource</c> for the v2 (OData) fallback succeeds without making any
+    ///     HTTP request at all - the actual request only happens later, when the resource is used
+    ///     to search for or download the package - so the v3 candidate's diagnostic is discarded by
+    ///     the success path rather than by any exception handler. The subsequent attempt to use that
+    ///     v2 resource does not surface a diagnostic either (the package is reported absent), so the
+    ///     final exception remains the base package-not-found message without any per-source
+    ///     diagnostic.
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
@@ -337,11 +343,15 @@ public class NuGetCacheServerTests
     ///     the v2 fallback base URL drops the connection.
     /// </summary>
     /// <remarks>
-    ///     When the v3 candidate fails with a protocol error and the v2 fallback candidate raises
-    ///     <see cref="System.Net.Http.HttpRequestException"/>, <see cref="NuGetCache"/> exits the
-    ///     candidate loop immediately on the network exception and discards the accumulated protocol
-    ///     error message. The final exception is the base package-not-found message without
-    ///     per-source diagnostics.
+    ///     The v3 candidate's HTTP 500 on <c>/index.json</c> surfaces as a
+    ///     <c>NuGetProtocolException</c> (captured into the candidate loop's diagnostic), so
+    ///     <see cref="NuGetCache"/> tries the v2 fallback candidate next. Resolving a
+    ///     <c>FindPackageByIdResource</c> for the v2 (OData) fallback succeeds without making any
+    ///     HTTP request at all, so the v3 candidate's diagnostic is discarded by the success path
+    ///     rather than by any exception handler; the fallback's simulated connection drop is only
+    ///     encountered later, when that resource is actually used, and does not itself surface a
+    ///     diagnostic either. The final exception remains the base package-not-found message
+    ///     without any per-source diagnostic.
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
@@ -713,36 +723,28 @@ public class NuGetCacheServerTests
     }
 
     /// <summary>
-    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> registers the NuGet SDK's default
-    ///     credential service - i.e. that the internal registration guard transitions from
-    ///     unregistered to registered - as a direct, white-box regression test for the
-    ///     credential-service registration half of the fix, independent of whether any particular
-    ///     scenario needs it to resolve credentials.
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> invokes credential-service registration
+    ///     exactly once via the injected <see cref="NuGetCache.ICredentialServiceRegistrar"/>, as a
+    ///     direct, white-box regression test for the credential-service registration half of the
+    ///     fix - independent of whether any particular scenario needs it to resolve credentials.
     /// </summary>
     /// <remarks>
     ///     The authenticated-source tests above exercise only static <c>packageSourceCredentials</c>,
     ///     which succeed with or without credential-service registration (see their remarks). This
-    ///     test instead directly asserts the false-&gt;true transition of
-    ///     <see cref="NuGetCache.IsCredentialServiceRegisteredForTests"/> - the guard flag that
-    ///     <c>EnsureCredentialServiceRegistered</c> checks and sets - rather than inferring
-    ///     registration indirectly via the shared, process-wide
-    ///     <c>HttpHandlerResourceV3.CredentialService</c> property, which other tests running
-    ///     concurrently in different test classes may also set. Asserting on the dedicated internal
-    ///     flag (reset immediately beforehand via
-    ///     <see cref="NuGetCache.ResetCredentialServiceRegistrationForTests"/>) establishes a real
-    ///     null-before/non-null-after precondition for this specific call, so a future regression
-    ///     that removes or breaks <c>EnsureCredentialServiceRegistered</c> is reliably caught even
-    ///     though it would not otherwise be observable through the static-credential test scenarios.
+    ///     test instead injects a <see cref="SpyCredentialServiceRegistrar"/> test double via the
+    ///     internal <c>EnsureCachedAsync</c> overload that accepts an explicit
+    ///     <see cref="NuGetCache.ICredentialServiceRegistrar"/>, and asserts the spy was invoked.
+    ///     Because the spy is a fresh, local instance owned entirely by this test, the assertion
+    ///     needs no shared static state, no reset hook, and is immune to interference from other
+    ///     tests running concurrently - a future regression that removes or skips the
+    ///     <c>credentialRegistrar.EnsureRegistered()</c> call is reliably caught.
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
-    public async Task NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService()
+    public async Task NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar()
     {
         // Arrange - a plain (unauthenticated) v3 feed is sufficient; credential-service
-        // registration happens unconditionally before any source is queried. Reset the internal
-        // registration guard immediately before acting so the subsequent assertion reflects a real
-        // false -> true transition caused by this call, rather than a leftover true value from an
-        // earlier test.
+        // registration happens unconditionally before any source is queried
         var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         try
         {
@@ -754,16 +756,58 @@ public class NuGetCacheServerTests
             var nupkgBytes = NuGetPackageBuilder.CreateMinimalPackage(packageId, version);
             server.RegisterV3Package(packageId, version, nupkgBytes);
             var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
-
-            NuGetCache.ResetCredentialServiceRegistrationForTests();
-            Assert.False(NuGetCache.IsCredentialServiceRegisteredForTests);
+            var credentialRegistrar = new SpyCredentialServiceRegistrar();
 
             // Act
+            await NuGetCache.EnsureCachedAsync(packageId, version, settings, credentialRegistrar, CancellationToken.None);
+
+            // Assert - the injected registrar must have been invoked exactly once
+            Assert.Equal(1, credentialRegistrar.EnsureRegisteredCallCount);
+        }
+        finally
+        {
+            if (Directory.Exists(globalPackagesFolder))
+            {
+                Directory.Delete(globalPackagesFolder, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Tests that the default (production) credential-service registration path, reached via
+    ///     the public <c>ISettings</c>-only <c>EnsureCachedAsync</c> overload, actually wires up the
+    ///     real NuGet SDK credential service.
+    /// </summary>
+    /// <remarks>
+    ///     This is a supplementary integration/sanity check: it proves the real
+    ///     <c>CredentialServiceRegistrar</c> default is correctly wired to
+    ///     <c>DefaultCredentialServiceUtility.SetupDefaultCredentialService</c>, complementing the
+    ///     spy-based test above (which proves <em>that</em> registration is invoked, but uses a fake
+    ///     that never touches the real NuGet SDK). Because
+    ///     <c>HttpHandlerResourceV3.CredentialService</c> is a shared, process-wide property that
+    ///     other tests may also set, this assertion only checks the end state (non-null), not a
+    ///     null-before/non-null-after transition.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService()
+    {
+        var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(globalPackagesFolder);
+            const string packageId = "TestPackage.DefaultCredentialServiceRegistration";
+            const string version = "1.0.0";
+
+            await using var server = new NuGetTestServer();
+            var nupkgBytes = NuGetPackageBuilder.CreateMinimalPackage(packageId, version);
+            server.RegisterV3Package(packageId, version, nupkgBytes);
+            var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
+
+            // Act - use the ISettings-only overload, which delegates to the real default registrar
             await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None);
 
-            // Assert - the registration guard must have transitioned to true, and the NuGet SDK's
-            // default credential service must be registered
-            Assert.True(NuGetCache.IsCredentialServiceRegisteredForTests);
+            // Assert - the NuGet SDK's default credential service must be registered
             Assert.NotNull(HttpHandlerResourceV3.CredentialService);
         }
         finally
@@ -773,5 +817,22 @@ public class NuGetCacheServerTests
                 Directory.Delete(globalPackagesFolder, recursive: true);
             }
         }
+    }
+
+    /// <summary>
+    ///     A test double implementing <see cref="NuGetCache.ICredentialServiceRegistrar"/> that
+    ///     simply counts invocations of <see cref="EnsureRegistered"/>, letting tests assert that
+    ///     <c>EnsureCachedAsync</c> invokes credential-service registration without touching any
+    ///     real NuGet SDK state or shared static test-only hooks.
+    /// </summary>
+    private sealed class SpyCredentialServiceRegistrar : NuGetCache.ICredentialServiceRegistrar
+    {
+        /// <summary>
+        ///     Gets the number of times <see cref="EnsureRegistered"/> has been called.
+        /// </summary>
+        public int EnsureRegisteredCallCount { get; private set; }
+
+        /// <inheritdoc />
+        public void EnsureRegistered() => EnsureRegisteredCallCount++;
     }
 }

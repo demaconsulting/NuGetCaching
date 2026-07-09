@@ -50,24 +50,29 @@ installation.
 
 #### Credential Service Registration
 
-Before resolving any `SourceRepository`, the internal `EnsureCachedAsync` overload calls a
-private `EnsureCredentialServiceRegistered` helper that registers the NuGet SDK's default
-credential service via `DefaultCredentialServiceUtility.SetupDefaultCredentialService(logger,
-nonInteractive: true)`, mirroring the setup performed internally by the `dotnet` CLI and
-MSBuild restore pipeline. Without this registration, `HttpHandlerResourceV3.CredentialService`
-remains `null`, so `HttpSourceAuthenticationHandler` returns a source's first HTTP 401 response
-as-is instead of retrying with credentials resolved from a NuGet credential-provider plugin
-(e.g. for JFrog Artifactory or Azure Artifacts). Static `packageSourceCredentials` configured in
-`nuget.config` are applied directly to the underlying `HttpClientHandler` by the NuGet SDK and
-so are honored on the first request regardless of credential-service registration; the
-credential service becomes relevant when those static credentials are absent, incorrect, or
-when a credential-provider plugin must be consulted.
+Before resolving any `SourceRepository`, the internal `EnsureCachedAsync` overload calls
+`ICredentialServiceRegistrar.EnsureRegistered()` on an injected registrar, which registers the
+NuGet SDK's default credential service via
+`DefaultCredentialServiceUtility.SetupDefaultCredentialService(logger, nonInteractive: true)`,
+mirroring the setup performed internally by the `dotnet` CLI and MSBuild restore pipeline.
+Without this registration, `HttpHandlerResourceV3.CredentialService` remains `null`, so
+`HttpSourceAuthenticationHandler` returns a source's first HTTP 401 response as-is instead of
+retrying with credentials resolved from a NuGet credential-provider plugin (e.g. for JFrog
+Artifactory or Azure Artifacts). Static `packageSourceCredentials` configured in `nuget.config`
+are applied directly to the underlying `HttpClientHandler` by the NuGet SDK and so are honored
+on the first request regardless of credential-service registration; the credential service
+becomes relevant when those static credentials are absent, incorrect, or when a
+credential-provider plugin must be consulted.
 
 `SetupDefaultCredentialService` is itself idempotent (it only assigns
 `HttpHandlerResourceV3.CredentialService` when still `null`), but it always re-creates a
-delegating logger. `NuGetCache` guards the call with a process-wide flag and lock so the
-registration work happens only once per process, before the first use, even if
-`EnsureCachedAsync` is called many times.
+delegating logger. The default `CredentialServiceRegistrar` implementation memoizes the call
+per instance via `Lazy<bool>`, and a single static instance is shared by every real (non-test)
+`EnsureCachedAsync` call, so the registration work happens only once per process, before the
+first use, even if `EnsureCachedAsync` is called many times. This registrar is injected through
+an internal `ICredentialServiceRegistrar` seam (mirroring the existing `ISettings` injection
+seam) so tests can substitute a spy double instead of depending on any shared, process-wide
+test-only state.
 
 #### Package Source Mapping Support
 
@@ -125,8 +130,10 @@ in a `NuGetProtocolException` (e.g. `FatalProtocolException`) whose message - or
 
 `TryGetHttpStatusCode` walks the full exception chain (`InnerException` by `InnerException`),
 checking the strongly typed `HttpRequestException.StatusCode` property where available
-(`#if !NETSTANDARD2_0`) and falling back to a compiled regular expression that matches a
-standalone `401` or `403` in each exception's message text. This keeps detection consistent
+(`#if !NETSTANDARD2_0`) and falling back to a compiled regular expression that matches the
+standard HTTP reason-phrase text NuGet emits - `401 (Unauthorized)` or `403 (Forbidden)` -
+rather than a bare standalone number, avoiding false positives on unrelated numbers elsewhere
+in an exception message (e.g. a port number). This keeps detection consistent
 across every target framework (`netstandard2.0`, `net8.0`, `net9.0`, `net10.0`) regardless of
 which exception shape the SDK happens to surface at a given call site.
 
@@ -168,17 +175,19 @@ Seven private members encapsulate distinct sub-responsibilities:
 - `GetFindPackageByIdResourceAsync` — iterates over the candidate repositories returned
   by `BuildCandidateRepositories`, returning the first successfully resolved
   `FindPackageByIdResource` and its effective repository. Silently skips on a non-auth
-  `HttpRequestException`; accumulates the first `NuGetProtocolException` message for
-  the final error; returns an actionable diagnostic immediately when a 401/403 is
-  detected.
+  `HttpRequestException`; returns an actionable diagnostic immediately on an HTTP-level
+  401/403; for a `NuGetProtocolException` (auth-related or not) accumulates the first
+  diagnostic message and tries the next candidate before surfacing it as the final error.
 - `BuildCandidateRepositories` — builds the ordered list of repositories to try for a
   source. Returns a single-element list for non-`/index.json` URLs, or a two-element
   list (original + v2 OData fallback at the base URL) for `/index.json` URLs.
 - `TryDownloadFromResourceAsync` — streams the `.nupkg` bytes and installs the package
   into the global packages folder using an already-resolved resource, applying the same
   401/403 detection as `GetFindPackageByIdResourceAsync`.
-- `EnsureCredentialServiceRegistered` — registers the NuGet SDK's default credential
-  service once per process before any `SourceRepository` is resolved.
+- `ICredentialServiceRegistrar` / `CredentialServiceRegistrar` — an internal seam that
+  registers the NuGet SDK's default credential service once per process before any
+  `SourceRepository` is resolved, injectable by tests as an alternative to relying on
+  shared, process-wide static state.
 - `TryDescribeAuthFailure` / `TryGetHttpStatusCode` — detect an HTTP 401/403 status
   anywhere in an exception chain and build the actionable diagnostic message describing
   it, used by both `GetFindPackageByIdResourceAsync` and `TryDownloadFromResourceAsync`.
@@ -208,17 +217,25 @@ Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-Nu
 
 #### `EnsureCachedAsync(string packageId, string version, ISettings settings, CancellationToken)` (internal)
 
+Thin wrapper that delegates immediately to a further internal `EnsureCachedAsync` overload,
+passing `DefaultCredentialRegistrar` - a single static `CredentialServiceRegistrar` instance
+shared by every real (non-test) call in the process - as the `credentialRegistrar` argument.
+This overload exists to support testing with an injected `ISettings`; all non-test callers
+reach it only via the public wrapper. See the next overload for the complete processing steps.
+
+#### `EnsureCachedAsync(..., ISettings settings, ICredentialServiceRegistrar credentialRegistrar, CancellationToken)` (internal)
+
 Contains all caching logic for the public method. The method:
 
-1. Validates that `packageId` and `version` are not null, throwing
-   `ArgumentNullException` for either null argument.
+1. Validates that `packageId`, `version`, `settings`, and `credentialRegistrar` are not
+   null, throwing `ArgumentNullException` for any null argument.
 2. Parses the `version` string using `NuGetVersion.Parse`, throwing
    `ArgumentException` when the version string is not a valid NuGet version.
 3. Resolves the global packages folder from the injected `settings`.
 4. Computes the expected on-disk package path and returns it immediately if the
    `.nupkg.metadata` sentinel file exists (cache-hit fast path) - skipping the
    remaining steps below, including credential-service registration, entirely.
-5. Calls `EnsureCredentialServiceRegistered` so any subsequently resolved
+5. Calls `credentialRegistrar.EnsureRegistered()` so any subsequently resolved
    `SourceRepository` can consult the NuGet credential service for authenticated
    sources.
 6. Iterates over enabled, mapped package sources. For each source, calls
@@ -242,14 +259,23 @@ fallback when a v3 `/index.json` URL fails with a protocol error. The method:
 3. Returns the first successful `(repository, resource, null)` result where the resource
    is non-null. A null resource is treated as "not supported by this candidate" and the
    loop continues to the next candidate.
-4. On an `HttpRequestException` or `NuGetProtocolException` where `TryDescribeAuthFailure`
-   detects an HTTP 401/403, returns the actionable diagnostic message immediately rather
-   than continuing to the next candidate.
-5. On any other `HttpRequestException` from any candidate, returns a silent skip result —
-   transient network errors are not actionable.
-6. On any other `NuGetProtocolException`, captures the first (configured URL's) error
+4. On an `HttpRequestException` where `TryDescribeAuthFailure` detects an HTTP 401/403,
+   returns the actionable diagnostic message immediately rather than continuing to the
+   next candidate — an authenticated HTTP-level rejection is definitive for this
+   candidate URL.
+5. On any other `HttpRequestException` from any candidate, returns a result carrying any
+   actionable diagnostic already captured from an earlier candidate (or `null` if none) —
+   this candidate's transient network error is not itself actionable, but must not discard
+   a genuine authentication failure detected on a prior candidate.
+6. On a `NuGetProtocolException` where `TryDescribeAuthFailure` detects an HTTP 401/403,
+   captures the actionable diagnostic message via `??=` and tries the next candidate
+   (e.g. the v2 OData fallback), the same as any other `NuGetProtocolException` — the
+   protocol layer already implies the request reached the source and got a structured
+   response, so a fallback candidate is still worth trying before giving up.
+7. On any other `NuGetProtocolException`, captures the first (configured URL's) error
    message via `??=` and tries the next candidate. After all candidates are exhausted,
-   returns the captured error message referencing the original configured URL.
+   returns the captured error message (auth-diagnostic or generic) referencing the
+   original configured URL.
 
 #### `BuildCandidateRepositories` (private)
 
@@ -276,23 +302,29 @@ The method:
    `GlobalPackagesFolderUtility.AddPackageAsync`.
 3. Returns a success result containing the conventional package path.
 
-#### `EnsureCredentialServiceRegistered` (private)
+#### `ICredentialServiceRegistrar` / `CredentialServiceRegistrar` (private/internal)
 
-Registers the NuGet SDK's default credential service exactly once per process, via
+`ICredentialServiceRegistrar` is a single-method internal interface (`EnsureRegistered()`)
+that abstracts NuGet SDK credential-service registration, mirroring the existing `ISettings`
+injection seam used for testability. The private `CredentialServiceRegistrar` implementation
+registers the NuGet SDK's default credential service via
 `DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance,
-nonInteractive: true)`, guarded by a process-wide flag and lock. Called at the start of
-the internal `EnsureCachedAsync` overload, before any `SourceRepository` is resolved, so
-credential-provider plugins and `ICredentialService`-mediated retries are available for
-every source queried during that call (and every subsequent call in the same process).
+nonInteractive: true)`, memoized per instance using `Lazy<bool>` with
+`LazyThreadSafetyMode.ExecutionAndPublication` so repeated calls on the same instance are
+cheap and thread-safe. A single static `DefaultCredentialRegistrar` instance is shared by every
+real (non-test) `EnsureCachedAsync` call, giving once-per-process registration semantics;
+tests inject their own `ICredentialServiceRegistrar` test double (e.g. a call-counting spy)
+via the internal overload, avoiding any dependency on shared, process-wide static test-only
+state.
 
 #### `TryDescribeAuthFailure` / `TryGetHttpStatusCode` (private)
 
 `TryGetHttpStatusCode` walks an exception and its `InnerException` chain looking for an
 HTTP 401 or 403 status, checking the strongly typed `HttpRequestException.StatusCode`
 property where available (`#if !NETSTANDARD2_0`) and falling back to a compiled regular
-expression matching a standalone `401`/`403` in each exception's message text (to handle
-`netstandard2.0`, and cases where the SDK wraps the failure in a `NuGetProtocolException`
-whose own message or inner exception carries the status text). `TryDescribeAuthFailure`
+expression matching the reason-phrase text `401 (Unauthorized)` / `403 (Forbidden)` in each
+exception's message (to handle `netstandard2.0`, and cases where the SDK wraps the failure
+in a `NuGetProtocolException` whose own message or inner exception carries the status text). `TryDescribeAuthFailure`
 calls `TryGetHttpStatusCode` and, when a status is found, builds an actionable diagnostic
 message naming the source (name and URL), the detected status, and a hint to check
 `packageSourceCredentials` or a configured credential provider; both methods are used as

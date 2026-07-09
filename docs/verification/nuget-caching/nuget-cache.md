@@ -231,17 +231,31 @@ reported as an actionable authentication diagnostic rather than a generic, indis
 
 **Requirement coverage**: `Caching-NuGetCache-AuthenticatedSource`.
 
-#### NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService
+#### NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar
 
-**Scenario**: An ordinary, unauthenticated WireMock v3 feed. `EnsureCachedAsync` is called against
-a fresh, empty global packages folder.
+**Scenario**: An ordinary, unauthenticated WireMock v3 feed. The internal `EnsureCachedAsync`
+overload is called with an injected `SpyCredentialServiceRegistrar` test double (implementing
+`ICredentialServiceRegistrar`) against a fresh, empty global packages folder.
+
+**Expected**: After the call completes, the spy's invocation counter is exactly `1`, directly
+proving that `EnsureCachedAsync` invokes credential-service registration. This is a white-box
+regression test for the registration step itself, using an injected test double rather than any
+shared, process-wide static state - the two authenticated-source tests above exercise only
+static `packageSourceCredentials`, which succeed with or without credential-service registration,
+so neither would catch a regression that removed or skipped the registration call.
+
+**Requirement coverage**: `Caching-NuGetCache-AuthenticatedSource`.
+
+#### NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
+
+**Scenario**: An ordinary, unauthenticated WireMock v3 feed. The public `ISettings`-only
+`EnsureCachedAsync` overload (which delegates to the real, default `CredentialServiceRegistrar`)
+is called against a fresh, empty global packages folder.
 
 **Expected**: After the call completes, `HttpHandlerResourceV3.CredentialService` is non-null,
-directly proving that `EnsureCachedAsync` performs the NuGet SDK's default credential-service
-registration. This is a white-box regression test for the registration step itself: the two
-authenticated-source tests above exercise only static `packageSourceCredentials`, which succeed
-with or without credential-service registration, so neither would catch a regression that removed
-or broke the registration call.
+proving the default registrar is correctly wired to the real NuGet SDK
+`DefaultCredentialServiceUtility.SetupDefaultCredentialService` call, complementing the
+spy-based test above (which proves invocation but never touches the real NuGet SDK).
 
 **Requirement coverage**: `Caching-NuGetCache-AuthenticatedSource`.
 
@@ -268,7 +282,8 @@ or broke the registration call.
 - **`Caching-NuGetCache-AuthenticatedSource`**:
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath,
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic,
-  NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService
+  NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar,
+  NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
 - **`Caching-NuGetCache-NotFound`**:
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion,
