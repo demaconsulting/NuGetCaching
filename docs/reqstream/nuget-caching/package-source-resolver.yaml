@@ -1,0 +1,60 @@
+---
+# Software Unit Requirements for the PackageSourceResolver Class
+#
+# These requirements define the behavioral obligations of the source-resolution
+# unit used internally by the NuGetCache unit. They decompose the v2-fallback and
+# multi-source responsibilities of NuGetCache into the resolution-specific
+# responsibilities of this unit.
+
+sections:
+  - title: PackageSourceResolver Unit Requirements
+    requirements:
+      - id: Caching-PackageSourceResolver-Resolve
+        title: >-
+          The source-resolution utility shall resolve the FindPackageByIdResource
+          for a configured package source, returning the effective repository and
+          resource used for a subsequent download.
+        justification: |
+          Provides the nominal resolution capability used by NuGetCache to obtain a
+          usable FindPackageByIdResource for each configured NuGet source before
+          attempting a download.
+        tests:
+          - PackageSourceResolver_ResolveAsync_HealthyV3Index_ReturnsResourceForOriginalRepository
+          - PackageSourceResolver_ResolveAsync_NonIndexJsonSourceUrl_ResolvesDirectlyAsV2
+
+      - id: Caching-PackageSourceResolver-FallbackOnProtocolError
+        title: >-
+          The source-resolution utility shall fall back to a v2 OData endpoint when
+          a configured v3 index URL fails with a protocol error.
+        justification: |
+          Some package feeds expose a v2-only endpoint at the base URL even when a
+          v3-style index.json URL is configured. Automatic fallback to the base URL
+          as a v2 OData endpoint allows the library to serve these feeds without
+          requiring configuration changes by the user, mirroring the unit-level
+          decomposition of Caching-NuGetCache-V2Fallback.
+        tests:
+          - PackageSourceResolver_ResolveAsync_V3IndexProtocolError_FallsBackToV2Repository
+
+      - id: Caching-PackageSourceResolver-NoFallbackForNonIndexUrl
+        title: >-
+          The source-resolution utility shall not construct a fallback candidate
+          for a source URL that does not end in /index.json.
+        justification: |
+          A source already configured at its bare base URL is already a v2 OData
+          endpoint; constructing a redundant fallback candidate for it would be
+          unnecessary and could duplicate requests against the same endpoint.
+        tests:
+          - PackageSourceResolver_ResolveAsync_NonIndexJsonSourceUrl_ResolvesDirectlyAsV2
+
+      - id: Caching-PackageSourceResolver-TransientFailure
+        title: >-
+          The source-resolution utility shall not surface a diagnostic error
+          message when resolution of a source encounters only transient,
+          non-actionable network-level failures.
+        justification: |
+          Network outages on individual feeds are non-actionable at resolution
+          time; resolving a resource does not by itself require a successful v3
+          service-index fetch, since the NuGet SDK provider chain defers actual
+          protocol validation to first use (search or download).
+        tests:
+          - PackageSourceResolver_ResolveAsync_NetworkFailureOnIndex_DoesNotThrowAndReturnsNoErrorMessage

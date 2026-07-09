@@ -19,6 +19,10 @@ This document covers the verification design for the same software items describ
 - **NuGetCaching** — the system as a whole
 - **NuGetCache** — the public API unit providing `EnsureCachedAsync`
 - **PathHelpers** — the internal safe path-combination utility
+- **PackageSourceResolver** — the internal source-resolution utility, including v2 fallback
+- **PackageDownloader** — the internal download-and-install utility and package-path convention
+- **AuthFailureClassifier** — the internal authentication-failure classification utility
+- **CredentialServiceRegistrar** — the internal credential-service registration utility
 
 The following topics are out of scope:
 
@@ -48,7 +52,11 @@ The following tree shows the software items covered by this document:
 ```text
 DemaConsulting.NuGet.Caching (System)
 ├── NuGetCache (Unit)
-└── PathHelpers (Unit)
+├── PathHelpers (Unit)
+├── PackageSourceResolver (Unit)
+├── PackageDownloader (Unit)
+├── AuthFailureClassifier (Unit)
+└── CredentialServiceRegistrar (Unit)
 
 OTS Items
 ├── BuildMark

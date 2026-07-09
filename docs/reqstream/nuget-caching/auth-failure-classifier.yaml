@@ -1,0 +1,42 @@
+---
+# Software Unit Requirements for the AuthFailureClassifier Class
+#
+# These requirements define the behavioral obligations of the authentication-
+# failure classification unit used internally by both the PackageSourceResolver
+# and PackageDownloader units. They decompose the actionable-diagnostic
+# responsibility of Caching-NuGetCache-AuthDiagnostic into the detection-
+# specific responsibilities of this unit.
+
+sections:
+  - title: AuthFailureClassifier Unit Requirements
+    requirements:
+      - id: Caching-AuthFailureClassifier-DetectUnauthorized
+        title: >-
+          The authentication-failure classifier shall detect an HTTP 401 or 403
+          status code anywhere in an exception's InnerException chain - whether
+          exposed via a strongly typed status-code property or embedded in an
+          exception message - and shall build an actionable diagnostic message
+          identifying the source and the detected status; the classifier shall
+          not report a false positive for an unrelated exception or an unrelated
+          standalone number that resembles a status code.
+        justification: |
+          The NuGet SDK does not consistently expose the failing HTTP status code
+          as a strongly typed property, and authentication failures are frequently
+          wrapped in a NuGetProtocolException whose message - or whose
+          InnerException's message - simply embeds the reason-phrase text.
+          Detecting this consistently across every target framework and exception
+          shape is what makes an actionable 401/403 diagnostic possible for both
+          PackageSourceResolver and PackageDownloader, rather than an
+          indistinguishable "not found" outcome.
+        tests:
+          - AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage
+          - AuthFailureClassifier_TryDescribeAuthFailure_403InMessage_ReturnsTrueWithActionableMessage
+          - AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInMessage_ReturnsFalse
+          - AuthFailureClassifier_TryDescribeAuthFailure_UnrelatedNumberInMessage_ReturnsFalse
+          - AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInInnerException_ReturnsTrue
+          - AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInDeeplyNestedInnerException_ReturnsTrue
+          - AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInFullChain_ReturnsFalse
+          - AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithStatusCodeProperty_ReturnsTrue
+          - AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithForbiddenStatusCodeProperty_ReturnsTrue
+          - AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithUnrelatedStatusCodeProperty_ReturnsFalse
+          - AuthFailureClassifier_TryDescribeAuthFailure_MatchFound_MessageIncludesOriginalExceptionText

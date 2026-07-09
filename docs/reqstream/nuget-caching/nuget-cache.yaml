@@ -21,24 +21,40 @@ sections:
           - Caching-NuGetCache-MultiSource
           - Caching-NuGetCache-V2Fallback
           - Caching-NuGetCache-CacheHit
-          - Caching-NuGetCache-AuthenticatedSource
+          - Caching-NuGetCache-HonorCredentials
+          - Caching-NuGetCache-AuthDiagnostic
+          - Caching-PackageSourceResolver-Resolve
+          - Caching-PackageDownloader-DownloadOutcome
+          - Caching-PackageDownloader-PackagePathConvention
         tests:
           - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
           - NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath
           - NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath
 
-      - id: Caching-NuGetCache-NullValidation
+      - id: Caching-NuGetCache-NullPackageId
         title: >-
           The EnsureCachedAsync method shall throw ArgumentNullException when
-          packageId is null and when version is null.
+          packageId is null.
         justification: |
-          Null validation on the EnsureCachedAsync method ensures callers receive
-          a clear ArgumentNullException that identifies which parameter was null
-          (packageId or version). This is the unit-level decomposition of
-          Caching-Sys-NullValidation, specifying that the public API method
-          performs the check before any I/O or version parsing occurs.
+          Null validation on the packageId argument of the EnsureCachedAsync method ensures
+          callers receive a clear ArgumentNullException identifying packageId as the null
+          parameter. This is one of two unit-level decompositions of Caching-Sys-NullValidation,
+          specifying that the public API method performs this check before any I/O or version
+          parsing occurs.
         tests:
           - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
+
+      - id: Caching-NuGetCache-NullVersion
+        title: >-
+          The EnsureCachedAsync method shall throw ArgumentNullException when
+          version is null.
+        justification: |
+          Null validation on the version argument of the EnsureCachedAsync method ensures
+          callers receive a clear ArgumentNullException identifying version as the null
+          parameter. This is one of two unit-level decompositions of Caching-Sys-NullValidation,
+          specifying that the public API method performs this check before any I/O or version
+          parsing occurs.
+        tests:
           - NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
 
       - id: Caching-NuGetCache-NotFound
@@ -83,6 +99,8 @@ sections:
           Silently skipping unreachable sources mirrors the behavior of the dotnet
           CLI restore, ensuring the library remains functional when one of several
           configured feeds is temporarily unavailable.
+        children:
+          - Caching-PackageSourceResolver-TransientFailure
         tests:
           - NuGetCache_EnsureCachedAsync_NetworkFailureOnIndex_ThrowsInvalidOperationException
           - NuGetCache_EnsureCachedAsync_V3IndexFailsNetworkFailureOnFallback_ThrowsInvalidOperationException
@@ -108,6 +126,8 @@ sections:
           v3-style index.json URL is configured. Automatic fallback to the base URL
           as a v2 OData endpoint allows the library to serve these feeds without
           requiring configuration changes by the user.
+        children:
+          - Caching-PackageSourceResolver-FallbackOnProtocolError
         tests:
           - NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
 
@@ -121,21 +141,19 @@ sections:
           operation for packages already present locally. The .nupkg.metadata
           sentinel file is used as the cache-hit indicator to avoid returning a
           partially-extracted package.
+        children:
+          - Caching-PackageDownloader-PackagePathConvention
         tests:
           - NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
 
-      - id: Caching-NuGetCache-AuthenticatedSource
+      - id: Caching-NuGetCache-HonorCredentials
         title: >-
-          The EnsureCachedAsync method shall honor configured source credentials, and
-          shall report an actionable diagnostic identifying the source and HTTP
-          status code when a source rejects a request with 401 (Unauthorized) or 403
-          (Forbidden), instead of silently treating the failure as a transient
-          network error.
+          The EnsureCachedAsync method shall honor configured source credentials,
+          successfully accessing an authenticated NuGet source when valid
+          credentials are configured for it.
         justification: |
-          Authenticated V3 feeds (e.g. JFrog Artifactory, Azure Artifacts) reject
-          unauthenticated requests with a 401/403 response that is otherwise
-          indistinguishable, from the caller's perspective, from a transient network
-          failure or a genuine "package not found" outcome. Static
+          Authenticated V3 feeds (e.g. JFrog Artifactory, Azure Artifacts) require
+          credentials to be applied before a request succeeds. Static
           packageSourceCredentials in nuget.config are applied directly by the
           NuGet HTTP stack and can succeed even without credential-service
           registration; registering the NuGet SDK's default credential service is
@@ -143,12 +161,31 @@ sections:
           and MSBuild restore - because it is needed when a credential-provider
           plugin or ICredentialService-mediated retry is required (e.g. Azure
           Artifacts or JFrog credential-provider plugins), even though it is not
-          exercised by static-credential scenarios. Surfacing the actionable
+          exercised by static-credential scenarios.
+        children:
+          - Caching-CredentialServiceRegistrar-RegisterOnce
+          - Caching-CredentialServiceRegistrar-DefaultWiredToRealFlow
+        tests:
+          - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath
+          - NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar
+          - NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
+
+      - id: Caching-NuGetCache-AuthDiagnostic
+        title: >-
+          The EnsureCachedAsync method shall report an actionable diagnostic
+          identifying the source and HTTP status code when a source rejects a
+          request with 401 (Unauthorized) or 403 (Forbidden), instead of silently
+          treating the failure as a transient network error.
+        justification: |
+          Authenticated V3 feeds (e.g. JFrog Artifactory, Azure Artifacts) reject
+          unauthenticated requests with a 401/403 response that is otherwise
+          indistinguishable, from the caller's perspective, from a transient network
+          failure or a genuine "package not found" outcome. Surfacing the actionable
           401/403 diagnostic lets callers immediately identify a credentials
           problem on a specific source rather than receiving a generic "not found"
           error with no diagnostic detail.
+        children:
+          - Caching-AuthFailureClassifier-DetectUnauthorized
+          - Caching-PackageDownloader-AuthDiagnostic
         tests:
-          - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath
           - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
-          - NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar
-          - NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService

@@ -1,0 +1,52 @@
+---
+# Software Unit Requirements for the PackageDownloader Class
+#
+# These requirements define the behavioral obligations of the package-download
+# and installation unit used internally by the NuGetCache unit. They decompose
+# the caching and authenticated-source responsibilities of NuGetCache into the
+# download-specific responsibilities of this unit.
+
+sections:
+  - title: PackageDownloader Unit Requirements
+    requirements:
+      - id: Caching-PackageDownloader-DownloadOutcome
+        title: >-
+          The package-download utility shall download and install a package
+          using an already-resolved FindPackageByIdResource, returning the
+          on-disk package path on success, or an empty result when the package
+          is absent or the failure is transient.
+        justification: |
+          Provides the nominal download-and-install capability used by
+          NuGetCache once a FindPackageByIdResource has been resolved for a
+          source, distinguishing a genuine, successful install from an absent
+          package or a transient, non-actionable network failure.
+        tests:
+          - PackageDownloader_TryDownloadAsync_PackageAvailable_ReturnsInstalledPackagePath
+          - PackageDownloader_TryDownloadAsync_PackageAbsent_ReturnsEmptyResult
+          - PackageDownloader_TryDownloadAsync_NetworkOrProtocolFailureDuringDownload_ReturnsEmptyResult
+
+      - id: Caching-PackageDownloader-AuthDiagnostic
+        title: >-
+          The package-download utility shall return an actionable diagnostic
+          message when the source rejects a download request with HTTP 401 or
+          403, instead of silently treating the failure as a transient error.
+        justification: |
+          Surfaces an actionable authentication diagnostic rather than an
+          indistinguishable "not found" outcome, mirroring the unit-level
+          decomposition of Caching-NuGetCache-AuthDiagnostic.
+        tests:
+          - PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsActionableErrorMessage
+
+      - id: Caching-PackageDownloader-PackagePathConvention
+        title: >-
+          The package-download utility shall compute the conventional on-disk
+          package path as {globalPackagesFolder}/{packageId.lower}/{version.lower},
+          available for use both after a successful download and by callers
+          performing an independent cache-hit check.
+        justification: |
+          NuGetCache needs to compute the identical on-disk package path both for
+          its cache-hit fast-path check (before any download is attempted) and
+          after PackageDownloader completes a download, so the convention must be
+          owned by a single unit and exposed for direct use rather than duplicated.
+        tests:
+          - PackageDownloader_GetPackagePath_MixedCaseIdAndVersion_ReturnsLowerCasedPath
