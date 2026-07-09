@@ -46,7 +46,7 @@
          template rendering, which this project never exercises, but the vulnerable version still
          trips NuGetAudit (NU1902) as an error. Pin to the patched 7.2.5 release directly until
          WireMock.Net/NSwag.Core bump their own dependency, then remove this pin. -->
-    <PackageReference Include="Scriban.Signed" Version="7.2.5" />
+    <PackageReference Include="Scriban.Signed" Version="7.2.5" PrivateAssets="all" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>

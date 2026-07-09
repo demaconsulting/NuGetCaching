@@ -77,7 +77,6 @@ internal static class PackageSourceResolver
         IEnumerable<Lazy<INuGetResourceProvider>> providers,
         CancellationToken cancellationToken)
     {
-        var originalSource = sourceRepository.PackageSource.Source;
         var sourceName = sourceRepository.PackageSource.Name;
         var candidates = BuildCandidateRepositories(sourceRepository, providers);
         string? protocolErrorMessage = null;
@@ -92,13 +91,15 @@ internal static class PackageSourceResolver
                     return new PackageSourceResolution(candidate, resource, null);
                 }
             }
-            catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, originalSource, out var authMessage))
+            catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
             {
                 // An authentication failure (401/403) is actionable - it means the source requires
                 // credentials that were not supplied or were rejected, not that the source is simply
                 // unreachable. Surface this so callers can distinguish it from a transient network
-                // failure or a genuine "package not found" outcome.
-                return new PackageSourceResolution(sourceRepository, null, authMessage);
+                // failure or a genuine "package not found" outcome. Use the failing candidate's own
+                // URL (which may be the v2 fallback, not the originally configured source) so the
+                // diagnostic identifies the endpoint that actually rejected the request.
+                return new PackageSourceResolution(candidate, null, authMessage);
             }
             catch (HttpRequestException)
             {
@@ -109,16 +110,19 @@ internal static class PackageSourceResolver
                 // into a generic, indistinguishable "not found" result.
                 return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage);
             }
-            catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, originalSource, out var authMessage))
+            catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
             {
                 // Same as above, but the NuGet SDK wrapped the 401/403 as a protocol exception
-                // (e.g. while loading the v3 service index) rather than a raw HttpRequestException
+                // (e.g. while loading the v3 service index) rather than a raw HttpRequestException.
+                // Use the failing candidate's own URL for the same reason as above.
                 protocolErrorMessage ??= authMessage;
             }
             catch (NuGetProtocolException ex)
             {
-                // Capture the first (configured URL's) error message; try the next candidate if available
-                protocolErrorMessage ??= $"{originalSource}: Failed to load package source. ({ex.Message})";
+                // Capture the first error message using the failing candidate's own URL (which may
+                // be the v2 fallback, not the originally configured source); try the next candidate
+                // if available
+                protocolErrorMessage ??= $"{candidate.PackageSource.Source}: Failed to load package source. ({ex.Message})";
             }
         }
 

@@ -792,18 +792,21 @@ public class NuGetCacheServerTests
     ///     reset hook on production code.
     ///     <c>HttpHandlerResourceV3.CredentialService</c> itself is still a shared, process-wide
     ///     NuGet SDK property, so this test still resets it to <see langword="null"/> before
-    ///     asserting; other test classes in this assembly (e.g. <c>NuGetCachingTests</c>,
-    ///     <c>NuGetCacheTests</c>) also invoke <c>EnsureCachedAsync</c> and could otherwise race
-    ///     with this test's reset/assert on that shared static property - the assembly-level
-    ///     <c>[assembly: CollectionBehavior(DisableTestParallelization = true)]</c> attribute in
-    ///     <c>AssemblyInfo.cs</c> serializes all test collections in this assembly to eliminate that
-    ///     race.
+    ///     asserting - and restores its original (pre-test) value in a <c>finally</c> block, so a
+    ///     failure part-way through this test cannot leave a null or test-only credential service
+    ///     behind for subsequent tests. Other test classes in this assembly (e.g.
+    ///     <c>NuGetCachingTests</c>, <c>NuGetCacheTests</c>) also invoke <c>EnsureCachedAsync</c> and
+    ///     could otherwise race with this test's reset/assert on that shared static property - the
+    ///     assembly-level <c>[assembly: CollectionBehavior(DisableTestParallelization = true)]</c>
+    ///     attribute in <c>AssemblyInfo.cs</c> serializes all test collections in this assembly to
+    ///     eliminate that race.
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
     public async Task NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService()
     {
         var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var originalCredentialService = HttpHandlerResourceV3.CredentialService;
         try
         {
             Directory.CreateDirectory(globalPackagesFolder);
@@ -833,6 +836,12 @@ public class NuGetCacheServerTests
         }
         finally
         {
+            // Restore the shared, process-wide credential service to whatever it was before this
+            // test ran - this test intentionally nulled it out, and leaving it null (or leaving a
+            // test-only value behind) could cascade into unrelated test/production failures if this
+            // test fails before reaching its assertion.
+            HttpHandlerResourceV3.CredentialService = originalCredentialService;
+
             if (Directory.Exists(globalPackagesFolder))
             {
                 Directory.Delete(globalPackagesFolder, recursive: true);
