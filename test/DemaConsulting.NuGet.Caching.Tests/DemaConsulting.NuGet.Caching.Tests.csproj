@@ -40,6 +40,13 @@
     <!-- WireMock.Net provides an in-process HTTP mock server used by the LocalIntegration tests
          to simulate NuGet v3 and v2 feeds without hitting the network. -->
     <PackageReference Include="WireMock.Net" Version="2.11.0" />
+    <!-- TEMPORARY PIN: WireMock.Net 2.11.0 transitively depends on NSwag.Core, which pulls in
+         Scriban.Signed 7.2.0 - a version with known moderate-severity vulnerabilities
+         (GHSA-6q7j-xr26-3h2c, GHSA-q6rr-fm2g-g5x8). Scriban is only used by NSwag's Swagger/OpenAPI
+         template rendering, which this project never exercises, but the vulnerable version still
+         trips NuGetAudit (NU1902) as an error. Pin to the patched 7.2.5 release directly until
+         WireMock.Net/NSwag.Core bump their own dependency, then remove this pin. -->
+    <PackageReference Include="Scriban.Signed" Version="7.2.5" PrivateAssets="all" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>

@@ -27,7 +27,8 @@ sections:
           when required arguments are missing, preventing unexpected errors from propagating
           through the system.
         children:
-          - Caching-NuGetCache-NullValidation
+          - Caching-NuGetCache-NullPackageId
+          - Caching-NuGetCache-NullVersion
         tests:
           - NuGetCaching_EnsureCachedAsync_WhenPackageIdIsNull_ThrowsArgumentNullException
           - NuGetCaching_EnsureCachedAsync_WhenVersionIsNull_ThrowsArgumentNullException

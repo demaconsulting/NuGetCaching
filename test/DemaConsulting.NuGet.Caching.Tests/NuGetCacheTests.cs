@@ -85,8 +85,8 @@ public class NuGetCacheTests
     ///     <see cref="ArgumentNullException"/> when <c>packageId</c> is <see langword="null"/>.
     /// </summary>
     /// <remarks>
-    ///     This test proves Caching-NuGetCache-NullValidation: the library validates input parameters
-    ///     and throws <see cref="ArgumentNullException"/> for null arguments.
+    ///     This test proves Caching-NuGetCache-NullPackageId: the library validates the
+    ///     <c>packageId</c> parameter and throws <see cref="ArgumentNullException"/> when it is null.
     /// </remarks>
     [Fact]
     public async Task NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException()
@@ -104,8 +104,8 @@ public class NuGetCacheTests
     ///     <see cref="ArgumentNullException"/> when <c>version</c> is <see langword="null"/>.
     /// </summary>
     /// <remarks>
-    ///     This test proves Caching-NuGetCache-NullValidation: the library validates input parameters
-    ///     and throws <see cref="ArgumentNullException"/> for null arguments.
+    ///     This test proves Caching-NuGetCache-NullVersion: the library validates the
+    ///     <c>version</c> parameter and throws <see cref="ArgumentNullException"/> when it is null.
     /// </remarks>
     [Fact]
     public async Task NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException()

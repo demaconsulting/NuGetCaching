@@ -20,8 +20,13 @@ Unit requirements are verified by two complementary sets of tests, both exercisi
   branch (v2 fallback, protocol errors, network failures, multi-source enumeration, cache-hit
   fast path) without requiring internet access.
 
-Each test scenario names a specific test method that provides evidence for one or more unit
-requirements.
+These tests exercise `NuGetCache` end-to-end through its collaboration with the
+`PackageSourceResolver`, `PackageDownloader`, `AuthFailureClassifier`, and
+`CredentialServiceRegistrar` sibling units; unit-level verification of the internal branches
+owned specifically by those sibling units (e.g. v2 fallback candidate construction, resolution
+diagnostics, download error handling, status-code detection) is documented in their own
+verification documents. Each test scenario below names a specific test method that provides
+evidence for one or more `NuGetCache`-level requirements.
 
 ### Test Scenarios
 
@@ -50,7 +55,7 @@ consistent results.
 
 **Expected**: Throws `ArgumentNullException` with parameter name `packageId`.
 
-**Requirement coverage**: `Caching-NuGetCache-NullValidation`.
+**Requirement coverage**: `Caching-NuGetCache-NullPackageId`.
 
 #### NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
 
@@ -58,7 +63,7 @@ consistent results.
 
 **Expected**: Throws `ArgumentNullException` with parameter name `version`.
 
-**Requirement coverage**: `Caching-NuGetCache-NullValidation`.
+**Requirement coverage**: `Caching-NuGetCache-NullVersion`.
 
 #### NuGetCache_EnsureCachedAsync_InvalidVersion_ThrowsArgumentException
 
@@ -118,7 +123,7 @@ the automatic v2 fallback path used for JFrog Artifactory-style feeds.
 **Expected**: Either returns a non-null path to the installed package (v2 download succeeded), or
 throws `InvalidOperationException` while the WireMock server log shows a v2-specific request
 (`/$metadata`, `/FindPackagesById()`, `/Packages(...)`, or `/`) — confirming
-`BuildCandidateRepositories` attempted the v2 fallback.
+`PackageSourceResolver.BuildCandidateRepositories` attempted the v2 fallback.
 
 **Requirement coverage**: `Caching-NuGetCache-V2Fallback`.
 
@@ -176,7 +181,7 @@ treats as a transient failure.
 
 **Scenario**: The v3 service index and version list succeed, but the `.nupkg` download endpoint
 drops the connection. `CopyNupkgToStreamAsync` raises `HttpRequestException`, which is silently
-swallowed by `TryDownloadFromResourceAsync`.
+swallowed by `PackageDownloader.TryDownloadAsync`.
 
 **Expected**: Throws `InvalidOperationException`.
 
@@ -205,14 +210,69 @@ by asserting the WireMock server's request log is empty).
 
 **Requirement coverage**: `Caching-NuGetCache-CacheHit`.
 
+#### NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath
+
+**Scenario**: A WireMock v3 feed requires HTTP Basic Auth on every endpoint, including the
+service index, the flat-container version list, and the `.nupkg` download. `CreateSettings` (with
+credentials) writes a `nuget.config` containing a `packageSourceCredentials` block with a valid
+username and password for the source, matching the real-world JFrog Artifactory shape.
+`EnsureCachedAsync` is called against a fresh, empty global packages folder (a cold cache).
+
+**Expected**: Returns a non-null absolute path to the installed package, proving that a cold
+cache with valid statically-configured credentials succeeds against a fully authenticated feed.
+
+**Requirement coverage**: `Caching-NuGetCache-HonorCredentials`.
+
+#### NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
+
+**Scenario**: The same fully authenticated WireMock v3 feed as above, but `EnsureCachedAsync` is
+called with no `packageSourceCredentials` configured for the source, so every request receives
+HTTP 401.
+
+**Expected**: Throws `InvalidOperationException` whose message contains both the configured
+source name (`test-source`) and the detected HTTP status code (`401`), proving the failure is
+reported as an actionable authentication diagnostic rather than a generic, indistinguishable
+"not found" error.
+
+**Requirement coverage**: `Caching-NuGetCache-AuthDiagnostic`.
+
+#### NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar
+
+**Scenario**: An ordinary, unauthenticated WireMock v3 feed. The internal `EnsureCachedAsync`
+overload is called with an injected `SpyCredentialServiceRegistrar` test double (implementing
+`ICredentialServiceRegistrar`) against a fresh, empty global packages folder.
+
+**Expected**: After the call completes, the spy's invocation counter is exactly `1`, directly
+proving that `EnsureCachedAsync` invokes credential-service registration. This is a white-box
+regression test for the registration step itself, using an injected test double rather than any
+shared, process-wide static state - the two authenticated-source tests above exercise only
+static `packageSourceCredentials`, which succeed with or without credential-service registration,
+so neither would catch a regression that removed or skipped the registration call.
+
+**Requirement coverage**: `Caching-NuGetCache-HonorCredentials`.
+
+#### NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
+
+**Scenario**: An ordinary, unauthenticated WireMock v3 feed. The public `ISettings`-only
+`EnsureCachedAsync` overload (which delegates to the real, default `CredentialServiceRegistrar`)
+is called against a fresh, empty global packages folder.
+
+**Expected**: After the call completes, `HttpHandlerResourceV3.CredentialService` is non-null,
+proving the default registrar is correctly wired to the real NuGet SDK
+`DefaultCredentialServiceUtility.SetupDefaultCredentialService` call, complementing the
+spy-based test above (which proves invocation but never touches the real NuGet SDK).
+
+**Requirement coverage**: `Caching-NuGetCache-HonorCredentials`.
+
 ### Requirements Coverage
 
 - **`Caching-NuGetCache-EnsureCached`**:
   NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder,
   NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath,
   NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath
-- **`Caching-NuGetCache-NullValidation`**:
-  NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException,
+- **`Caching-NuGetCache-NullPackageId`**:
+  NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
+- **`Caching-NuGetCache-NullVersion`**:
   NuGetCache_EnsureCachedAsync_NullVersion_ThrowsArgumentNullException
 - **`Caching-NuGetCache-InvalidVersion`**:
   NuGetCache_EnsureCachedAsync_InvalidVersion_ThrowsArgumentException
@@ -225,6 +285,12 @@ by asserting the WireMock server's request log is empty).
   NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
 - **`Caching-NuGetCache-CacheHit`**:
   NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
+- **`Caching-NuGetCache-HonorCredentials`**:
+  NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath,
+  NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar,
+  NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
+- **`Caching-NuGetCache-AuthDiagnostic`**:
+  NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
 - **`Caching-NuGetCache-NotFound`**:
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion,

@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Text;
 using NuGet.Configuration;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -137,6 +138,122 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Registers the NuGet v3 flat-container endpoints for a package, but requires HTTP Basic
+    ///     Authentication with the supplied <paramref name="username"/> and <paramref name="password"/>
+    ///     on every endpoint — including the service index, the version list, and the .nupkg download.
+    /// </summary>
+    /// <remarks>
+    ///     Requests missing the <c>Authorization</c> header, or presenting a mismatched
+    ///     <c>Authorization: Basic</c> value, receive HTTP 401 with a <c>WWW-Authenticate: Basic</c>
+    ///     header. Requests presenting the correct credentials receive the normal v3 responses.
+    ///     Enforcing auth on the download endpoint (not just the index/registration endpoints) is
+    ///     essential: the bug this simulates is the complete absence of a NuGet credential service,
+    ///     so an unauthenticated request must fail at every stage of the v3 protocol, not merely
+    ///     during service-index discovery.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="version">The package version string.</param>
+    /// <param name="nupkgBytes">The raw .nupkg bytes to serve for the download endpoint.</param>
+    /// <param name="username">The username expected in the HTTP Basic credentials.</param>
+    /// <param name="password">The password expected in the HTTP Basic credentials.</param>
+    internal void RegisterV3PackageWithBasicAuth(
+        string packageId,
+        string version,
+        byte[] nupkgBytes,
+        string username,
+        string password)
+    {
+        var id = packageId.ToLowerInvariant();
+        var ver = version.ToLowerInvariant();
+        var expectedAuthHeader = "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
+
+        RegisterAuthenticatedTextEndpoint(
+            "/index.json", expectedAuthHeader, BuildV3ServiceIndexJson(), "application/json");
+        RegisterAuthenticatedTextEndpoint(
+            $"/v3-flatcontainer/{id}/index.json", expectedAuthHeader, $"{{\"versions\":[\"{ver}\"]}}", "application/json");
+        RegisterAuthenticatedBinaryEndpoint(
+            $"/v3-flatcontainer/{id}/{ver}/{id}.{ver}.nupkg", expectedAuthHeader, nupkgBytes, "application/zip");
+
+        // Catch-all guards for any other request path (e.g. a v2 OData fallback endpoint tried by
+        // NuGetCache's automatic v2-fallback logic): with valid credentials, unmapped paths return
+        // a realistic 404 (not a fabricated 200) so a probe of an unexpected endpoint surfaces as
+        // "not found" rather than masking a bug as success; without valid credentials, unmapped
+        // paths still return 401 so the entire feed remains authentication-gated rather than
+        // falling through to WireMock's default 404 (which would be misread as "package absent"
+        // instead of "unauthorized").
+        _server
+            .Given(Request.Create().UsingAnyMethod().WithHeader("Authorization", expectedAuthHeader))
+            .AtPriority(10)
+            .RespondWith(Response.Create()
+                .WithStatusCode(404));
+
+        _server
+            .Given(Request.Create().UsingAnyMethod())
+            .AtPriority(11)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
+    ///     Registers a text-body endpoint that requires the exact <paramref name="expectedAuthHeader"/>
+    ///     value on the <c>Authorization</c> header, responding HTTP 401 for any other request
+    ///     (missing header or mismatched credentials) to the same path.
+    /// </summary>
+    /// <param name="path">The request path to guard with authentication.</param>
+    /// <param name="expectedAuthHeader">The exact required <c>Authorization</c> header value.</param>
+    /// <param name="body">The response body to serve once authenticated.</param>
+    /// <param name="contentType">The <c>Content-Type</c> header to serve once authenticated.</param>
+    private void RegisterAuthenticatedTextEndpoint(string path, string expectedAuthHeader, string body, string contentType)
+    {
+        // Higher-priority mapping: exact Authorization match serves the real response
+        _server
+            .Given(Request.Create().WithPath(path).UsingGet().WithHeader("Authorization", expectedAuthHeader))
+            .AtPriority(0)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(body)
+                .WithHeader("Content-Type", contentType));
+
+        // Lower-priority fallback: any other request (missing/incorrect Authorization) gets 401
+        _server
+            .Given(Request.Create().WithPath(path).UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
+    ///     Registers a binary-body endpoint that requires the exact <paramref name="expectedAuthHeader"/>
+    ///     value on the <c>Authorization</c> header, responding HTTP 401 for any other request
+    ///     (missing header or mismatched credentials) to the same path.
+    /// </summary>
+    /// <param name="path">The request path to guard with authentication.</param>
+    /// <param name="expectedAuthHeader">The exact required <c>Authorization</c> header value.</param>
+    /// <param name="bodyBytes">The raw response bytes to serve once authenticated.</param>
+    /// <param name="contentType">The <c>Content-Type</c> header to serve once authenticated.</param>
+    private void RegisterAuthenticatedBinaryEndpoint(string path, string expectedAuthHeader, byte[] bodyBytes, string contentType)
+    {
+        // Higher-priority mapping: exact Authorization match serves the real .nupkg bytes
+        _server
+            .Given(Request.Create().WithPath(path).UsingGet().WithHeader("Authorization", expectedAuthHeader))
+            .AtPriority(0)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(bodyBytes)
+                .WithHeader("Content-Type", contentType));
+
+        // Lower-priority fallback: any other request (missing/incorrect Authorization) gets 401
+        _server
+            .Given(Request.Create().WithPath(path).UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
     ///     Registers the NuGet v3 flat-container version list and service index for a package,
     ///     but makes the .nupkg download endpoint return HTTP 500 to simulate a protocol error
     ///     during the download phase.
@@ -242,19 +359,21 @@ internal sealed class NuGetTestServer : IAsyncDisposable
 
     /// <summary>
     ///     Makes the base URL endpoint (<c>/</c>) return HTTP 500 to simulate a failure
-    ///     when the NuGet SDK tries the base URL as a v2 OData fallback.
+    ///     when the NuGet SDK's v2 (OData) client eventually makes a request against the v2
+    ///     fallback base URL.
     /// </summary>
     /// <remarks>
-    ///     HTTP 500 from the base URL causes the NuGet SDK to throw
-    ///     <see cref="System.Net.Http.HttpRequestException"/> rather than
-    ///     <c>NuGetProtocolException</c>. <see cref="NuGetCache"/> treats this as a transient
-    ///     network error and silently skips the source — no per-source diagnostic message is
-    ///     accumulated and the final exception contains only the base package-not-found message.
+    ///     Resolving a <c>FindPackageByIdResource</c> for a v2 OData source does not itself make an
+    ///     HTTP request, so this endpoint is only exercised when that resource is subsequently used
+    ///     to search for or download a package - not at candidate-resolution time. Any diagnostic
+    ///     already captured from an earlier candidate (e.g. a <c>NuGetProtocolException</c>-based
+    ///     diagnostic from the v3 service index) is discarded by <see cref="NuGetCache"/> as soon as
+    ///     the v2 candidate's resource resolves successfully, before this endpoint is ever reached.
     /// </remarks>
     internal void SimulateBaseUrlProtocolError()
     {
-        // Returning 500 on the base URL causes HttpRequestException (not NuGetProtocolException),
-        // which NuGetCache treats as transient and silently skips — no diagnostic is accumulated
+        // Returning 500 on the base URL simulates a v2 OData request failure; resource resolution
+        // for a v2 source succeeds without an HTTP call, so this is only reached later, if at all
         _server
             .Given(Request.Create().WithPath("/").UsingAnyMethod())
             .RespondWith(Response.Create()
@@ -350,14 +469,16 @@ internal sealed class NuGetTestServer : IAsyncDisposable
 
     /// <summary>
     ///     Makes the base URL endpoint (<c>/</c>) return an empty response to simulate a network-level
-    ///     failure when the NuGet SDK tries the base URL as a v2 OData fallback.
+    ///     failure when the NuGet SDK's v2 (OData) client eventually makes a request against the v2
+    ///     fallback base URL.
     /// </summary>
     /// <remarks>
-    ///     An empty HTTP response at the base URL causes the NuGet SDK to throw
-    ///     <see cref="System.Net.Http.HttpRequestException"/>. When this happens as part of the v2
-    ///     fallback attempt, <see cref="NuGetCache"/> treats it as non-actionable: the accumulated
-    ///     v3 protocol error message is discarded and the final exception contains only the base
-    ///     package-not-found message.
+    ///     Resolving a <c>FindPackageByIdResource</c> for a v2 OData source does not itself make an
+    ///     HTTP request, so this endpoint is only exercised when that resource is subsequently used
+    ///     to search for or download a package - not at candidate-resolution time. Any diagnostic
+    ///     already captured from an earlier candidate (e.g. a <c>NuGetProtocolException</c>-based
+    ///     diagnostic from the v3 service index) is discarded by <see cref="NuGetCache"/> as soon as
+    ///     the v2 candidate's resource resolves successfully, before this endpoint is ever reached.
     /// </remarks>
     internal void SimulateNetworkFailureOnFallback()
     {
@@ -456,6 +577,79 @@ internal sealed class NuGetTestServer : IAsyncDisposable
             Path.GetDirectoryName(configPath)!,
             Path.GetFileName(configPath));
     }
+
+    /// <summary>
+    ///     Creates an <see cref="ISettings"/> instance backed by a temporary <c>nuget.config</c>
+    ///     file that configures exactly one package source at <paramref name="sourceUrl"/> together
+    ///     with a <c>packageSourceCredentials</c> block for that source, mirroring the shape used
+    ///     by real-world authenticated feeds (e.g. JFrog Artifactory).
+    /// </summary>
+    /// <remarks>
+    ///     Use this overload for the positive-path authenticated-source test: the configured
+    ///     <c>packageSourceCredentials</c> are honored directly by the NuGet HTTP stack (via
+    ///     <c>HttpClientHandler</c>) independent of whether a credential service has been registered,
+    ///     so this does not by itself exercise the credential-service registration path.
+    /// </remarks>
+    /// <param name="globalPackagesFolder">
+    ///     Absolute path to the directory to use as the NuGet global packages folder.
+    /// </param>
+    /// <param name="sourceUrl">
+    ///     The URL of the NuGet source to configure (typically <see cref="IndexUrl"/>).
+    /// </param>
+    /// <param name="username">The username to store as <c>packageSourceCredentials</c>.</param>
+    /// <param name="password">The clear-text password to store as <c>packageSourceCredentials</c>.</param>
+    /// <returns>An <see cref="ISettings"/> instance loaded from the generated config file.</returns>
+    internal ISettings CreateSettingsWithCredentials(
+        string globalPackagesFolder,
+        string sourceUrl,
+        string username,
+        string password)
+    {
+        // Write a nuget.config with a single source plus a matching packageSourceCredentials
+        // block, using the same "test-source" key name as the single-source CreateSettings overload.
+        // All interpolated values are XML-attribute-escaped so any of them containing '&', '<',
+        // '"', etc. still produce a well-formed config file instead of failing to parse.
+        var configPath = Path.Combine(_tempConfigDir, $"nuget-{Guid.NewGuid():N}.config");
+        File.WriteAllText(configPath, $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <configuration>
+              <config>
+                <add key="globalPackagesFolder" value="{EscapeXmlAttribute(globalPackagesFolder)}" />
+              </config>
+              <packageSources>
+                <clear />
+                <add key="test-source" value="{EscapeXmlAttribute(sourceUrl)}" />
+              </packageSources>
+              <packageSourceCredentials>
+                <test-source>
+                  <add key="Username" value="{EscapeXmlAttribute(username)}" />
+                  <add key="ClearTextPassword" value="{EscapeXmlAttribute(password)}" />
+                </test-source>
+              </packageSourceCredentials>
+            </configuration>
+            """);
+
+        return Settings.LoadSpecificSettings(
+            Path.GetDirectoryName(configPath)!,
+            Path.GetFileName(configPath));
+    }
+
+    /// <summary>
+    ///     Escapes a string for safe inclusion inside a double-quoted XML attribute value.
+    /// </summary>
+    /// <remarks>
+    ///     Used when interpolating arbitrary (test-supplied) credential values into hand-written
+    ///     <c>nuget.config</c> XML, so values containing <c>&amp;</c>, <c>&lt;</c>, <c>&gt;</c>, or
+    ///     <c>"</c> still produce well-formed XML instead of a parse failure.
+    /// </remarks>
+    /// <param name="value">The raw attribute value to escape.</param>
+    /// <returns>The escaped value, safe to place inside a double-quoted XML attribute.</returns>
+    private static string EscapeXmlAttribute(string value) =>
+        value
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;")
+            .Replace("\"", "&quot;");
 
     /// <inheritdoc />
     public ValueTask DisposeAsync()

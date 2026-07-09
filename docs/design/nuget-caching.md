@@ -10,10 +10,22 @@ workflow.
 
 ## System Architecture
 
-The system comprises two software units:
+The system comprises six software units:
 
-- **NuGetCache**: The public API surface providing the `EnsureCachedAsync` method
+- **NuGetCache**: The public API surface providing the `EnsureCachedAsync` method; a thin
+  orchestrator that validates input, checks the cache-hit fast path, registers the credential
+  service, and enumerates configured sources, delegating resolution and download to the
+  units below
 - **PathHelpers**: An internal utility class providing safe path-combination operations
+- **PackageSourceResolver**: An internal utility class resolving the `FindPackageByIdResource`
+  for a configured source, including automatic v2 OData fallback
+- **PackageDownloader**: An internal utility class downloading and installing a resolved
+  package into the global packages folder, and owning the on-disk package-path convention
+- **AuthFailureClassifier**: An internal utility class classifying an exception raised while
+  communicating with a source as an actionable HTTP 401/403 authentication failure or a
+  non-actionable transient error
+- **CredentialServiceRegistrar**: An internal class registering the NuGet SDK's default
+  credential service once per process
 
 ## External Interfaces
 
@@ -47,9 +59,15 @@ On .NET 5.0 and later, the BCL implementation is used directly.
 1. Caller invokes `NuGetCache.EnsureCachedAsync(packageId, version)`
 2. The system validates inputs are not null, throwing `ArgumentNullException`
 3. The system loads NuGet configuration from machine/user settings
-4. The system checks for a cached package using the sentinel file (`.nupkg.metadata`)
-5. If not cached, the system queries configured NuGet sources sequentially
-6. On successful download, the package is installed into the global packages folder
+4. The system checks for a cached package using the sentinel file (`.nupkg.metadata`) via
+   `PackageDownloader.GetPackagePath`
+5. If not cached, the system registers the NuGet credential service via
+   `CredentialServiceRegistrar` and queries configured NuGet sources sequentially, resolving
+   each source's `FindPackageByIdResource` via `PackageSourceResolver` (which applies v2
+   fallback and consults `AuthFailureClassifier` to detect actionable 401/403 responses)
+6. On a resolved resource, `PackageDownloader` downloads the `.nupkg` bytes (again consulting
+   `AuthFailureClassifier` for download-time authentication failures) and installs the package
+   into the global packages folder
 7. The absolute path to the cached package folder is returned
 
 The returned path follows the NuGet global packages folder convention:
@@ -82,6 +100,6 @@ sources have been exhausted without a successful download.
   vulnerabilities when processing package identifiers and version strings from
   external NuGet feeds
 
-Satisfies requirements `Caching-Sys-PackageCaching`, `Caching-Sys-NullValidation`, `Caching-PLT-Windows`, `Caching-PLT-Linux`,
-`Caching-PLT-MacOS`, `Caching-PLT-Net8`, `Caching-PLT-Net9`, `Caching-PLT-Net10`, and
-`Caching-PLT-NetStd20`.
+Satisfies requirements `Caching-Sys-PackageCaching`, `Caching-Sys-NullValidation`,
+`Caching-PLT-Windows`, `Caching-PLT-Linux`, `Caching-PLT-MacOS`, `Caching-PLT-Net8`,
+`Caching-PLT-Net9`, `Caching-PLT-Net10`, and `Caching-PLT-NetStd20`.

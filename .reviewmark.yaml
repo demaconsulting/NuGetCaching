@@ -80,6 +80,7 @@ reviews:
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheServerTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetTestServer.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetPackageBuilder.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/AssemblyInfo.cs"
 
   # NuGetCaching - PathHelpers
   - id: NuGetCaching-PathHelpers
@@ -90,6 +91,46 @@ reviews:
       - "docs/verification/nuget-caching/path-helpers.md"
       - "src/DemaConsulting.NuGet.Caching/PathHelpers.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/PathHelpersTests.cs"
+
+  # NuGetCaching - PackageSourceResolver
+  - id: NuGetCaching-PackageSourceResolver
+    title: Review that NuGetCaching PackageSourceResolver Implementation is Correct
+    paths:
+      - "docs/reqstream/nuget-caching/package-source-resolver.yaml"
+      - "docs/design/nuget-caching/package-source-resolver.md"
+      - "docs/verification/nuget-caching/package-source-resolver.md"
+      - "src/DemaConsulting.NuGet.Caching/PackageSourceResolver.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/PackageSourceResolverTests.cs"
+
+  # NuGetCaching - PackageDownloader
+  - id: NuGetCaching-PackageDownloader
+    title: Review that NuGetCaching PackageDownloader Implementation is Correct
+    paths:
+      - "docs/reqstream/nuget-caching/package-downloader.yaml"
+      - "docs/design/nuget-caching/package-downloader.md"
+      - "docs/verification/nuget-caching/package-downloader.md"
+      - "src/DemaConsulting.NuGet.Caching/PackageDownloader.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/PackageDownloaderTests.cs"
+
+  # NuGetCaching - AuthFailureClassifier
+  - id: NuGetCaching-AuthFailureClassifier
+    title: Review that NuGetCaching AuthFailureClassifier Implementation is Correct
+    paths:
+      - "docs/reqstream/nuget-caching/auth-failure-classifier.yaml"
+      - "docs/design/nuget-caching/auth-failure-classifier.md"
+      - "docs/verification/nuget-caching/auth-failure-classifier.md"
+      - "src/DemaConsulting.NuGet.Caching/AuthFailureClassifier.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/AuthFailureClassifierTests.cs"
+
+  # NuGetCaching - CredentialServiceRegistrar
+  - id: NuGetCaching-CredentialServiceRegistrar
+    title: Review that NuGetCaching CredentialServiceRegistrar Implementation is Correct
+    paths:
+      - "docs/reqstream/nuget-caching/credential-service-registrar.yaml"
+      - "docs/design/nuget-caching/credential-service-registrar.md"
+      - "docs/verification/nuget-caching/credential-service-registrar.md"
+      - "src/DemaConsulting.NuGet.Caching/CredentialServiceRegistrar.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheServerTests.cs"
 
   # OTS Items
   - id: OTS-NuGet
