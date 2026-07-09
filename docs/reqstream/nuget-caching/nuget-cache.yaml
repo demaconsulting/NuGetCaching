@@ -21,6 +21,7 @@ sections:
           - Caching-NuGetCache-MultiSource
           - Caching-NuGetCache-V2Fallback
           - Caching-NuGetCache-CacheHit
+          - Caching-NuGetCache-AuthenticatedSource
         tests:
           - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
           - NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath
@@ -122,3 +123,31 @@ sections:
           partially-extracted package.
         tests:
           - NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
+
+      - id: Caching-NuGetCache-AuthenticatedSource
+        title: >-
+          The EnsureCachedAsync method shall honor configured source credentials, and
+          shall report an actionable diagnostic identifying the source and HTTP
+          status code when a source rejects a request with 401 (Unauthorized) or 403
+          (Forbidden), instead of silently treating the failure as a transient
+          network error.
+        justification: |
+          Authenticated V3 feeds (e.g. JFrog Artifactory, Azure Artifacts) reject
+          unauthenticated requests with a 401/403 response that is otherwise
+          indistinguishable, from the caller's perspective, from a transient network
+          failure or a genuine "package not found" outcome. Static
+          packageSourceCredentials in nuget.config are applied directly by the
+          NuGet HTTP stack and can succeed even without credential-service
+          registration; registering the NuGet SDK's default credential service is
+          still performed - mirroring the setup done internally by the dotnet CLI
+          and MSBuild restore - because it is needed when a credential-provider
+          plugin or ICredentialService-mediated retry is required (e.g. Azure
+          Artifacts or JFrog credential-provider plugins), even though it is not
+          exercised by static-credential scenarios. Surfacing the actionable
+          401/403 diagnostic lets callers immediately identify a credentials
+          problem on a specific source rather than receiving a generic "not found"
+          error with no diagnostic detail.
+        tests:
+          - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath
+          - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
+          - NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService

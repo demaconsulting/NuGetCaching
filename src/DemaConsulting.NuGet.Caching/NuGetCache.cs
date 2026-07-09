@@ -18,8 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Text.RegularExpressions;
 using NuGet.Common;
 using NuGet.Configuration;
+using NuGet.Credentials;
 using NuGet.Packaging.Core;
 using NuGet.Packaging.Signing;
 using NuGet.Protocol;
@@ -142,6 +144,15 @@ public static class NuGetCache
         // Create a shared source cache context for all download attempts in this call
         using var sourceCacheContext = new SourceCacheContext();
 
+        // Register the NuGet credential service, mirroring what the dotnet CLI and MSBuild do
+        // internally before performing a restore. Static packageSourceCredentials configured in
+        // nuget.config are applied directly to the underlying HttpClientHandler and are honored
+        // regardless of whether a credential service is registered. Registration matters for
+        // scenarios that need a credential-provider plugin or an ICredentialService-mediated
+        // retry (e.g. Azure Artifacts or JFrog credential-provider plugins), which are not
+        // exercised by static credentials alone.
+        EnsureCredentialServiceRegistered();
+
         // Get the core V3 providers needed to communicate with NuGet v3 and v2 feeds
         var providers = Repository.Provider.GetCoreV3();
 
@@ -243,6 +254,7 @@ public static class NuGetCache
             CancellationToken cancellationToken)
     {
         var originalSource = sourceRepository.PackageSource.Source;
+        var sourceName = sourceRepository.PackageSource.Name;
         var candidates = BuildCandidateRepositories(sourceRepository, providers);
         string? protocolErrorMessage = null;
 
@@ -256,10 +268,24 @@ public static class NuGetCache
                     return (candidate, resource, null);
                 }
             }
+            catch (HttpRequestException ex) when (TryDescribeAuthFailure(ex, sourceName, originalSource, out var authMessage))
+            {
+                // An authentication failure (401/403) is actionable - it means the source requires
+                // credentials that were not supplied or were rejected, not that the source is simply
+                // unreachable. Surface this so callers can distinguish it from a transient network
+                // failure or a genuine "package not found" outcome.
+                return (sourceRepository, null, authMessage);
+            }
             catch (HttpRequestException)
             {
                 // Transient network-level failure - not actionable, skip silently
                 return (sourceRepository, null, null);
+            }
+            catch (NuGetProtocolException ex) when (TryDescribeAuthFailure(ex, sourceName, originalSource, out var authMessage))
+            {
+                // Same as above, but the NuGet SDK wrapped the 401/403 as a protocol exception
+                // (e.g. while loading the v3 service index) rather than a raw HttpRequestException
+                protocolErrorMessage ??= authMessage;
             }
             catch (NuGetProtocolException ex)
             {
@@ -333,6 +359,8 @@ public static class NuGetCache
         CancellationToken cancellationToken)
     {
         var identity = new PackageIdentity(packageId, version);
+        var source = sourceRepository.PackageSource.Source;
+        var sourceName = sourceRepository.PackageSource.Name;
 
         // Stream the .nupkg bytes into memory; returns false when the package is absent from
         // this source, and throws on transient or permanent protocol errors
@@ -348,13 +376,25 @@ public static class NuGetCache
                 NullLogger.Instance,
                 cancellationToken);
         }
+        catch (NuGetProtocolException ex) when (TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
+        {
+            // An authentication failure (401/403) is actionable during download too - the source
+            // exists and the package identity is valid, but the request was rejected for lack of
+            // (or incorrect) credentials. Surface this rather than treating it as "package absent".
+            return new TryDownloadResult(null, authMessage);
+        }
         catch (NuGetProtocolException ex)
         {
             // Protocol error during the download itself - surface a diagnostic message
             // so the caller can include it in the final not-found exception
-            var source = sourceRepository.PackageSource.Source;
             return new TryDownloadResult(null,
                 $"{source}: Protocol error downloading package. ({ex.Message})");
+        }
+        catch (HttpRequestException ex) when (TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
+        {
+            // Same as above, but surfaced as a raw HttpRequestException rather than a NuGet
+            // protocol exception (observed for direct v3 flat-container content downloads)
+            return new TryDownloadResult(null, authMessage);
         }
         catch (HttpRequestException)
         {
@@ -383,6 +423,144 @@ public static class NuGetCache
 
         // Return the conventional package path that NuGet uses on disk
         return new TryDownloadResult(GetPackagePath(globalPackagesFolder, packageId, version.ToNormalizedString()), null);
+    }
+
+    /// <summary>
+    ///     Matches an HTTP status code embedded in a NuGet SDK exception message, e.g.
+    ///     <c>"Response status code does not indicate success: 401 (Unauthorized)."</c>
+    /// </summary>
+    private static readonly Regex HttpStatusCodePattern = new(@"\b(401|403)\b", RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Guards <see cref="EnsureCredentialServiceRegistered"/> so the (idempotent but
+    ///     non-trivial) NuGet credential-service setup only runs once per process.
+    /// </summary>
+    private static bool _credentialServiceRegistered;
+
+    /// <summary>
+    ///     Ensures a lock object protecting <see cref="_credentialServiceRegistered"/>.
+    /// </summary>
+    private static readonly object CredentialServiceLock = new();
+
+    /// <summary>
+    ///     Registers the default NuGet credential service (once per process), mirroring the setup
+    ///     performed internally by the <c>dotnet</c> CLI and MSBuild restore pipeline. Static
+    ///     <c>packageSourceCredentials</c> configured in <c>nuget.config</c> are applied directly to
+    ///     the underlying <c>HttpClientHandler</c> and are honored on a source's HTTP 401 challenge
+    ///     regardless of whether a credential service is registered. Registration instead matters
+    ///     when a NuGet credential-provider plugin must be consulted, or an
+    ///     <see cref="ICredentialService"/>-mediated retry is required (e.g. for JFrog Artifactory
+    ///     or Azure Artifacts), which static credentials alone do not exercise.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="DefaultCredentialServiceUtility.SetupDefaultCredentialService"/> is itself
+    ///     idempotent (it only assigns <c>HttpHandlerResourceV3.CredentialService</c> when it is
+    ///     still <see langword="null"/>), but it always re-creates the delegating logger. Guarding
+    ///     with a process-wide flag avoids that redundant work on every call to
+    ///     <c>EnsureCachedAsync</c> while still registering the service before the first use.
+    /// </remarks>
+    private static void EnsureCredentialServiceRegistered()
+    {
+        if (_credentialServiceRegistered)
+        {
+            return;
+        }
+
+        lock (CredentialServiceLock)
+        {
+            if (_credentialServiceRegistered)
+            {
+                return;
+            }
+
+            // nonInteractive: true - this is a library used in build tooling, not an interactive
+            // CLI, so credential providers must not attempt to show a UI prompt
+            DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
+            _credentialServiceRegistered = true;
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether <paramref name="exception"/> (or any exception in its
+    ///     <see cref="Exception.InnerException"/> chain) represents an HTTP 401 (Unauthorized) or
+    ///     403 (Forbidden) response, and if so, builds an actionable diagnostic message identifying
+    ///     the source and the authentication failure.
+    /// </summary>
+    /// <param name="exception">The exception thrown while communicating with the source.</param>
+    /// <param name="sourceName">The configured name of the package source (from <c>nuget.config</c>).</param>
+    /// <param name="source">The URL of the package source.</param>
+    /// <param name="message">
+    ///     When this method returns <see langword="true"/>, an actionable diagnostic message
+    ///     identifying the source and the HTTP status code; otherwise <see langword="null"/>.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true"/> when a 401 or 403 status code was detected anywhere in the
+    ///     exception chain; otherwise <see langword="false"/> (the failure should be treated as a
+    ///     non-actionable transient error, preserving prior behavior).
+    /// </returns>
+    private static bool TryDescribeAuthFailure(
+        Exception exception,
+        string sourceName,
+        string source,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
+    {
+        if (!TryGetHttpStatusCode(exception, out var statusCode))
+        {
+            message = null;
+            return false;
+        }
+
+        var statusText = statusCode == 403 ? "403 (Forbidden)" : "401 (Unauthorized)";
+        message =
+            $"{sourceName} ({source}): HTTP {statusText} - the source requires authentication or the " +
+            $"configured credentials were rejected. Check packageSourceCredentials in nuget.config, or " +
+            $"any configured NuGet credential provider, for this source. ({exception.Message})";
+        return true;
+    }
+
+    /// <summary>
+    ///     Walks <paramref name="exception"/> and its <see cref="Exception.InnerException"/> chain
+    ///     looking for an HTTP 401 or 403 status code.
+    /// </summary>
+    /// <param name="exception">The exception to inspect.</param>
+    /// <param name="statusCode">When found, the detected status code (401 or 403).</param>
+    /// <returns><see langword="true"/> when a 401 or 403 status code was found.</returns>
+    /// <remarks>
+    ///     The NuGet SDK does not consistently expose the failing HTTP status code as a strongly
+    ///     typed property: <c>HttpRequestException.StatusCode</c> is only available on
+    ///     net5.0+ (not <c>netstandard2.0</c>), and protocol-level failures are frequently wrapped
+    ///     in a <c>NuGetProtocolException</c> (e.g. <c>FatalProtocolException</c>) whose message -
+    ///     or whose <see cref="Exception.InnerException"/>'s message - simply embeds text such as
+    ///     <c>"Response status code does not indicate success: 401 (Unauthorized)."</c>. This method
+    ///     checks the strongly typed property where available and falls back to matching that text
+    ///     across the whole exception chain so detection is consistent on every target framework.
+    /// </remarks>
+    private static bool TryGetHttpStatusCode(Exception? exception, out int statusCode)
+    {
+        for (var current = exception; current != null; current = current.InnerException)
+        {
+#if !NETSTANDARD2_0
+            if (current is HttpRequestException { StatusCode: not null } httpRequestException)
+            {
+                var code = (int)httpRequestException.StatusCode.Value;
+                if (code is 401 or 403)
+                {
+                    statusCode = code;
+                    return true;
+                }
+            }
+#endif
+
+            var match = HttpStatusCodePattern.Match(current.Message);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var parsedCode))
+            {
+                statusCode = parsedCode;
+                return true;
+            }
+        }
+
+        statusCode = 0;
+        return false;
     }
 
     /// <summary>

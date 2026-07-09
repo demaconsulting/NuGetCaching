@@ -205,6 +205,46 @@ by asserting the WireMock server's request log is empty).
 
 **Requirement coverage**: `Caching-NuGetCache-CacheHit`.
 
+#### NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath
+
+**Scenario**: A WireMock v3 feed requires HTTP Basic Auth on every endpoint, including the
+service index, the flat-container version list, and the `.nupkg` download. `CreateSettings` (with
+credentials) writes a `nuget.config` containing a `packageSourceCredentials` block with a valid
+username and password for the source, matching the real-world JFrog Artifactory shape.
+`EnsureCachedAsync` is called against a fresh, empty global packages folder (a cold cache).
+
+**Expected**: Returns a non-null absolute path to the installed package, proving that a cold
+cache with valid statically-configured credentials succeeds against a fully authenticated feed.
+
+**Requirement coverage**: `Caching-NuGetCache-AuthenticatedSource`.
+
+#### NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
+
+**Scenario**: The same fully authenticated WireMock v3 feed as above, but `EnsureCachedAsync` is
+called with no `packageSourceCredentials` configured for the source, so every request receives
+HTTP 401.
+
+**Expected**: Throws `InvalidOperationException` whose message contains both the configured
+source name (`test-source`) and the detected HTTP status code (`401`), proving the failure is
+reported as an actionable authentication diagnostic rather than a generic, indistinguishable
+"not found" error.
+
+**Requirement coverage**: `Caching-NuGetCache-AuthenticatedSource`.
+
+#### NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService
+
+**Scenario**: An ordinary, unauthenticated WireMock v3 feed. `EnsureCachedAsync` is called against
+a fresh, empty global packages folder.
+
+**Expected**: After the call completes, `HttpHandlerResourceV3.CredentialService` is non-null,
+directly proving that `EnsureCachedAsync` performs the NuGet SDK's default credential-service
+registration. This is a white-box regression test for the registration step itself: the two
+authenticated-source tests above exercise only static `packageSourceCredentials`, which succeed
+with or without credential-service registration, so neither would catch a regression that removed
+or broke the registration call.
+
+**Requirement coverage**: `Caching-NuGetCache-AuthenticatedSource`.
+
 ### Requirements Coverage
 
 - **`Caching-NuGetCache-EnsureCached`**:
@@ -225,6 +265,10 @@ by asserting the WireMock server's request log is empty).
   NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
 - **`Caching-NuGetCache-CacheHit`**:
   NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
+- **`Caching-NuGetCache-AuthenticatedSource`**:
+  NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath,
+  NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic,
+  NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService
 - **`Caching-NuGetCache-NotFound`**:
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion,

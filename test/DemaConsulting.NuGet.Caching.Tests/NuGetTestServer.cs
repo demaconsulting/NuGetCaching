@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Text;
 using NuGet.Configuration;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -134,6 +135,121 @@ internal sealed class NuGetTestServer : IAsyncDisposable
                 .WithStatusCode(200)
                 .WithBody(nupkgBytes)
                 .WithHeader("Content-Type", "application/zip"));
+    }
+
+    /// <summary>
+    ///     Registers the NuGet v3 flat-container endpoints for a package, but requires HTTP Basic
+    ///     Authentication with the supplied <paramref name="username"/> and <paramref name="password"/>
+    ///     on every endpoint — including the service index, the version list, and the .nupkg download.
+    /// </summary>
+    /// <remarks>
+    ///     Requests missing the <c>Authorization</c> header, or presenting a mismatched
+    ///     <c>Authorization: Basic</c> value, receive HTTP 401 with a <c>WWW-Authenticate: Basic</c>
+    ///     header. Requests presenting the correct credentials receive the normal v3 responses.
+    ///     Enforcing auth on the download endpoint (not just the index/registration endpoints) is
+    ///     essential: the bug this simulates is the complete absence of a NuGet credential service,
+    ///     so an unauthenticated request must fail at every stage of the v3 protocol, not merely
+    ///     during service-index discovery.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="version">The package version string.</param>
+    /// <param name="nupkgBytes">The raw .nupkg bytes to serve for the download endpoint.</param>
+    /// <param name="username">The username expected in the HTTP Basic credentials.</param>
+    /// <param name="password">The password expected in the HTTP Basic credentials.</param>
+    internal void RegisterV3PackageWithBasicAuth(
+        string packageId,
+        string version,
+        byte[] nupkgBytes,
+        string username,
+        string password)
+    {
+        var id = packageId.ToLowerInvariant();
+        var ver = version.ToLowerInvariant();
+        var expectedAuthHeader = "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
+
+        RegisterAuthenticatedTextEndpoint(
+            "/index.json", expectedAuthHeader, BuildV3ServiceIndexJson(), "application/json");
+        RegisterAuthenticatedTextEndpoint(
+            $"/v3-flatcontainer/{id}/index.json", expectedAuthHeader, $"{{\"versions\":[\"{ver}\"]}}", "application/json");
+        RegisterAuthenticatedBinaryEndpoint(
+            $"/v3-flatcontainer/{id}/{ver}/{id}.{ver}.nupkg", expectedAuthHeader, nupkgBytes, "application/zip");
+
+        // Catch-all guard: any other request path (e.g. a v2 OData fallback endpoint tried by
+        // NuGetCache's automatic v2-fallback logic) also receives 401 without valid credentials,
+        // ensuring the entire feed is authentication-gated rather than leaving unmapped paths to
+        // WireMock's default 404 (which would be misread as "package absent" instead of "unauthorized")
+        _server
+            .Given(Request.Create().UsingAnyMethod().WithHeader("Authorization", expectedAuthHeader))
+            .AtPriority(10)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody("{}")
+                .WithHeader("Content-Type", "application/json"));
+
+        _server
+            .Given(Request.Create().UsingAnyMethod())
+            .AtPriority(11)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
+    ///     Registers a text-body endpoint that requires the exact <paramref name="expectedAuthHeader"/>
+    ///     value on the <c>Authorization</c> header, responding HTTP 401 for any other request
+    ///     (missing header or mismatched credentials) to the same path.
+    /// </summary>
+    /// <param name="path">The request path to guard with authentication.</param>
+    /// <param name="expectedAuthHeader">The exact required <c>Authorization</c> header value.</param>
+    /// <param name="body">The response body to serve once authenticated.</param>
+    /// <param name="contentType">The <c>Content-Type</c> header to serve once authenticated.</param>
+    private void RegisterAuthenticatedTextEndpoint(string path, string expectedAuthHeader, string body, string contentType)
+    {
+        // Higher-priority mapping: exact Authorization match serves the real response
+        _server
+            .Given(Request.Create().WithPath(path).UsingGet().WithHeader("Authorization", expectedAuthHeader))
+            .AtPriority(0)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(body)
+                .WithHeader("Content-Type", contentType));
+
+        // Lower-priority fallback: any other request (missing/incorrect Authorization) gets 401
+        _server
+            .Given(Request.Create().WithPath(path).UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
+    ///     Registers a binary-body endpoint that requires the exact <paramref name="expectedAuthHeader"/>
+    ///     value on the <c>Authorization</c> header, responding HTTP 401 for any other request
+    ///     (missing header or mismatched credentials) to the same path.
+    /// </summary>
+    /// <param name="path">The request path to guard with authentication.</param>
+    /// <param name="expectedAuthHeader">The exact required <c>Authorization</c> header value.</param>
+    /// <param name="bodyBytes">The raw response bytes to serve once authenticated.</param>
+    /// <param name="contentType">The <c>Content-Type</c> header to serve once authenticated.</param>
+    private void RegisterAuthenticatedBinaryEndpoint(string path, string expectedAuthHeader, byte[] bodyBytes, string contentType)
+    {
+        // Higher-priority mapping: exact Authorization match serves the real .nupkg bytes
+        _server
+            .Given(Request.Create().WithPath(path).UsingGet().WithHeader("Authorization", expectedAuthHeader))
+            .AtPriority(0)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(bodyBytes)
+                .WithHeader("Content-Type", contentType));
+
+        // Lower-priority fallback: any other request (missing/incorrect Authorization) gets 401
+        _server
+            .Given(Request.Create().WithPath(path).UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
     }
 
     /// <summary>
@@ -449,6 +565,60 @@ internal sealed class NuGetTestServer : IAsyncDisposable
                 <add key="test-source-primary" value="{primarySourceUrl}" />
                 <add key="test-source-secondary" value="{secondarySourceUrl}" />
               </packageSources>
+            </configuration>
+            """);
+
+        return Settings.LoadSpecificSettings(
+            Path.GetDirectoryName(configPath)!,
+            Path.GetFileName(configPath));
+    }
+
+    /// <summary>
+    ///     Creates an <see cref="ISettings"/> instance backed by a temporary <c>nuget.config</c>
+    ///     file that configures exactly one package source at <paramref name="sourceUrl"/> together
+    ///     with a <c>packageSourceCredentials</c> block for that source, mirroring the shape used
+    ///     by real-world authenticated feeds (e.g. JFrog Artifactory).
+    /// </summary>
+    /// <remarks>
+    ///     Use this overload for the positive-path authenticated-source test: the configured
+    ///     <c>packageSourceCredentials</c> are honored directly by the NuGet HTTP stack (via
+    ///     <c>HttpClientHandler</c>) independent of whether a credential service has been registered,
+    ///     so this does not by itself exercise the credential-service registration path.
+    /// </remarks>
+    /// <param name="globalPackagesFolder">
+    ///     Absolute path to the directory to use as the NuGet global packages folder.
+    /// </param>
+    /// <param name="sourceUrl">
+    ///     The URL of the NuGet source to configure (typically <see cref="IndexUrl"/>).
+    /// </param>
+    /// <param name="username">The username to store as <c>packageSourceCredentials</c>.</param>
+    /// <param name="password">The clear-text password to store as <c>packageSourceCredentials</c>.</param>
+    /// <returns>An <see cref="ISettings"/> instance loaded from the generated config file.</returns>
+    internal ISettings CreateSettingsWithCredentials(
+        string globalPackagesFolder,
+        string sourceUrl,
+        string username,
+        string password)
+    {
+        // Write a nuget.config with a single source plus a matching packageSourceCredentials
+        // block, using the same "test-source" key name as the single-source CreateSettings overload
+        var configPath = Path.Combine(_tempConfigDir, $"nuget-{Guid.NewGuid():N}.config");
+        File.WriteAllText(configPath, $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <configuration>
+              <config>
+                <add key="globalPackagesFolder" value="{globalPackagesFolder}" />
+              </config>
+              <packageSources>
+                <clear />
+                <add key="test-source" value="{sourceUrl}" />
+              </packageSources>
+              <packageSourceCredentials>
+                <test-source>
+                  <add key="Username" value="{username}" />
+                  <add key="ClearTextPassword" value="{password}" />
+                </test-source>
+              </packageSourceCredentials>
             </configuration>
             """);
 

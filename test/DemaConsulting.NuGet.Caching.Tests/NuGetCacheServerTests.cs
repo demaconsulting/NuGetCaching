@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using NuGet.Protocol;
 using NuGet.Versioning;
 
 namespace DemaConsulting.NuGet.Caching.Tests;
@@ -601,6 +602,154 @@ public class NuGetCacheServerTests
             // Assert - no HTTP calls must have been made to the server because the package
             // was already present in the global packages folder
             Assert.Empty(server.LogEntries);
+        }
+        finally
+        {
+            if (Directory.Exists(globalPackagesFolder))
+            {
+                Directory.Delete(globalPackagesFolder, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> successfully downloads and caches a
+    ///     package from an HTTP Basic Auth-protected v3 feed when matching credentials are
+    ///     configured via <c>packageSourceCredentials</c>, even on a cold (empty) global packages
+    ///     cache.
+    /// </summary>
+    /// <remarks>
+    ///     This is a positive-path authenticated-feed test: it verifies that matching static
+    ///     <c>packageSourceCredentials</c> allow a cold-cache download to succeed against a Basic
+    ///     Auth-protected v3 feed. It does <b>not</b> prove the credential-service registration path
+    ///     is required; the static credentials are honored by the NuGet HTTP stack even without that
+    ///     fix.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithCredentials_ReturnsExistingPackagePath()
+    {
+        // Arrange - a WireMock server requiring HTTP Basic Auth on every v3 endpoint, with
+        // matching credentials configured in nuget.config via packageSourceCredentials
+        var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(globalPackagesFolder);
+            const string packageId = "TestPackage.Authenticated";
+            const string version = "1.0.0";
+            const string username = "test-user";
+            const string password = "test-password";
+
+            await using var server = new NuGetTestServer();
+            var nupkgBytes = NuGetPackageBuilder.CreateMinimalPackage(packageId, version);
+            server.RegisterV3PackageWithBasicAuth(packageId, version, nupkgBytes, username, password);
+            var settings = server.CreateSettingsWithCredentials(globalPackagesFolder, server.IndexUrl, username, password);
+
+            // Act - ensure the package is cached using the injected, authenticated settings
+            var packagePath = await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None);
+
+            // Assert - the returned path must be a real directory containing the sentinel file
+            Assert.NotNull(packagePath);
+            Assert.True(
+                Directory.Exists(packagePath),
+                $"Expected package folder to exist at: {packagePath}");
+            Assert.True(
+                File.Exists(Path.Combine(packagePath, ".nupkg.metadata")),
+                $"Expected .nupkg.metadata in: {packagePath}");
+        }
+        finally
+        {
+            if (Directory.Exists(globalPackagesFolder))
+            {
+                Directory.Delete(globalPackagesFolder, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> throws <see cref="InvalidOperationException"/>
+    ///     with an actionable diagnostic (identifying the source and the HTTP 401/Unauthorized
+    ///     response) when an authentication-required source has no configured credentials.
+    /// </summary>
+    /// <remarks>
+    ///     Before the fix, a 401 response was indistinguishable from "package not present on this
+    ///     source": <c>HttpRequestException</c> was silently swallowed and the final exception
+    ///     carried only the generic package-not-found message, with no indication that the source
+    ///     required authentication.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic()
+    {
+        // Arrange - a WireMock server requiring HTTP Basic Auth, but no credentials are configured
+        var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(globalPackagesFolder);
+            const string packageId = "TestPackage.AuthenticatedNoCreds";
+            const string version = "1.0.0";
+
+            await using var server = new NuGetTestServer();
+            var nupkgBytes = NuGetPackageBuilder.CreateMinimalPackage(packageId, version);
+            server.RegisterV3PackageWithBasicAuth(packageId, version, nupkgBytes, "test-user", "test-password");
+            var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
+
+            // Act - no credentials are configured, so every request receives HTTP 401
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None));
+
+            // Assert - the diagnostic must be actionable: source name/URL plus 401/Unauthorized detail,
+            // rather than a generic silent "not found" message
+            Assert.Contains("test-source", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("401", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(globalPackagesFolder))
+            {
+                Directory.Delete(globalPackagesFolder, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> registers the NuGet SDK's default
+    ///     credential service (i.e. that <c>HttpHandlerResourceV3.CredentialService</c> becomes
+    ///     non-null) as a direct, white-box regression test for the credential-service registration
+    ///     half of the fix - independent of whether any particular scenario needs it to resolve
+    ///     credentials.
+    /// </summary>
+    /// <remarks>
+    ///     The authenticated-source tests above exercise only static <c>packageSourceCredentials</c>,
+    ///     which succeed with or without credential-service registration (see their remarks). This
+    ///     test instead directly asserts that <c>EnsureCachedAsync</c> performs the registration
+    ///     call, so a future regression that removes or breaks
+    ///     <c>EnsureCredentialServiceRegistered</c> is caught even though it would not otherwise be
+    ///     observable through the static-credential test scenarios.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_AnySource_RegistersDefaultCredentialService()
+    {
+        // Arrange - a plain (unauthenticated) v3 feed is sufficient; credential-service
+        // registration happens unconditionally before any source is queried
+        var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(globalPackagesFolder);
+            const string packageId = "TestPackage.CredentialServiceRegistration";
+            const string version = "1.0.0";
+
+            await using var server = new NuGetTestServer();
+            var nupkgBytes = NuGetPackageBuilder.CreateMinimalPackage(packageId, version);
+            server.RegisterV3Package(packageId, version, nupkgBytes);
+            var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
+
+            // Act
+            await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None);
+
+            // Assert - the NuGet SDK's default credential service must have been registered
+            Assert.NotNull(HttpHandlerResourceV3.CredentialService);
         }
         finally
         {
