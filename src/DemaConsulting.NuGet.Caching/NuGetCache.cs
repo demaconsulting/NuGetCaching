@@ -32,8 +32,9 @@ namespace DemaConsulting.NuGet.Caching;
 /// </summary>
 /// <remarks>
 ///     This class reads NuGet configuration (sources and global packages folder) from
-///     the default NuGet settings on the local machine, mirroring the behavior of
-///     the <c>dotnet</c> CLI and Visual Studio package restore.
+///     the default NuGet settings, rooted at a caller-supplied (or current working) directory,
+///     mirroring the behavior of the <c>dotnet</c> CLI and Visual Studio package restore -
+///     including discovery of a project/repo-local <c>nuget.config</c>.
 ///     This class is stateless — all state is local to each <c>EnsureCachedAsync</c> call — and is
 ///     safe for concurrent use.
 /// </remarks>
@@ -43,13 +44,25 @@ public static class NuGetCache
     ///     Ensures a specific NuGet package version is available in the local global packages cache.
     /// </summary>
     /// <remarks>
-    ///     Reads NuGet configuration from the default machine settings via
-    ///     <c>Settings.LoadDefaultSettings</c>, mirroring the behavior of the <c>dotnet</c>
-    ///     CLI and Visual Studio package restore. All caching logic is delegated to the internal
-    ///     overload that accepts an explicit <see cref="ISettings"/> instance.
+    ///     Reads NuGet configuration from the default settings via <c>Settings.LoadDefaultSettings</c>,
+    ///     rooted at <paramref name="root"/> (or the current working directory when
+    ///     <paramref name="root"/> is <see langword="null"/>). Rooting the settings lookup this way
+    ///     mirrors the behavior of the <c>dotnet</c> CLI and Visual Studio package restore, which
+    ///     both discover a project/repo-local <c>nuget.config</c> by walking up from an ambient
+    ///     working directory - passing a literal <see langword="null"/> root (as earlier versions of
+    ///     this method did) skips that walk entirely and silently loses any repo-local package
+    ///     sources. All caching logic is delegated to the internal overload that accepts an explicit
+    ///     <see cref="ISettings"/> instance.
     /// </remarks>
     /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
     /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
+    /// <param name="root">
+    ///     The directory from which to begin discovering <c>nuget.config</c> files (walking up
+    ///     through ancestor directories, then falling back to machine/user-wide settings), matching
+    ///     the <c>dotnet</c> CLI's behavior. Typically the directory containing the caller's project
+    ///     or <c>packages.config</c> file. When <see langword="null"/>, defaults to
+    ///     <see cref="Directory.GetCurrentDirectory"/>.
+    /// </param>
     /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
     /// <returns>
     ///     The absolute path to the cached package folder inside the global packages folder.
@@ -66,11 +79,14 @@ public static class NuGetCache
     public static async Task<string> EnsureCachedAsync(
         string packageId,
         string version,
+        string? root = null,
         CancellationToken cancellationToken = default)
     {
-        // Delegate to the overload that accepts an explicit ISettings instance, using the
-        // default machine / user NuGet configuration as the settings source
-        return await EnsureCachedAsync(packageId, version, Settings.LoadDefaultSettings(null), cancellationToken);
+        // Delegate to the overload that accepts an explicit ISettings instance, rooting the
+        // default settings lookup at the provided directory (or the current working directory)
+        // so that a project/repo-local nuget.config is discovered the same way `dotnet restore` does
+        return await EnsureCachedAsync(
+            packageId, version, Settings.LoadDefaultSettings(root ?? Directory.GetCurrentDirectory()), cancellationToken);
     }
 
     /// <summary>

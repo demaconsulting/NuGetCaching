@@ -850,6 +850,86 @@ public class NuGetCacheServerTests
     }
 
     /// <summary>
+    ///     Tests that the public <c>NuGetCache.EnsureCachedAsync(packageId, version, root, ...)</c>
+    ///     overload discovers a project/repo-local <c>nuget.config</c> located at its <c>root</c>
+    ///     argument, rather than only reading machine/user-wide settings.
+    /// </summary>
+    /// <remarks>
+    ///     This is a regression test for the bug reported in GitHub issue #37: the public overload
+    ///     previously called <c>Settings.LoadDefaultSettings(null)</c>, which never scans the
+    ///     working directory (or any ancestor) for a repo-local <c>nuget.config</c> - identical
+    ///     package sources placed in such a file were silently invisible. Here the WireMock source
+    ///     is defined *only* in a real <c>nuget.config</c> file written to an isolated temp
+    ///     directory that is not an ancestor of the process's actual working directory, and is
+    ///     passed in via <c>root</c>: had the settings load ignored <c>root</c> (as before the fix),
+    ///     no source would resolve the package and the call would throw
+    ///     <see cref="InvalidOperationException"/> instead of succeeding.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_RootPointsToDirectoryWithRepoLocalNugetConfig_UsesThatConfigSources()
+    {
+        // Arrange - isolated global packages folder and a separate "repo root" directory that
+        // holds only a project-local nuget.config (simulating a repo checkout)
+        var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var repoRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(globalPackagesFolder);
+            Directory.CreateDirectory(repoRoot);
+
+            const string packageId = "TestPackage.RepoLocalConfig";
+            const string version = "1.0.0";
+
+            await using var server = new NuGetTestServer();
+            var nupkgBytes = NuGetPackageBuilder.CreateMinimalPackage(packageId, version);
+            server.RegisterV3Package(packageId, version, nupkgBytes);
+
+            // Write a real nuget.config directly into the repo root, mirroring how a repository
+            // scopes its own package sources independently of machine/user-wide settings
+            await File.WriteAllTextAsync(
+                Path.Combine(repoRoot, "nuget.config"),
+                $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <config>
+                    <add key="globalPackagesFolder" value="{globalPackagesFolder}" />
+                  </config>
+                  <packageSources>
+                    <clear />
+                    <add key="repo-local-source" value="{server.IndexUrl}" />
+                  </packageSources>
+                </configuration>
+                """,
+                TestContext.Current.CancellationToken);
+
+            // Act - call the public overload, passing the repo root explicitly so the
+            // repo-local nuget.config is discovered exactly as `dotnet restore` would
+            var packagePath = await NuGetCache.EnsureCachedAsync(
+                packageId, version, root: repoRoot, cancellationToken: TestContext.Current.CancellationToken);
+
+            // Assert - the package was found and cached via the repo-local source, proving
+            // the root parameter was honored when loading default settings
+            Assert.NotNull(packagePath);
+            Assert.True(
+                File.Exists(Path.Combine(packagePath, ".nupkg.metadata")),
+                $"Expected .nupkg.metadata in: {packagePath}");
+        }
+        finally
+        {
+            if (Directory.Exists(globalPackagesFolder))
+            {
+                Directory.Delete(globalPackagesFolder, recursive: true);
+            }
+
+            if (Directory.Exists(repoRoot))
+            {
+                Directory.Delete(repoRoot, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     ///     A test double implementing <see cref="ICredentialServiceRegistrar"/> that
     ///     simply counts invocations of <see cref="EnsureRegistered"/>, letting tests assert that
     ///     <c>EnsureCachedAsync</c> invokes credential-service registration without touching any
