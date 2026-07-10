@@ -57,8 +57,9 @@ Console.WriteLine($"Package cached at: {packagePath}");
 ```
 
 The method reads NuGet configuration (sources and global packages folder) from the default NuGet
-settings on the local machine, mirroring the behavior of the `dotnet` CLI. Package source mapping
-is fully supported.
+settings, rooted at a caller-supplied (or current working) directory, mirroring the behavior of
+the `dotnet` CLI - including discovery of a project/repo-local `nuget.config`. Package source
+mapping is fully supported.
 
 ## API Reference
 
@@ -75,6 +76,7 @@ the local global packages cache.
 public static async Task<string> EnsureCachedAsync(
     string packageId,
     string version,
+    string? root = null,
     CancellationToken cancellationToken = default)
 ```
 
@@ -85,6 +87,11 @@ Ensures a specific NuGet package version is available in the local global packag
 - `packageId` (string): The NuGet package identifier (e.g. `Newtonsoft.Json`). Must not be null.
 
 - `version` (string): The exact version string (e.g. `13.0.3`). Must not be null.
+
+- `root` (string?): The directory from which to begin discovering `nuget.config` files (walking
+  up through ancestor directories, then falling back to machine/user-wide settings), matching the
+  `dotnet` CLI's behavior. Typically the directory containing the caller's project or
+  `packages.config` file. When null, defaults to the current working directory.
 
 - `cancellationToken` (CancellationToken): Optional cancellation token for the async operation.
 
@@ -129,7 +136,7 @@ using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 string packagePath = await NuGetCache.EnsureCachedAsync(
     "Newtonsoft.Json",
     "13.0.3",
-    cts.Token);
+    cancellationToken: cts.Token);
 
 Console.WriteLine($"Package available at: {packagePath}");
 ```

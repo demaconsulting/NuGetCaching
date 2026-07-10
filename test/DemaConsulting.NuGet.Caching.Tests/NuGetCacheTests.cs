@@ -41,7 +41,7 @@ public class NuGetCacheTests
         const string version = "1.5.0";
 
         // Act - ensure the package is present in the local NuGet global packages cache
-        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None);
+        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, cancellationToken: CancellationToken.None);
 
         // Assert - the returned path must point to a real directory on disk
         Assert.NotNull(packageFolder);
@@ -77,7 +77,7 @@ public class NuGetCacheTests
 
         // Act & Assert - calling with a non-existent package must throw InvalidOperationException
         _ = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None));
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, cancellationToken: CancellationToken.None));
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public class NuGetCacheTests
 
         // Act & Assert - calling with null packageId must throw ArgumentNullException
         _ = await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync(null!, version, CancellationToken.None));
+            async () => await NuGetCache.EnsureCachedAsync(null!, version, cancellationToken: CancellationToken.None));
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ public class NuGetCacheTests
 
         // Act & Assert - calling with null version must throw ArgumentNullException
         _ = await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, null!, CancellationToken.None));
+            async () => await NuGetCache.EnsureCachedAsync(packageId, null!, cancellationToken: CancellationToken.None));
     }
 
     /// <summary>
@@ -131,7 +131,7 @@ public class NuGetCacheTests
 
         // Act & Assert: calling with an invalid version must throw ArgumentException
         _ = await Assert.ThrowsAsync<ArgumentException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None));
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, cancellationToken: CancellationToken.None));
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public class NuGetCacheTests
 
         // Act - calling with a non-existent package must throw InvalidOperationException
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None));
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, cancellationToken: CancellationToken.None));
 
         // Assert - the exception message must identify both the package ID and the version
         // so that callers have enough context to diagnose the problem
@@ -180,8 +180,8 @@ public class NuGetCacheTests
         const string version = "1.5.0";
 
         // Act - call EnsureCachedAsync twice with the same package identity
-        var firstPath = await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None);
-        var secondPath = await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None);
+        var firstPath = await NuGetCache.EnsureCachedAsync(packageId, version, cancellationToken: CancellationToken.None);
+        var secondPath = await NuGetCache.EnsureCachedAsync(packageId, version, cancellationToken: CancellationToken.None);
 
         // Assert - both calls must return identical paths, proving the method is idempotent
         // and does not change the cache location on subsequent calls

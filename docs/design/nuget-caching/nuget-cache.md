@@ -47,10 +47,16 @@ library cooperative in concurrent or UI-driven environments.
 #### NuGet Settings Integration
 
 Rather than accepting source URIs directly, `NuGetCache` reads from the default
-NuGet settings on the local machine via `Settings.LoadDefaultSettings(null)`. This
-ensures the library respects the same `nuget.config` hierarchy (machine-wide, user,
-and project-level) as the `dotnet` CLI and Visual Studio, including authenticated
-feeds, proxy settings, and package source mapping.
+NuGet settings via `Settings.LoadDefaultSettings(root)`, where `root` is a caller-supplied
+directory (typically the directory containing the caller's project or `packages.config`
+file) defaulting to the current working directory when omitted. Rooting the lookup this
+way - rather than passing a literal `null` root - ensures the library respects the same
+`nuget.config` hierarchy (machine-wide, user, and project-level, discovered by walking up
+from `root`) as the `dotnet` CLI and Visual Studio, including authenticated feeds, proxy
+settings, and package source mapping. A literal `null` root skips the walk-up entirely and
+silently loses any repo-local package sources - this was the root cause of GitHub
+issue #37, where `nuget-installer` could not see sources defined only in a
+repo-local `nuget.config`.
 
 #### Early-Exit on Cache Hit
 
@@ -127,7 +133,7 @@ misconfiguration, without requiring additional logging infrastructure.
 #### Testability via Injected Settings
 
 The public `EnsureCachedAsync` method is a thin wrapper that calls the internal overload
-with `Settings.LoadDefaultSettings(null)`. The internal overload accepts an `ISettings`
+with `Settings.LoadDefaultSettings(root)`. The internal overload accepts an `ISettings`
 parameter that replaces the call to `LoadDefaultSettings`. This design gives tests full
 control over the NuGet source and global packages folder without touching the developer's
 real machine configuration:
@@ -149,13 +155,14 @@ without depending on shared, process-wide static state.
 
 ### Method Descriptions
 
-#### `EnsureCachedAsync(string packageId, string version, CancellationToken)` (public)
+#### `EnsureCachedAsync(string packageId, string version, string? root, CancellationToken)` (public)
 
 Thin wrapper that delegates immediately to the internal `EnsureCachedAsync` overload,
-passing `Settings.LoadDefaultSettings(null)` as the `settings` argument. This ensures
-the public API continues to behave identically to the pre-testability implementation
-while the full logic lives in one place. See the internal overload description below
-for the complete processing steps.
+passing `Settings.LoadDefaultSettings(root ?? Directory.GetCurrentDirectory())` as the
+`settings` argument. Callers should pass the directory containing their project or
+`packages.config` file as `root` so that a repo-local `nuget.config` is discovered the
+same way `dotnet restore` discovers it; omitting `root` falls back to the current working
+directory. See the internal overload description below for the complete processing steps.
 
 Returns the absolute path to the cached package folder.
 

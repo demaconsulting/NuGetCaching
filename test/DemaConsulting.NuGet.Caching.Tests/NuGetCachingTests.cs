@@ -42,7 +42,7 @@ public class NuGetCachingTests
         const string version = "1.5.0";
 
         // Act: invoke the library's package caching capability
-        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None);
+        var packageFolder = await NuGetCache.EnsureCachedAsync(packageId, version, cancellationToken: CancellationToken.None);
 
         // Assert: the library returned a valid path to the cached package on disk
         Assert.NotNull(packageFolder);
@@ -80,7 +80,7 @@ public class NuGetCachingTests
 
         // Act & Assert: the library should throw when the package cannot be found
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, version, CancellationToken.None));
+            async () => await NuGetCache.EnsureCachedAsync(packageId, version, cancellationToken: CancellationToken.None));
 
         // Assert: the exception message must identify the package ID and version
         Assert.Contains(packageId, ex.Message);
@@ -103,7 +103,7 @@ public class NuGetCachingTests
 
         // Act & Assert: the library should throw ArgumentNullException for a null package ID
         _ = await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync(null!, version, CancellationToken.None));
+            async () => await NuGetCache.EnsureCachedAsync(null!, version, cancellationToken: CancellationToken.None));
     }
 
     /// <summary>
@@ -122,6 +122,6 @@ public class NuGetCachingTests
 
         // Act & Assert: the library should throw ArgumentNullException for a null version
         _ = await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync(packageId, null!, CancellationToken.None));
+            async () => await NuGetCache.EnsureCachedAsync(packageId, null!, cancellationToken: CancellationToken.None));
     }
 }
