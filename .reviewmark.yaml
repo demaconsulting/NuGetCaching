@@ -13,6 +13,7 @@ needs-review:
   - "docs/design/**/*.md"         # Design documentation files
   - "docs/verification/**/*.md"   # Verification documentation files
   - "docs/user_guide/**/*.md"     # User guide documentation
+  - "docs/sysml2/**/*.sysml"      # SysML2 architecture model
   - "!**/obj/**"                  # Exclude build output
   - "!**/bin/**"                  # Exclude build output
   - "!node_modules/**"            # Exclude npm dependencies
@@ -26,22 +27,39 @@ evidence-source:
   type: url
   location: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/reviews/index.json
 
+# Global context shown to every reviewer for orientation (not fingerprinted).
+context:
+  - docs/design/introduction.md
+
 # Review sets following hierarchical scope principles.
 # Each review-set focuses on a single compliance question with manageable file counts.
 reviews:
-  # Purpose
+  # Purpose Review (only one per repository)
   - id: Purpose
-    title: Review that Advertised Features Match System Design
+    title: Review that README and User Guide are Coherent and Complete
+    context:
+      - "!docs/design/introduction.md"                  # exclude design intro from user-facing review
     paths:
       - "README.md"
       - "docs/user_guide/**/*.md"
-      - "docs/reqstream/nuget-caching.yaml"
+
+  # Decomposition Review (only one per repository)
+  - id: Decomposition
+    title: Review that NuGetCaching Decomposition Addresses the Stated Purpose
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "requirements.yaml"
       - "docs/design/introduction.md"
-      - "docs/design/nuget-caching.md"
+      - "docs/sysml2/**/*.sysml"
 
   # NuGetCaching - Specials
   - id: NuGetCaching-Architecture
     title: Review that NuGetCaching Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
     paths:
       - "docs/reqstream/nuget-caching.yaml"
       - "docs/design/introduction.md"
@@ -51,8 +69,9 @@ reviews:
 
   - id: NuGetCaching-Design
     title: Review that NuGetCaching Design is Consistent and Complete
-    paths:
+    context:
       - "docs/reqstream/nuget-caching.yaml"
+    paths:
       - "docs/reqstream/nuget-caching/platform-requirements.yaml"
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching.md"
@@ -62,6 +81,9 @@ reviews:
 
   - id: NuGetCaching-AllRequirements
     title: Review that All NuGetCaching Requirements are Complete
+    context:
+      - "docs/design/nuget-caching.md"
+      - "docs/reqstream/nuget-caching.yaml"
     paths:
       - "requirements.yaml"
       - "docs/reqstream/nuget-caching.yaml"
@@ -71,6 +93,9 @@ reviews:
   # NuGetCaching - NuGetCache
   - id: NuGetCaching-NuGetCache
     title: Review that NuGetCaching NuGetCache Implementation is Correct
+    context:
+      - "docs/design/nuget-caching.md"
+      - "docs/reqstream/nuget-caching.yaml"
     paths:
       - "docs/reqstream/nuget-caching/nuget-cache.yaml"
       - "docs/design/nuget-caching/nuget-cache.md"
@@ -85,6 +110,9 @@ reviews:
   # NuGetCaching - PathHelpers
   - id: NuGetCaching-PathHelpers
     title: Review that NuGetCaching PathHelpers Implementation is Correct
+    context:
+      - "docs/design/nuget-caching.md"
+      - "docs/reqstream/nuget-caching.yaml"
     paths:
       - "docs/reqstream/nuget-caching/path-helpers.yaml"
       - "docs/design/nuget-caching/path-helpers.md"
@@ -95,6 +123,9 @@ reviews:
   # NuGetCaching - PackageSourceResolver
   - id: NuGetCaching-PackageSourceResolver
     title: Review that NuGetCaching PackageSourceResolver Implementation is Correct
+    context:
+      - "docs/design/nuget-caching.md"
+      - "docs/reqstream/nuget-caching.yaml"
     paths:
       - "docs/reqstream/nuget-caching/package-source-resolver.yaml"
       - "docs/design/nuget-caching/package-source-resolver.md"
@@ -105,6 +136,9 @@ reviews:
   # NuGetCaching - PackageDownloader
   - id: NuGetCaching-PackageDownloader
     title: Review that NuGetCaching PackageDownloader Implementation is Correct
+    context:
+      - "docs/design/nuget-caching.md"
+      - "docs/reqstream/nuget-caching.yaml"
     paths:
       - "docs/reqstream/nuget-caching/package-downloader.yaml"
       - "docs/design/nuget-caching/package-downloader.md"
@@ -115,6 +149,9 @@ reviews:
   # NuGetCaching - AuthFailureClassifier
   - id: NuGetCaching-AuthFailureClassifier
     title: Review that NuGetCaching AuthFailureClassifier Implementation is Correct
+    context:
+      - "docs/design/nuget-caching.md"
+      - "docs/reqstream/nuget-caching.yaml"
     paths:
       - "docs/reqstream/nuget-caching/auth-failure-classifier.yaml"
       - "docs/design/nuget-caching/auth-failure-classifier.md"
@@ -125,6 +162,9 @@ reviews:
   # NuGetCaching - CredentialServiceRegistrar
   - id: NuGetCaching-CredentialServiceRegistrar
     title: Review that NuGetCaching CredentialServiceRegistrar Implementation is Correct
+    context:
+      - "docs/design/nuget-caching.md"
+      - "docs/reqstream/nuget-caching.yaml"
     paths:
       - "docs/reqstream/nuget-caching/credential-service-registrar.yaml"
       - "docs/design/nuget-caching/credential-service-registrar.md"
@@ -186,6 +226,12 @@ reviews:
     paths:
       - "docs/reqstream/ots/sonarmark.yaml"
       - "docs/verification/ots/sonarmark.md"
+
+  - id: OTS-SysML2Tools
+    title: Review that SysML2Tools Provides Required Functionality
+    paths:
+      - "docs/reqstream/ots/sysml2tools.yaml"
+      - "docs/verification/ots/sysml2tools.md"
 
   - id: OTS-VersionMark
     title: Review of VersionMark OTS verification evidence

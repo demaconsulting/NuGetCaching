@@ -1,5 +1,7 @@
 ## PathHelpers Design
 
+![PathHelpers Structure](NuGetCachingView.svg)
+
 ### Overview
 
 `PathHelpers` is an internal static utility class providing a safe path-combination method

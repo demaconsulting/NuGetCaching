@@ -90,6 +90,7 @@ __pycache__/
 # Generated documentation
 docs/**/*.html
 docs/**/*.pdf
+docs/design/generated/
 !docs/template/**
 docs/requirements_doc/requirements.md
 docs/requirements_doc/justifications.md

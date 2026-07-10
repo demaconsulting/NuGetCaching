@@ -11,6 +11,10 @@ input-files:
   - docs/verification/nuget-caching.md
   - docs/verification/nuget-caching/nuget-cache.md
   - docs/verification/nuget-caching/path-helpers.md
+  - docs/verification/nuget-caching/package-source-resolver.md
+  - docs/verification/nuget-caching/package-downloader.md
+  - docs/verification/nuget-caching/auth-failure-classifier.md
+  - docs/verification/nuget-caching/credential-service-registrar.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md
@@ -21,6 +25,7 @@ input-files:
   - docs/verification/ots/reviewmark.md
   - docs/verification/ots/sarifmark.md
   - docs/verification/ots/sonarmark.md
+  - docs/verification/ots/sysml2tools.md
   - docs/verification/ots/versionmark.md
   - docs/verification/ots/weasyprint.md
   - docs/verification/ots/wiremock.md

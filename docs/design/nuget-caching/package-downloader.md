@@ -1,5 +1,7 @@
 ## PackageDownloader Design
 
+![PackageDownloader Structure](NuGetCachingView.svg)
+
 ### Overview
 
 `PackageDownloader` is an internal static class that downloads a NuGet package using an

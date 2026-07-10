@@ -1,5 +1,7 @@
 ## AuthFailureClassifier Design
 
+![AuthFailureClassifier Structure](NuGetCachingView.svg)
+
 ### Overview
 
 `AuthFailureClassifier` is an internal static class that classifies an exception raised while

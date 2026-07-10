@@ -29,17 +29,14 @@ Excluded from scope:
 
 ## Software Structure
 
-The software is organized as follows:
+The software structure is modeled in SysML2 under `docs/sysml2/` (see
+`docs/sysml2/model/**/*.sysml`) and rendered to the diagram below by SysML2Tools as part
+of the build pipeline. The SysML2 model — not this diagram or prose — is the authoritative,
+machine-queryable source of structure. AI agents should query the SysML2 model directly
+(see the `sysml2tools-query` skill) rather than parsing this diagram before deep-diving into
+source code.
 
-```text
-DemaConsulting.NuGet.Caching (System)
-├── NuGetCache (Unit)
-├── PathHelpers (Unit)
-├── PackageSourceResolver (Unit)
-├── PackageDownloader (Unit)
-├── AuthFailureClassifier (Unit)
-└── CredentialServiceRegistrar (Unit)
-```
+![Software Structure](SoftwareStructureView.svg)
 
 ## Folder Layout
 

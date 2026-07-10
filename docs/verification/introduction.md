@@ -40,41 +40,11 @@ The following OTS items are also covered:
 - **ReviewMark** — file review enforcement tool
 - **SarifMark** — SARIF report conversion tool
 - **SonarMark** — SonarCloud quality report tool
+- **SysML2Tools** — architecture model validation and diagram rendering tool
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **WireMock.Net** — HTTP stub server (test-only; not shipped with the production library)
 - **xUnit** — unit-testing framework
-
-## Software Structure
-
-The following tree shows the software items covered by this document:
-
-```text
-DemaConsulting.NuGet.Caching (System)
-├── NuGetCache (Unit)
-├── PathHelpers (Unit)
-├── PackageSourceResolver (Unit)
-├── PackageDownloader (Unit)
-├── AuthFailureClassifier (Unit)
-└── CredentialServiceRegistrar (Unit)
-
-OTS Items
-├── BuildMark
-├── FileAssert
-├── NuGet Client SDK
-│   ├── NuGet.Protocol
-│   └── NuGet.Configuration
-├── Pandoc
-├── Polyfill
-├── ReqStream
-├── ReviewMark
-├── SarifMark
-├── SonarMark
-├── VersionMark
-├── WeasyPrint
-├── WireMock.Net (test-only)
-└── xUnit
-```
 
 ## Companion Artifact Structure
 

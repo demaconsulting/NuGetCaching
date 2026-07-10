@@ -1,5 +1,7 @@
 ## CredentialServiceRegistrar Design
 
+![CredentialServiceRegistrar Structure](NuGetCachingView.svg)
+
 ### Overview
 
 `CredentialServiceRegistrar` (together with the `ICredentialServiceRegistrar` interface it
