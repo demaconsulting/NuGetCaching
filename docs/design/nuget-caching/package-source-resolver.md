@@ -1,5 +1,7 @@
 ## PackageSourceResolver Design
 
+![PackageSourceResolver Structure](NuGetCachingView.svg)
+
 ### Overview
 
 `PackageSourceResolver` is an internal static class that resolves the `FindPackageByIdResource`

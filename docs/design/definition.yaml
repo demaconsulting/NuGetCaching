@@ -8,6 +8,10 @@ input-files:
   - docs/design/nuget-caching.md
   - docs/design/nuget-caching/nuget-cache.md
   - docs/design/nuget-caching/path-helpers.md
+  - docs/design/nuget-caching/package-source-resolver.md
+  - docs/design/nuget-caching/package-downloader.md
+  - docs/design/nuget-caching/auth-failure-classifier.md
+  - docs/design/nuget-caching/credential-service-registrar.md
 template: template.html
 table-of-contents: true
 number-sections: true

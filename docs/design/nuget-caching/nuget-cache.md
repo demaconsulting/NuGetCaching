@@ -1,5 +1,7 @@
 ## NuGetCache Design
 
+![NuGetCache Structure](NuGetCachingView.svg)
+
 ### Overview
 
 The `NuGetCache` class is a public static class providing NuGet package caching

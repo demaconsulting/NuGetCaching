@@ -9,7 +9,7 @@ globs: ["requirements.yaml", "docs/reqstream/**/*.yaml"]
 Read these standards first before applying this standard:
 
 - **`requirements-principles.md`** - Requirements principles and unidirectionality
-- **`software-items.md`** - Software categorization (System/Subsystem/Unit/OTS)
+- **`software-items.md`** - Software categorization (System/Subsystem/Unit/OTS/Shared Package)
 
 # Requirements Organization
 
@@ -25,52 +25,76 @@ docs/reqstream/
 │   ├── platform-requirements.yaml  # Platform support requirements
 │   ├── {subsystem-name}.yaml        # Subsystem requirements
 │   ├── {subsystem-name}/            # Subsystem folder (kebab-case); may nest recursively
-│   │   ├── {child-subsystem}.yaml   # Child subsystem requirements
-│   │   ├── {child-subsystem}/       # Child subsystem folder
+│   │   ├── {subsystem-name}.yaml    # Child subsystem requirements
+│   │   ├── {subsystem-name}/        # Child subsystem folder
 │   │   └── {unit-name}.yaml         # Unit requirements
 │   └── {unit-name}.yaml             # System-level unit requirements
-└── ots/                             # OTS items appear as a distinct section in reports
-    └── {ots-name}.yaml              # Requirements for OTS components
+├── ots/                             # OTS items appear as a distinct section in reports
+│   └── {ots-name}.yaml              # Requirements for OTS components
+└── shared/                          # Shared Packages appear as a distinct section in reports
+    └── {package-name}.yaml          # Requirements for Shared Package dependencies
 ```
 
-In-house items have matching relative paths across `docs/reqstream/`, `docs/design/`, and
-`docs/verification/`. OTS items appear only in `docs/reqstream/ots/` and
-`docs/verification/ots/` - they have no design documentation.
+Local items have matching relative paths across `docs/reqstream/`, `docs/design/`, and `docs/verification/`:
+
+- Requirements: `{system-name}[/{subsystem-name}...]/{item-name}.yaml`
+- Design: `{system-name}[/{subsystem-name}...]/{item-name}.md`
+- Verification: `{system-name}[/{subsystem-name}...]/{item-name}.md`
 
 # Requirements File Format
 
-```yaml
-sections:
-  - title: Functional Requirements
-    requirements:
-      - id: System-Component-Feature      # Used as-is in all reports - make it readable
-        title: The system shall perform the required function.
-        justification: |
-          Business rationale and any regulatory references.
-          # ReqStream extracts this field into the justifications report (--justifications)
-        children:                         # ReqStream validates this decomposition chain
-          - ChildSystem-Feature-Behavior  # Downward links only (see requirements-principles.md)
-        tests:                            # ReqStream matches these by method name in test results
-          - TestMethodName
-          - windows@PlatformSpecificTest  # Only test runs on Windows count as evidence
+Each file adds requirements at exactly one level of the hierarchy. The file spells out
+its full ancestry as nested `{ItemName} Requirements` sections down to that level, then
+places requirements there. ReqStream merges identical section title paths across included
+files automatically. Always determine item classification from `docs/design/introduction.md` -
+folder depth does not determine whether an item is a subsystem or unit.
+
+Valid section nestings (names in `{braces}` are placeholders):
+
+```text
+{SystemName} Requirements              # system-level requirements
+├── {SubsystemName} Requirements       # root subsystem requirements
+│   ├── {SubsystemName} Requirements   # nested subsystem (may recurse)
+│   │   └── {UnitName} Requirements    # unit under a nested subsystem
+│   └── {UnitName} Requirements        # unit under a root subsystem
+└── {UnitName} Requirements            # unit directly under the system
+OTS Software Requirements          # OTS root section (fixed title)
+└── {OtsName} Requirements         # requirements for one OTS item
+Shared Package Requirements        # shared package root section (fixed title)
+└── {PackageName} Requirements     # requirements for one shared package
 ```
 
-# OTS Software Requirements
-
-Use nested sections in `docs/reqstream/ots/` because ReqStream renders the `ots/`
-subtree as a distinct section in generated reports, separate from in-house
-system requirements:
+Each file implements one path through this tree:
 
 ```yaml
 sections:
-  - title: OTS Software Requirements
+  - title: '{SystemName} Requirements'
     sections:
-      - title: System.Text.Json
+      - title: '{SubsystemName} Requirements'
         requirements:
-          - id: SystemTextJson-Core-ReadJson
-            title: System.Text.Json shall be able to read JSON files.
-            tests:
-              - JsonReaderTests.TestReadValidJson
+          - id: System-Subsystem-Feature    # Used as-is in all reports - make it readable
+            title: The subsystem shall perform the required function.
+            justification: |              # ReqStream extracts this into the justifications report (--justifications)
+              Business rationale and any regulatory references.
+            tags:                         # Optional: categorize for filtering with --filter
+              - security
+            children:                     # Optional: ReqStream validates this decomposition chain
+              - System-Subsystem-Unit-Feat  # Downward links only (see requirements-principles.md)
+            tests:                        # ReqStream matches these by method name in test results
+              - TestMethodName
+              - windows@PlatformSpecificTest  # Only test runs on Windows count as evidence
+```
+
+# Tags (OPTIONAL)
+
+Tags are free-form - no mandatory vocabulary. Common tags: `security`, `safety`, `performance`,
+`compliance`, `reliability`, `critical`. Use `--filter` to selectively export or enforce subsets
+(OR logic across comma-separated tags):
+
+```bash
+dotnet reqstream --requirements requirements.yaml \
+  --filter security,critical \
+  --report docs/requirements_doc/generated/security_requirements.md
 ```
 
 # Semantic IDs (MANDATORY)
@@ -125,12 +149,9 @@ dotnet reqstream --requirements requirements.yaml \
 
 Before submitting requirements, verify:
 
-- [ ] All requirements have semantic IDs (`System-Section-Feature` pattern)
-- [ ] Every requirement links to at least one passing test
+- [ ] All requirements have semantic IDs (`System-Component-Feature` pattern)
+- [ ] Every requirement has a justification explaining business/regulatory need
+- [ ] Every requirement links to at least one test
 - [ ] Platform-specific requirements use source filters (`platform@TestName`)
-- [ ] Comprehensive justification explains business/regulatory need
-- [ ] Files organized under `docs/reqstream/` following the folder structure pattern above
-- [ ] All documentation folders use kebab-case names matching source code structure
-- [ ] OTS requirements placed in `ots/` subfolder
-- [ ] Valid YAML syntax passes yamllint validation
-- [ ] Test result formats compatible (TRX, JUnit XML)
+- [ ] All files and folders use kebab-case names matching source code structure
+- [ ] All files are organized under `docs/reqstream/` following the folder structure above

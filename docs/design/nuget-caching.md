@@ -1,5 +1,7 @@
 # System Design
 
+![NuGetCaching System Structure](NuGetCachingView.svg)
+
 ## Overview
 
 The DemaConsulting NuGet Caching library is a .NET library that provides programmatic
