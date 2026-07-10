@@ -10,22 +10,35 @@ design to code.
 
 ## Scope
 
-This design documentation covers:
+This document covers the following software items:
 
-- The `NuGetCache` public static class providing package caching functionality
-- The `PathHelpers` internal static class providing safe path-combination utilities
-- The `PackageSourceResolver` internal static class resolving NuGet source resources
-- The `PackageDownloader` internal static class downloading and installing packages
-- The `AuthFailureClassifier` internal static class classifying authentication failures
-- The `CredentialServiceRegistrar` internal class registering the NuGet credential service
-- Design decisions and rationale for each unit
-- Traceability from design to requirements
+Local items:
 
-Excluded from scope:
+- **NuGetCaching**: system and unit design for all local components.
+
+OTS items:
+
+- **BuildMark**: integration and usage design.
+- **FileAssert**: integration and usage design.
+- **NuGet**: integration and usage design.
+- **Pandoc**: integration and usage design.
+- **Polyfill**: integration and usage design.
+- **ReqStream**: integration and usage design.
+- **ReviewMark**: integration and usage design.
+- **SarifMark**: integration and usage design.
+- **SonarMark**: integration and usage design.
+- **SysML2Tools**: integration and usage design.
+- **VersionMark**: integration and usage design.
+- **WeasyPrint**: integration and usage design.
+- **WireMock.Net**: integration and usage design.
+- **xUnit**: integration and usage design.
+
+The following topics are out of scope:
 
 - NuGet protocol internals and third-party library design
 - Build and packaging infrastructure
 - Platform-specific NuGet configuration details
+- Test projects
 
 ## Software Structure
 
@@ -40,32 +53,8 @@ source code.
 
 ## Folder Layout
 
-The source code is organized to mirror the software structure:
-
-```text
-src/DemaConsulting.NuGet.Caching/
-├── NuGetCache.cs                    — NuGet package caching orchestrator (public API)
-├── PathHelpers.cs                   — Safe path combination utilities (internal)
-├── PackageSourceResolver.cs         — Source resolution and v2 fallback (internal)
-├── PackageDownloader.cs             — Package download and install (internal)
-├── AuthFailureClassifier.cs         — Authentication-failure classification (internal)
-└── CredentialServiceRegistrar.cs    — Credential-service registration (internal)
-```
-
-Design documentation mirrors the software structure:
-
-```text
-docs/design/
-├── introduction.md                  — Design overview and software structure
-├── nuget-caching.md                 — System-level design
-└── nuget-caching/
-    ├── nuget-cache.md                — NuGetCache unit design
-    ├── path-helpers.md               — PathHelpers unit design
-    ├── package-source-resolver.md    — PackageSourceResolver unit design
-    ├── package-downloader.md         — PackageDownloader unit design
-    ├── auth-failure-classifier.md    — AuthFailureClassifier unit design
-    └── credential-service-registrar.md — CredentialServiceRegistrar unit design
-```
+- **src/** - source files and projects
+  - **DemaConsulting.NuGet.Caching/** - NuGetCaching system source
 
 ## Audience
 
