@@ -54,9 +54,9 @@ way - rather than passing a literal `null` root - ensures the library respects t
 `nuget.config` hierarchy (machine-wide, user, and project-level, discovered by walking up
 from `root`) as the `dotnet` CLI and Visual Studio, including authenticated feeds, proxy
 settings, and package source mapping. A literal `null` root skips the walk-up entirely and
-silently loses any repo-local package sources - this was the root cause of GitHub issue
-#37, where `nuget-installer` could not see sources defined only in a repo-local
-`nuget.config`.
+silently loses any repo-local package sources - this was the root cause of GitHub
+issue #37, where `nuget-installer` could not see sources defined only in a
+repo-local `nuget.config`.
 
 #### Early-Exit on Cache Hit
 
