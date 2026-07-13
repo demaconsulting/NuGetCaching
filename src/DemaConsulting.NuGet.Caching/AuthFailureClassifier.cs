@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System;
 using System.Text.RegularExpressions;
 
 namespace DemaConsulting.NuGet.Caching;
@@ -49,7 +50,7 @@ internal static class AuthFailureClassifier
     ///     number) as an authentication failure.
     /// </remarks>
     private static readonly Regex HttpStatusCodePattern =
-        new(@"\b(401)\s*\(Unauthorized\)|\b(403)\s*\(Forbidden\)", RegexOptions.Compiled);
+        new(@"\b(401)\s*\(Unauthorized\)|\b(403)\s*\(Forbidden\)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
     ///     Determines whether <paramref name="exception"/> (or any exception in its
