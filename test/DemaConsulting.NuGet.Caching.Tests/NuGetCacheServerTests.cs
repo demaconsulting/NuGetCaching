@@ -241,7 +241,7 @@ public class NuGetCacheServerTests
         return string.Equals(path, "/", StringComparison.Ordinal)
             || string.Equals(path, "/$metadata", StringComparison.OrdinalIgnoreCase)
             || string.Equals(path, "/FindPackagesById()", StringComparison.OrdinalIgnoreCase)
-            || path!.StartsWith("/Packages(", StringComparison.OrdinalIgnoreCase);
+            || path.StartsWith("/Packages(", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
