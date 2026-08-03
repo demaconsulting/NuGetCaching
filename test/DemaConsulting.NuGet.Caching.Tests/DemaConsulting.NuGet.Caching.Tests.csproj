@@ -46,7 +46,7 @@
          template rendering, which this project never exercises, but the vulnerable version still
          trips NuGetAudit (NU1902) as an error. Pin to the patched 7.2.5 release directly until
          WireMock.Net/NSwag.Core bump their own dependency, then remove this pin. -->
-    <PackageReference Include="Scriban.Signed" Version="7.2.5" PrivateAssets="all" />
+    <PackageReference Include="Scriban.Signed" Version="7.2.6" PrivateAssets="all" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>
@@ -65,7 +65,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.30.0.144632">
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.31.0.145097">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
