@@ -39,7 +39,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <!-- WireMock.Net provides an in-process HTTP mock server used by the LocalIntegration tests
          to simulate NuGet v3 and v2 feeds without hitting the network. -->
-    <PackageReference Include="WireMock.Net" Version="2.13.0" />
+    <PackageReference Include="WireMock.Net" Version="2.14.0" />
     <!-- TEMPORARY PIN: WireMock.Net 2.11.0 transitively depends on NSwag.Core, which pulls in
          Scriban.Signed 7.2.0 - a version with known moderate-severity vulnerabilities
          (GHSA-6q7j-xr26-3h2c, GHSA-q6rr-fm2g-g5x8). Scriban is only used by NSwag's Swagger/OpenAPI
