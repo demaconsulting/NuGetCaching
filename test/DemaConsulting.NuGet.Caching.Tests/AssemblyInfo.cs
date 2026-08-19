@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Xunit;
+using Xunit.Sdk;
+using Xunit.v3;
 
 // Several tests (e.g. NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
 // in NuGetCacheServerTests) observe and reset the NuGet SDK's process-wide, shared static
@@ -29,4 +30,4 @@ using Xunit;
 // xUnit runs different test classes (collections) in parallel by default, disable test-collection
 // parallelization for this assembly so no test can observe a torn or racing view of that shared
 // static NuGet SDK state.
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Parallelization(Mode = ParallelMode.None)]
