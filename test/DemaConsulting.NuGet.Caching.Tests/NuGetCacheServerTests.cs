@@ -220,7 +220,7 @@ public class NuGetCacheServerTests
             .GetType()
             .GetProperty("Path")
             ?.GetValue(requestMessage)
-            ?.ToString();
+            ?.ToString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(path))
         {
