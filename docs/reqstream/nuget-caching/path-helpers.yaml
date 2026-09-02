@@ -28,6 +28,8 @@ sections:
           - PathHelpers_SafePathCombine_CurrentDirectoryReference_CombinesCorrectly
           - PathHelpers_SafePathCombine_NullBasePath_ThrowsArgumentNullException
           - PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException
+        children:
+          - Caching-OTS-Polyfill
 
       - id: Caching-PathHelpers-RejectTraversal
         title: >-

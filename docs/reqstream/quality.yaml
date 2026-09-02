@@ -1,0 +1,149 @@
+---
+# Quality and process requirements
+#
+# These requirements represent repository-level and process outcomes (test
+# infrastructure, build integrity, static analysis, peer review, documentation
+# generation, and requirements traceability) that are not part of the
+# NuGetCaching library's externally observable behavior, but are required for
+# the repository to be considered releasable. They exist so the OTS
+# (off-the-shelf) process tooling requirements have a root to trace to,
+# instead of being orphaned leaves with no consumer.
+
+sections:
+  - title: Quality and Process Requirements
+    requirements:
+      - id: Caching-Quality-TestInfrastructure
+        title: >-
+          The repository shall execute and report automated tests using a
+          verified test framework and HTTP stub server.
+        tags:
+          - quality
+        justification: |
+          xUnit executes and reports the tests that serve as evidence for every other
+          requirement in this document, and WireMock.Net stubs NuGet feed responses so the
+          integration test suite can exercise the library without real network calls. Both
+          are foundational process/test dependencies rather than library behaviors, so this
+          requirement roots them instead of leaving them orphaned.
+        children:
+          - Caching-OTS-xUnit-Execute
+          - Caching-OTS-xUnit-Report
+          - Caching-OTS-WireMock-Stub
+          - Caching-OTS-WireMock-Inspect
+        tests:
+          - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
+          - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
+          - NuGetCache_EnsureCachedAsync_NullPackageId_ThrowsArgumentNullException
+          - NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath
+          - NuGetCache_EnsureCachedAsync_PackageAlreadyCached_ReturnsCachedPathWithoutHttpCalls
+          - NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
+
+      - id: Caching-Quality-BuildIntegrity
+        title: The repository shall produce build and version-tracking documentation for every release.
+        tags:
+          - quality
+        justification: |
+          Build integrity outcomes (build-notes generation and tool-version tracking) are
+          produced by BuildMark and VersionMark and consumed by maintainers and release
+          reviewers, not by library callers. This requirement roots those OTS requirements
+          so they are not orphaned.
+        children:
+          - Caching-OTS-BuildMark
+          - Caching-OTS-VersionMark
+          - Caching-OTS-VersionMark-Lint
+        tests:
+          - BuildMark_MarkdownReportGeneration
+          - BuildMark_GitIntegration
+          - BuildMark_IssueTracking
+          - BuildMark_KnownIssuesReporting
+          - BuildMark_RulesRouting
+          - VersionMark_CapturesVersions
+          - VersionMark_GeneratesMarkdownReport
+          - VersionMark_LintPassesForValidConfig
+          - VersionMark_LintReportsErrorsForInvalidConfig
+
+      - id: Caching-Quality-StaticAnalysis
+        title: The repository shall enforce static analysis and SARIF-based code quality gates.
+        tags:
+          - quality
+        justification: |
+          Static analysis outcomes (SARIF enforcement and SonarCloud quality gates) protect
+          code quality for maintainers and CI, not library callers. This requirement roots
+          those OTS requirements so they are not orphaned.
+        children:
+          - Caching-OTS-SarifMark
+          - Caching-OTS-SarifMark-Enforcement
+          - Caching-OTS-SonarMark
+        tests:
+          - SarifMark_SarifReading
+          - SarifMark_MarkdownReportGeneration
+          - SarifMark_Enforcement
+          - SonarMark_QualityGateRetrieval
+          - SonarMark_IssuesRetrieval
+          - SonarMark_HotSpotsRetrieval
+          - SonarMark_MarkdownReportGeneration
+
+      - id: Caching-Quality-PeerReview
+        title: The repository shall generate and enforce peer-review plans and reports for all reviewable files.
+        tags:
+          - quality
+        justification: |
+          Peer-review outcomes (plan generation, index scanning, enforcement, elaboration, lint,
+          and report generation) are produced by ReviewMark and consumed by maintainers and
+          reviewers, not by library callers. This requirement roots those OTS requirements so
+          they are not orphaned.
+        children:
+          - Caching-OTS-ReviewMark
+          - Caching-OTS-ReviewMark-Operations
+        tests:
+          - ReviewMark_ReviewPlanGeneration
+          - ReviewMark_ReviewReportGeneration
+          - ReviewMark_IndexScan
+          - ReviewMark_WorkingDirectoryOverride
+          - ReviewMark_Enforce
+          - ReviewMark_Elaborate
+          - ReviewMark_Lint
+
+      - id: Caching-Quality-DocumentationGeneration
+        title: The repository shall generate design and build documentation in distributable HTML and PDF formats.
+        tags:
+          - quality
+        justification: |
+          Documentation generation outcomes (Pandoc HTML rendering, WeasyPrint PDF rendering,
+          and FileAssert package validation) are consumed by maintainers browsing documentation,
+          not by library callers at runtime. This requirement roots those OTS requirements so
+          they are not orphaned.
+        children:
+          - Caching-OTS-Pandoc
+          - Caching-OTS-WeasyPrint
+          - Caching-OTS-FileAssert
+        tests:
+          - Pandoc_BuildNotesHtml
+          - Pandoc_DesignHtml
+          - WeasyPrint_BuildNotesPdf
+          - FileAssert_VersionDisplay
+          - FileAssert_File
+
+      - id: Caching-Quality-RequirementsTraceability
+        title: The repository shall maintain and enforce requirements and architecture traceability.
+        tags:
+          - quality
+        justification: |
+          Requirements and architecture traceability outcomes (ReqStream requirements
+          processing/enforcement and SysML2Tools model linting/rendering) are produced by
+          ReqStream and SysML2Tools and consumed by maintainers verifying compliance, not by
+          library callers. This requirement roots those OTS requirements so they are not
+          orphaned.
+        children:
+          - Caching-OTS-ReqStream
+          - Caching-OTS-SysML2Tools-Lint
+          - Caching-OTS-SysML2Tools-Render
+          - Caching-OTS-SysML2Tools
+        tests:
+          - ReqStream_RequirementsProcessing
+          - ReqStream_TraceMatrix
+          - ReqStream_ReportExport
+          - ReqStream_TagsFiltering
+          - ReqStream_EnforcementMode
+          - ReqStream_Lint
+          - SysML2Tools_LintSelfTest
+          - SysML2Tools_RenderSvgSelfTest
