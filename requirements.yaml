@@ -25,7 +25,7 @@
 # children) from a root-tagged requirement as orphaned - low-level requirements added
 # without a connection to real functionality. Configuring root-tags here (rather than
 # passing --root-tags on the command line) means orphan checking runs automatically on
-# every `reqstream --enforce` invocation, without agents needing to remember a flag.
+# every `dotnet reqstream --enforce` invocation, without agents needing to remember a flag.
 root-tags:
   - system
   - quality

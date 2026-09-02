@@ -13,7 +13,9 @@ sections:
   - title: Quality and Process Requirements
     requirements:
       - id: Caching-Quality-TestInfrastructure
-        title: The repository shall execute and report unit tests using a verified test framework and HTTP stub server.
+        title: >-
+          The repository shall execute and report automated tests using a
+          verified test framework and HTTP stub server.
         tags:
           - quality
         justification: |
