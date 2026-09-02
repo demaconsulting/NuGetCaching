@@ -22,6 +22,8 @@ sections:
     requirements:
       - id: Caching-PLT-Windows
         title: The library shall build and run on Windows platforms.
+        tags:
+          - system
         justification: |
           DEMA Consulting libraries must support Windows as a major development platform.
         tests:
@@ -30,6 +32,8 @@ sections:
 
       - id: Caching-PLT-Linux
         title: The library shall build and run on Linux platforms.
+        tags:
+          - system
         justification: |
           DEMA Consulting libraries must support Linux for CI/CD and containerized environments.
         tests:
@@ -38,6 +42,8 @@ sections:
 
       - id: Caching-PLT-MacOS
         title: The library shall build and run on macOS platforms.
+        tags:
+          - system
         justification: |
           DEMA Consulting libraries must support macOS for developers using Apple platforms.
         tests:
@@ -46,6 +52,8 @@ sections:
 
       - id: Caching-PLT-Net8
         title: The library shall support .NET 8 runtime.
+        tags:
+          - system
         justification: |
           .NET 8 is an LTS release providing long-term stability for enterprise users.
         tests:
@@ -53,6 +61,8 @@ sections:
 
       - id: Caching-PLT-Net9
         title: The library shall support .NET 9 runtime.
+        tags:
+          - system
         justification: |
           .NET 9 support enables users to leverage the latest .NET features.
         tests:
@@ -60,6 +70,8 @@ sections:
 
       - id: Caching-PLT-Net10
         title: The library shall support .NET 10 runtime.
+        tags:
+          - system
         justification: |
           .NET 10 support ensures the library remains compatible with the latest .NET ecosystem.
         tests:
@@ -67,6 +79,8 @@ sections:
 
       - id: Caching-PLT-NetStd20
         title: The library shall support .NET Standard 2.0, verified on .NET Framework 4.8.1 on Windows.
+        tags:
+          - system
         justification: |
           .NET Standard 2.0 support ensures the library can be consumed by projects targeting
           .NET Framework and older .NET runtimes, broadening compatibility.

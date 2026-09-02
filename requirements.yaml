@@ -19,6 +19,17 @@
 # - Add new requirement files under docs/reqstream/ and add them to the includes
 #   list below (system files first, then platform, then subsystem/unit files, then ots files)
 
+# root-tags identifies the requirements that represent externally observable product
+# behavior ("system") or repository/process quality outcomes ("quality"). ReqStream's
+# --enforce mode uses this to flag any requirement not reachable (directly or via
+# children) from a root-tagged requirement as orphaned - low-level requirements added
+# without a connection to real functionality. Configuring root-tags here (rather than
+# passing --root-tags on the command line) means orphan checking runs automatically on
+# every `reqstream --enforce` invocation, without agents needing to remember a flag.
+root-tags:
+  - system
+  - quality
+
 includes:
   - docs/reqstream/nuget-caching.yaml
   - docs/reqstream/nuget-caching/platform-requirements.yaml
@@ -28,6 +39,7 @@ includes:
   - docs/reqstream/nuget-caching/package-downloader.yaml
   - docs/reqstream/nuget-caching/auth-failure-classifier.yaml
   - docs/reqstream/nuget-caching/credential-service-registrar.yaml
+  - docs/reqstream/quality.yaml
   - docs/reqstream/ots/nuget.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/wiremock.yaml

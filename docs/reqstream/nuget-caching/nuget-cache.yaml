@@ -26,6 +26,8 @@ sections:
           - Caching-PackageSourceResolver-Resolve
           - Caching-PackageDownloader-DownloadOutcome
           - Caching-PackageDownloader-PackagePathConvention
+          - Caching-OTS-NuGetProtocol
+          - Caching-OTS-NuGetConfiguration
         tests:
           - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
           - NuGetCache_EnsureCachedAsync_CalledTwiceWithSamePackage_ReturnsSamePath
@@ -128,6 +130,7 @@ sections:
           requiring configuration changes by the user.
         children:
           - Caching-PackageSourceResolver-FallbackOnProtocolError
+          - Caching-PackageSourceResolver-NoFallbackForNonIndexUrl
         tests:
           - NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
 

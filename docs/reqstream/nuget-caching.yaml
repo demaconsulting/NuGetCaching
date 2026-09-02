@@ -9,6 +9,8 @@ sections:
     requirements:
       - id: Caching-Sys-PackageCaching
         title: The system shall provide a .NET library for programmatic NuGet package caching.
+        tags:
+          - system
         justification: |
           Tools and automation workflows need to ensure specific NuGet package versions are
           available in the local global packages cache before use, without requiring the
@@ -22,6 +24,8 @@ sections:
 
       - id: Caching-Sys-NullValidation
         title: The system shall reject null arguments with a clear, actionable error.
+        tags:
+          - system
         justification: |
           Null parameter validation ensures callers receive clear, actionable error messages
           when required arguments are missing, preventing unexpected errors from propagating
