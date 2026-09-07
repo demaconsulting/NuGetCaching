@@ -39,7 +39,7 @@
       <IncludeAssets>compile; runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
-    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.3.3" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.0" />
     <!-- WireMock.Net provides an in-process HTTP mock server used by the LocalIntegration tests
          to simulate NuGet v3 and v2 feeds without hitting the network. -->
     <PackageReference Include="WireMock.Net" Version="2.15.0" />
@@ -49,7 +49,7 @@
          template rendering, which this project never exercises, but the vulnerable version still
          trips NuGetAudit (NU1902) as an error. Pin to the patched 7.2.5 release directly until
          WireMock.Net/NSwag.Core bump their own dependency, then remove this pin. -->
-    <PackageReference Include="Scriban.Signed" Version="7.2.6" PrivateAssets="all" />
+    <PackageReference Include="Scriban.Signed" Version="7.4.0" PrivateAssets="all" />
     <PackageReference Include="xunit.v3" Version="4.0.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
       <PrivateAssets>all</PrivateAssets>
