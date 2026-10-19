@@ -68,11 +68,21 @@
     <PackageReference Include="NuGet.Protocol" Version="7.3.1" />
   </ItemGroup>
 
+  <!-- Temporary Dependency Pins -->
+  <ItemGroup>
+    <!-- TODO: Remove this pin once NuGet.Packaging depends on a patched version.
+         NuGet.Packaging 7.3.1 transitively pulls in System.Security.Cryptography.Pkcs 8.0.1, which has
+         known vulnerabilities (GHSA-2fmv-rv2c-59x7, GHSA-846f-f764-76mx) that fail restore via
+         NuGetAudit (NU1902/NU1903). Not needed on netstandard2.0, which does not use this dependency. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.2"
+                      Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+  </ItemGroup>
+
   <!-- Build Tool Dependencies -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Sbom.Targets" Version="4.1.13" PrivateAssets="All" />
-    <PackageReference Include="Polyfill" Version="11.4.3" PrivateAssets="All" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
+    <PackageReference Include="Polyfill" Version="11.4.5" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.402" PrivateAssets="All" />
   </ItemGroup>
 
   <!-- Code Analysis Dependencies -->
@@ -82,7 +92,7 @@
            in packages that consume this library.
          - IncludeAssets lists all asset types (including 'analyzers' and 'buildtransitive') to ensure
            Roslyn analyzers and MSBuild targets are fully activated during the build. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.401">
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.402">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
