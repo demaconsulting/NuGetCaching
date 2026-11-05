@@ -45,21 +45,25 @@ sections:
         tags:
           - system
         justification: |
-          Hosts such as CLI tools need to authenticate against private feeds and
-          diagnose failures, while existing 1.5.0 callers must keep working unchanged.
+          Hosts such as CLI tools need to authenticate against private feeds, diagnose failures,
+          choose sources, and require signed packages, while calls that supply no options keep
+          the defaults.
         children:
-          - Caching-NuGetCache-OptionsOverloads
+          - Caching-NuGetCache-SingleApiShape
           - Caching-NuGetCache-CredentialCallback
           - Caching-NuGetCache-AuthenticationException
           - Caching-NuGetCache-AuthenticationTimeout
           - Caching-NuGetCache-OptionsIsolation
           - Caching-NuGetCache-Logging
+          - Caching-NuGetCache-Sources
+          - Caching-NuGetCache-RequireSignedPackages
+          - Caching-PackageDownloader-SignatureRequirement
         tests:
           - NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder
           - NuGetCaching_EnsureCachedAsync_WhenOptionsSupplyCredentialCallback_CachesFromAuthenticatedSource
 
       - id: Caching-Sys-VersionDiscovery
-        title: The system shall list the available versions of a NuGet package as strings.
+        title: The system shall list the available versions of a NuGet package.
         tags:
           - system
         justification: |
@@ -78,5 +82,8 @@ sections:
           - Caching-NuGetCache-GetVersionsPrerelease
           - Caching-NuGetCache-GetVersionsNotFound
           - Caching-NuGetCache-GetVersionsNullArguments
+          - Caching-NuGetCache-IncludeLocalSources
+          - Caching-NuGetCache-GetCachedVersions
+          - Caching-NuGetCache-ListVersions
         tests:
           - NuGetCaching_GetVersionsAsync_WhenPackageHasVersions_ReturnsAscendingVersionStrings

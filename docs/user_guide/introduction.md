@@ -83,10 +83,11 @@ the local global packages cache and for discovering the versions of a package th
 ##### EnsureCachedAsync
 
 ```csharp
-public static async Task<string> EnsureCachedAsync(
+public static Task<string> EnsureCachedAsync(
     string packageId,
     string version,
     string? root = null,
+    NuGetCacheOptions? options = null,
     CancellationToken cancellationToken = default)
 ```
 
@@ -103,6 +104,9 @@ Ensures a specific NuGet package version is available in the local global packag
   `dotnet` CLI's behavior. Typically the directory containing the caller's project or
   `packages.config` file. When null, defaults to the current working directory.
 
+- `options` (NuGetCacheOptions?): Optional per-call options (see `NuGetCacheOptions`). When null,
+  every option is off.
+
 - `cancellationToken` (CancellationToken): Optional cancellation token for the async operation.
 
 **Returns:**
@@ -113,10 +117,14 @@ The absolute path to the cached package folder inside the global packages folder
 
 - `ArgumentNullException`: Thrown when `packageId` or `version` is null.
 
-- `ArgumentException`: Thrown when `version` is not a valid NuGet version string.
+- `ArgumentException`: Thrown when `version` is not a valid NuGet version string, or when an entry
+  of `options.Sources` is invalid.
+
+- `NuGetAuthenticationException` (derived from `InvalidOperationException`): Thrown when a source
+  answered HTTP 401 or 403 and the package could not be obtained. It carries `Source` and `Uri`.
 
 - `InvalidOperationException`: Thrown when the package cannot be found in any configured
-  NuGet source.
+  NuGet source, or when `RequireSignedPackages` rejects the package.
 
 - `OperationCanceledException`: Thrown when `cancellationToken` is canceled; cancellation
   propagates to the caller as `OperationCanceledException`.
@@ -131,15 +139,18 @@ string path = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
 ##### GetVersionsAsync
 
 ```csharp
-public static async Task<IReadOnlyList<string>> GetVersionsAsync(
+public static Task<IReadOnlyList<string>> GetVersionsAsync(
     string packageId,
     bool includePrerelease = false,
     string? root = null,
+    NuGetCacheOptions? options = null,
     CancellationToken cancellationToken = default)
 ```
 
 Gets the versions of a NuGet package available from the configured remote (HTTP/HTTPS)
-sources. Local folder sources, other non-HTTP sources, and the local global packages folder are not consulted.
+sources. Local folder sources are consulted only when `options.IncludeLocalSources` is true or
+they are named in `options.Sources`; other non-HTTP sources and the local global packages folder are
+never consulted.
 
 **Parameters:**
 
@@ -150,6 +161,8 @@ sources. Local folder sources, other non-HTTP sources, and the local global pack
 - `root` (string?): The directory from which to begin discovering `nuget.config` files, as for
   `EnsureCachedAsync`. When null, defaults to the current working directory.
 
+- `options` (NuGetCacheOptions?): Optional per-call options. When null, every option is off.
+
 - `cancellationToken` (CancellationToken): Optional cancellation token for the async operation.
 
 **Returns:**
@@ -157,7 +170,7 @@ sources. Local folder sources, other non-HTTP sources, and the local global pack
 Normalized version strings (e.g. `1.0.0`), de-duplicated across sources and sorted in ascending
 semantic-version order. An empty list is returned when every queried source responds and none
 carries the package. If no versions are found and at least one source was unreachable or
-rejected the request, an `InvalidOperationException` describing each failed source is thrown.
+rejected the request, an exception describing each failed source is thrown.
 
 **Exceptions:**
 
@@ -165,6 +178,9 @@ rejected the request, an `InvalidOperationException` describing each failed sour
 
 - `OperationCanceledException`: Thrown when `cancellationToken` is canceled; cancellation
   propagates to the caller as `OperationCanceledException`.
+
+- `NuGetAuthenticationException`: Thrown instead of `InvalidOperationException` when no versions
+  were found and a source answered HTTP 401 or 403.
 
 - `InvalidOperationException`: Thrown when no versions were found and at least one source was
   unreachable or rejected the request. The message describes each failed source.
@@ -184,28 +200,48 @@ else
 }
 ```
 
-##### Overloads with NuGetCacheOptions
+##### ListVersionsAsync
 
 ```csharp
-public static Task<string> EnsureCachedAsync(
-    string packageId, string version, string? root,
-    CancellationToken cancellationToken, NuGetCacheOptions options)
-
-public static Task<IReadOnlyList<string>> GetVersionsAsync(
-    string packageId, bool includePrerelease, string? root,
-    CancellationToken cancellationToken, NuGetCacheOptions options)
+public static Task<IReadOnlyList<NuGetPackageVersion>> ListVersionsAsync(
+    string packageId,
+    bool includePrerelease = false,
+    string? root = null,
+    NuGetCacheOptions? options = null,
+    CancellationToken cancellationToken = default)
 ```
 
-Added in 1.6.0. Existing overloads are unchanged, and calls without options behave exactly as in 1.5.0.
-The cancellation token is required and `options` comes last, so that no 1.5.0 call shape (including a
-positional `default` token) can bind to these overloads; pass `CancellationToken.None` if you have no token.
-`options` is required (`ArgumentNullException` when null). When a source rejects a request with 401 or
-403 and the operation fails, these overloads throw `NuGetAuthenticationException` (derived from
-`InvalidOperationException`, with `Source` and `Uri`); the 1.5.0 overloads still throw a plain
-`InvalidOperationException`.
+Like `GetVersionsAsync`, but returns `NuGetPackageVersion` records
+(`Version`, `Source`, `IsListed`, `Published`) in ascending order. Unlisted versions are included and
+flagged. `Published` is null when the source supplies no publication date. When a source offers no
+package metadata, its versions are reported as listed with no date. A version offered by several
+sources is reported once, from the first source that supplied it. Exceptions are the same as for
+`GetVersionsAsync`.
+
+##### GetCachedVersions
+
+```csharp
+public static IReadOnlyList<string> GetCachedVersions(string packageId, string? root = null)
+```
+
+Synchronously lists the versions of a package already installed in the global packages folder, as
+normalized strings in ascending order. It performs no network access. Incomplete installs are ignored,
+and an empty list is returned when nothing is installed. Throws `ArgumentNullException` or
+`ArgumentException` for a null or blank `packageId`.
 
 ##### NuGetCacheOptions
 
+- `Sources` (`IReadOnlyList<string>?`): when set, exactly these sources are used instead of the configured
+  ones, and package source mapping is bypassed. Each entry is a configured source name, an http(s) URL, a
+  `file:` URI, or a rooted folder path; duplicates are collapsed and any other entry throws
+  `ArgumentException`.
+- `IncludeLocalSources` (bool, default false): includes local folder sources in `GetVersionsAsync` and
+  `ListVersionsAsync`. `EnsureCachedAsync` always consults local sources.
+- `RequireSignedPackages` (bool, default false): requires the package to be signed for this call. An
+  unsigned or invalidly signed package is rejected with `InvalidOperationException` and not installed, and
+  an already-installed package is verified on the cache-hit path. The cache-hit verification checks
+  integrity and signature validity but does not apply the `trustedSigners` allow-list from `nuget.config`.
+  When false, the `nuget.config` signature validation mode applies as before.
 - `Interactive` (bool, default false): allows credential providers to show prompts or dialogs.
 - `Logger` (`Microsoft.Extensions.Logging.ILogger?`): receives NuGet SDK messages. Secrets are never logged.
 - `CredentialCallback` (`Func<Uri, CancellationToken, Task<NuGetCredential?>>?`): called when a source
@@ -214,7 +250,7 @@ positional `default` token) can bind to these overloads; pass `CancellationToken
   same address within the call.
 - `AuthenticationTimeout` (`TimeSpan?`): maximum time for credential acquisition. When exceeded, the call
   throws `OperationCanceledException` (never `NuGetAuthenticationException`, even when NuGet retries or
-  wraps the failed request). This applies to both `EnsureCachedAsync` and `GetVersionsAsync`. The value
+  wraps the failed request). This applies to every async method. The value
   must be greater than zero and at most `int.MaxValue` milliseconds (about 24.8 days), or
   `Timeout.InfiniteTimeSpan` (same as null, no limit); any other value makes the call throw
   `ArgumentOutOfRangeException` before any work starts.
@@ -231,8 +267,7 @@ var options = new NuGetCacheOptions
 
 try
 {
-    string path = await NuGetCache.EnsureCachedAsync(
-        "Private.Package", "1.0.0", null, CancellationToken.None, options);
+    string path = await NuGetCache.EnsureCachedAsync("Private.Package", "1.0.0", options: options);
 }
 catch (NuGetAuthenticationException ex)
 {
@@ -246,8 +281,19 @@ catch (NuGetAuthenticationException ex)
   call, it is kept, the options cannot apply (`Interactive`, `CredentialCallback`, and
   `AuthenticationTimeout` are ignored), and a warning is logged when a logger is supplied.
 - `AuthenticationTimeout` abandons the wait and cancels the token given to your callback. It does not
-  guarantee that an external credential-provider plugin process is terminated.
+  terminate an external credential-provider plugin process: NuGet starts plugins without a cancellation
+  token and stops them when they have been idle for 30 minutes (configurable with the
+  `NUGET_PLUGIN_IDLE_TIMEOUT_IN_SECONDS` environment variable), when the parent process exits, or when
+  the process ends. The library does not dispose NuGet's shared plugin manager.
 - Versions are NuGet-normalized strings and may carry `+metadata` or four parts.
+
+##### Migrating from 1.x
+
+Version 2.0 replaces the 1.x method families with one method per operation. The 1.5.0 overloads and the
+required-options overloads are removed: pass `options` as a named or positional argument before the
+cancellation token (for example `EnsureCachedAsync(id, version, options: options, cancellationToken: ct)`).
+A 401 or 403 now always throws `NuGetAuthenticationException`, which still derives from
+`InvalidOperationException`, so existing `catch` blocks keep working.
 
 # Examples
 

@@ -297,7 +297,7 @@ public class CredentialDispatcherTests
     /// <summary>
     ///     Tests that concurrent calls with differing options do not influence each other: a call
     ///     with a callback succeeds against its own server while a concurrent call without options
-    ///     (the 1.5.0 behavior) still fails with an authentication error against another.
+    ///     (no credentials) still fails with an authentication error against another.
     /// </summary>
     [Fact]
     [Trait("Category", "LocalIntegration")]
@@ -454,7 +454,7 @@ public class CredentialDispatcherTests
         var uri = new Uri("https://example.test/index.json");
         var dispatcher = new CredentialDispatcher(new CachedHitService());
 
-        // No ambient scope: the default service answers (1.5.0 behavior)
+        // No ambient scope: the default service answers
         Assert.True(dispatcher.TryGetLastKnownGoodCredentialsFromCache(uri, false, out _));
 
         // Options without a callback or logger: the default service answers

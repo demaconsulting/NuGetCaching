@@ -152,6 +152,22 @@ method:
 Satisfies requirements `Caching-PackageDownloader-DownloadOutcome`,
 `Caching-PackageDownloader-AuthDiagnostic`, and `Caching-PackageDownloader-AuthFailureInfo`.
 
+Satisfies requirement `Caching-PackageDownloader-SignatureRequirement`.
+
+#### `CreateClientPolicy(settings, requireSigned, logger)`
+
+Returns `ClientPolicyContext.GetClientPolicy(settings, logger)`; when `requireSigned` is true the settings
+are first wrapped in `RequireSignedSettings`, an `ISettings` decorator whose `config` section carries
+`signatureValidationMode=require` (loaded once from a short-lived temporary `nuget.config` because NuGet's
+in-memory section types are internal) while every other section, including `trustedSigners`, passes through
+to the inner settings. Mutating members throw `NotSupportedException`.
+
+#### `VerifyCachedPackageSignedAsync(...)`
+
+Used on the cache-hit path when `RequireSignedPackages` is set. Verifies the installed `.nupkg` with a
+`PackageSignatureVerifier` (integrity and trust/validity providers) and throws `InvalidOperationException`
+when the package is unsigned or invalid. It does not apply the `trustedSigners` allow-list.
+
 #### `GetPackagePath(string globalPackagesFolder, string packageId, string version)`
 
 Computes the conventional on-disk path that NuGet uses for an installed package:
@@ -177,7 +193,9 @@ Satisfies requirement `Caching-PackageDownloader-PackagePathConvention`.
   generic protocol-error message, or an empty result for transient network failures) so the
   caller can continue to the next source.
 - **Propagated**: `OperationCanceledException` and any other exception, including those from
-  `GlobalPackagesFolderUtility.AddPackageAsync`, propagate to the caller.
+  `GlobalPackagesFolderUtility.AddPackageAsync`, propagate to the caller. A NuGet `SignatureException`
+  is rethrown as `InvalidOperationException` naming the package, version and source; it is not treated as
+  "not in this source", so the next source is not tried.
 - **`GetPackagePath`**: propagates `ArgumentException` from `PathHelpers.SafePathCombine` when
   an identifier or version would escape the global packages folder.
 

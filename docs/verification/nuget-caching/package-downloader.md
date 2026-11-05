@@ -113,6 +113,17 @@ both segments are lower-cased following the NuGet global packages folder convent
 
 **Requirement coverage**: `Caching-PackageDownloader-PackagePathConvention`.
 
+#### Signature requirement scenarios
+
+The signature tests live in `NuGetCacheSignatureTests` and exercise this unit through `NuGetCache`:
+
+- **NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException**: an unsigned
+  package from a WireMock feed is rejected with `InvalidOperationException` and not installed.
+- **NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: an unsigned
+  package already installed is rejected on the cache-hit path.
+
+**Requirement coverage**: `Caching-PackageDownloader-SignatureRequirement`.
+
 ### Requirements Coverage
 
 - **`Caching-PackageDownloader-DownloadOutcome`**:
@@ -125,3 +136,6 @@ both segments are lower-cased following the NuGet global packages folder convent
   PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsAuthFailureInfo
 - **`Caching-PackageDownloader-PackagePathConvention`**:
   PackageDownloader_GetPackagePath_MixedCaseIdAndVersion_ReturnsLowerCasedPath
+- **`Caching-PackageDownloader-SignatureRequirement`**:
+  NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit

@@ -38,7 +38,7 @@ namespace DemaConsulting.NuGet.Caching;
 /// <remarks>
 ///     NuGet exposes one static credential service, so per-call behavior is selected from an
 ///     <see cref="AsyncLocal{T}"/> scope opened by <see cref="BeginScope"/>. With no ambient scope
-///     (the 1.5.0 overloads) every request is delegated unchanged to the default
+///     (no options supplied) every request is delegated unchanged to the default
 ///     non-interactive service. Inside a scope: a <see cref="NuGetCacheOptions.CredentialCallback"/>
 ///     is consulted first for 401/403 challenges; when it yields nothing the request goes to the
 ///     interactive or non-interactive provider-based service according to
@@ -63,7 +63,7 @@ internal sealed class CredentialDispatcher : ICredentialService
     ///     Initializes a new instance that delegates non-interactive and option-less requests to
     ///     <paramref name="defaultService"/>.
     /// </summary>
-    /// <param name="defaultService">The 1.5.0-equivalent, non-interactive credential service.</param>
+    /// <param name="defaultService">The non-interactive credential service used outside any option scope.</param>
     internal CredentialDispatcher(ICredentialService defaultService)
     {
         ArgumentNullException.ThrowIfNull(defaultService);
@@ -82,7 +82,7 @@ internal sealed class CredentialDispatcher : ICredentialService
     ///     Opens an ambient scope that makes <paramref name="options"/> visible to credential
     ///     requests made by the current call and the tasks it awaits.
     /// </summary>
-    /// <param name="options">The per-call options, or <see langword="null"/> for 1.5.0 behavior.</param>
+    /// <param name="options">The per-call options, or <see langword="null"/> when none were supplied.</param>
     /// <param name="logger">The adapted logger for the call, or <see langword="null"/>.</param>
     /// <returns>
     ///     A disposable scope that restores the previous ambient scope and can report whether
@@ -151,7 +151,7 @@ internal sealed class CredentialDispatcher : ICredentialService
             return InteractiveService.Value;
         }
 
-        // Only a call with a logger needs the logger-aware service; otherwise the 1.5.0 default
+        // Only a call with a logger needs the logger-aware service; otherwise the default
         // service (with a null logger) is used unchanged
         return context.Logger != null ? NonInteractiveLoggedService.Value : _defaultService;
     }
@@ -242,9 +242,17 @@ internal sealed class CredentialDispatcher : ICredentialService
 
     private static ICredentialService CreateInteractiveService() => CreateProviderService(interactive: true);
 
+    /// <summary>
+    ///     Creates the default non-interactive credential service that the dispatcher wraps and that
+    ///     serves requests made outside any option scope.
+    /// </summary>
+    /// <returns>The default credential service.</returns>
+    internal static ICredentialService CreateDefaultService() => CreateProviderService(interactive: false);
+
     private static ICredentialService CreateProviderService(bool interactive)
     {
-        // Mirrors DefaultCredentialServiceUtility.SetupDefaultCredentialService; the logger forwards
+        // Equivalent to DefaultCredentialServiceUtility.SetupDefaultCredentialService, but it does not
+        // write NuGet's static credential service; the logger forwards
         // to whichever call is currently ambient
         var providers = new AsyncLazy<IEnumerable<ICredentialProvider>>(async () =>
         {

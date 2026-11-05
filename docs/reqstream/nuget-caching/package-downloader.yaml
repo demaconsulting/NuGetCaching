@@ -62,3 +62,18 @@ sections:
           owned by a single unit and exposed for direct use rather than duplicated.
         tests:
           - PackageDownloader_GetPackagePath_MixedCaseIdAndVersion_ReturnsLowerCasedPath
+
+      - id: Caching-PackageDownloader-SignatureRequirement
+        title: >-
+          When signatures are required, the package-download utility shall reject an
+          unsigned or invalidly signed package with InvalidOperationException naming the
+          package, version, and source, shall not install it, shall not try the next source
+          for it, and shall apply the same check to an already-installed package.
+        justification: |
+          A signature failure means the content is untrustworthy, not that the source lacks
+          the package, so falling through to another source would hide the problem. The
+          policy is applied through the client policy context for downloads and through an
+          explicit verifier for the already-installed fast path.
+        tests:
+          - NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit
