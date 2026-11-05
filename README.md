@@ -12,6 +12,8 @@
 DEMA Consulting library for caching NuGet packages on the local global packages cache and
 discovering the available versions of a package.
 
+![NuGetCaching architecture: your application, the NuGetCache entry point, its units and NuGet][architecture]
+
 ## Features
 
 This library provides:
@@ -96,5 +98,6 @@ By contributing to this project, you agree that your contributions will be licen
 [link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-nuget]: https://www.nuget.org/packages/DemaConsulting.NuGet.Caching
+[architecture]: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/main/docs/images/architecture.png
 [link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance
 [link-contributing]: https://github.com/demaconsulting/NuGetCaching/blob/main/CONTRIBUTING.md
