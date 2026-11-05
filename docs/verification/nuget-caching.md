@@ -81,7 +81,7 @@ whose `nuget.config` points at a local test HTTP feed advertising unsorted versi
 
 ### NuGetCaching_EnsureCachedAsync_WhenOptionsSupplyCredentialCallback_CachesFromAuthenticatedSource
 
-**Scenario**: The public `EnsureCachedAsync` options overload is called with a `NuGetCacheOptions`
+**Scenario**: The public `EnsureCachedAsync` is called with a `NuGetCacheOptions`
 whose `CredentialCallback` returns a user name and password. The `root` holds a `nuget.config`
 naming a local `NuGetTestServer` feed that answers HTTP 401 until it sees the matching Basic
 credentials, and a temporary `globalPackagesFolder`.

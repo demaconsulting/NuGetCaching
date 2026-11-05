@@ -164,6 +164,58 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Registers the v3 registration (package metadata) endpoint for a package, so listing and
+    ///     publication details are available alongside the flat-container version list.
+    /// </summary>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="entries">The versions with their listed flag and publication date.</param>
+    internal void RegisterV3PackageMetadata(string packageId, params (string Version, bool Listed, DateTimeOffset Published)[] entries)
+    {
+        var id = packageId.ToLowerInvariant();
+        var items = string.Join(
+            ",",
+            entries.Select(e => $$"""
+                {"@id":"{{BaseUrl}}/v3-registration/{{id}}/{{e.Version.ToLowerInvariant()}}.json","catalogEntry":{"@id":"{{BaseUrl}}/catalog/{{id}}/{{e.Version.ToLowerInvariant()}}.json","id":"{{packageId}}","version":"{{e.Version}}","listed":{{(e.Listed ? "true" : "false")}},"published":"{{e.Published:yyyy-MM-ddTHH:mm:ssZ}}","packageContent":"{{BaseUrl}}/v3-flatcontainer/{{id}}/{{e.Version.ToLowerInvariant()}}/{{id}}.{{e.Version.ToLowerInvariant()}}.nupkg"},"packageContent":"{{BaseUrl}}/v3-flatcontainer/{{id}}/{{e.Version.ToLowerInvariant()}}/{{id}}.{{e.Version.ToLowerInvariant()}}.nupkg"}
+                """));
+        var lower = entries.Length > 0 ? entries[0].Version : "0.0.0";
+        var upper = entries.Length > 0 ? entries[^1].Version : "0.0.0";
+        var body = $$"""
+            {"count":1,"items":[{"@id":"{{BaseUrl}}/v3-registration/{{id}}/page/0.json","count":{{entries.Length}},"lower":"{{lower}}","upper":"{{upper}}","items":[{{items}}]}]}
+            """;
+
+        _server
+            .Given(Request.Create().WithPath("/index.json").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(BuildV3ServiceIndexJson())
+                .WithHeader("Content-Type", "application/json"));
+
+        _server
+            .Given(Request.Create().WithPath($"/v3-registration/{id}/index.json").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(body)
+                .WithHeader("Content-Type", "application/json"));
+    }
+
+    /// <summary>
+    ///     Registers a public v3 flat-container version list while the registration (package
+    ///     metadata) endpoint rejects every request with HTTP 401.
+    /// </summary>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="versions">The versions served by the public flat container.</param>
+    internal void RegisterV3PackageVersionsWithUnauthorizedMetadata(string packageId, params string[] versions)
+    {
+        RegisterV3PackageVersions(packageId, versions);
+
+        _server
+            .Given(Request.Create().WithPath($"/v3-registration/{packageId.ToLowerInvariant()}/index.json").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
     ///     Registers only the v3 service index, with the package version list endpoint dropping
     ///     the connection to simulate a network failure during version discovery.
     /// </summary>
@@ -768,6 +820,11 @@ internal sealed class NuGetTestServer : IAsyncDisposable
               "@id": "{{BaseUrl}}/v3-flatcontainer/",
               "@type": "PackageBaseAddress/3.0.0",
               "@comment": "Base URL for NuGet package content"
+            },
+            {
+              "@id": "{{BaseUrl}}/v3-registration/",
+              "@type": "RegistrationsBaseUrl/3.6.0",
+              "@comment": "Base URL for NuGet package metadata"
             }
           ]
         }

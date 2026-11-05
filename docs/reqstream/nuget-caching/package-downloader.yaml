@@ -62,3 +62,32 @@ sections:
           owned by a single unit and exposed for direct use rather than duplicated.
         tests:
           - PackageDownloader_GetPackagePath_MixedCaseIdAndVersion_ReturnsLowerCasedPath
+
+      - id: Caching-PackageDownloader-SignatureRequirement
+        title: >-
+          When signatures are required, the package-download utility shall reject an
+          unsigned or invalidly signed package with InvalidOperationException naming the
+          package, version, and source, shall not install it, shall not try the next source
+          for it, and shall apply the same check to an already-installed package, whether
+          the requirement comes from the option or from nuget.config. A trustedSigners
+          allow-list shall apply only when signers are configured; with none configured a
+          validly signed package is accepted.
+        justification: |
+          A signature failure means the content is untrustworthy, not that the source lacks
+          the package, so falling through to another source would hide the problem. The
+          policy is applied through the client policy context and an explicit, platform-independent
+          verification for downloads (NuGet skips its own on Linux and macOS by default) and
+          through the same explicit verifier for the already-installed fast path.
+        tests:
+          - NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_NuGetConfigRequireMode_UnsignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit
+          - NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit
+          - NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit
+          - NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit
+          - NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit

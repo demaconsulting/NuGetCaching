@@ -19,9 +19,9 @@ counts how many times registration runs across repeated and concurrent `EnsureRe
 Integration tests inject an `ICredentialServiceRegistrar` test double to confirm
 `EnsureRegistered` is invoked on every call regardless of authentication outcome, construct a
 fresh, real `CredentialServiceRegistrar` instance - passed explicitly via the internal
-registrar-accepting `EnsureCachedAsync` overload - to confirm it registers a real
-`ICredentialService` via a genuine null-to-non-null transition, and call the production
-`EnsureCachedAsync` overload (which uses the shared `DefaultCredentialRegistrar`) to confirm a
+registrar-accepting internal `EnsureCachedAsync` core - to confirm it registers a real
+`ICredentialService` via a genuine null-to-non-null transition, and call the `ISettings`-only internal
+seam (which uses the shared `DefaultCredentialRegistrar`) to confirm a
 credential service is registered. Each test scenario names a specific test method that provides
 evidence for the unit requirement.
 
@@ -65,7 +65,7 @@ enumeration.
 
 **Scenario**: `EnsureCachedAsync` is called with a freshly-constructed, real
 `CredentialServiceRegistrar` instance passed explicitly via the internal registrar-accepting
-overload. A fresh instance starts with its own memoization not yet triggered, so the test resets
+core. A fresh instance starts with its own memoization not yet triggered, so the test resets
 `HttpHandlerResourceV3.CredentialService` to `null` beforehand (restoring the original value
 afterward) to guarantee this specific call performs the registration.
 
@@ -77,7 +77,7 @@ genuine null-to-non-null transition and that the real registrar is wired to
 
 #### NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
 
-**Scenario**: The production `EnsureCachedAsync` overload that supplies no registrar (and so uses
+**Scenario**: The `ISettings`-only internal `EnsureCachedAsync` seam that supplies no registrar (and so uses
 the shared, process-wide `CredentialServiceRegistrar.DefaultCredentialRegistrar`) is called
 against a healthy unauthenticated source.
 
@@ -101,8 +101,14 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_CallbackBlocksSynchronously_TimesOutPromptly**: a callback
   that blocks its thread synchronously is still canceled with `OperationCanceledException` within a
   bounded time.
-- **NuGetCache_EnsureCachedAsync_WithOptions_InvokesCredentialServiceRegistrar**: the options overload
+- **NuGetCache_EnsureCachedAsync_WithOptions_InvokesCredentialServiceRegistrar**: the options-bearing core
   calls the injected registrar test double.
+- **CredentialServiceRegistrar_Register_HostServiceAlreadyPresent_DoesNotCreateDefault**: when a service
+  is already present, no default is created and nothing is assigned.
+- **CredentialServiceRegistrar_Register_ConcurrentCalls_AssignExactlyOnce**: concurrent `Register` calls
+  assign exactly once.
+- **CredentialServiceRegistrar_Register_CreateDefaultThrows_AssignsNothingAndRecovers**: a throwing
+  `createDefault` assigns nothing and a later call succeeds.
 - **NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source**: the callback is
   consulted before providers and its credential unlocks the 401 source.
 - **NuGetCache_EnsureCachedAsync_CallbackReturnsNull_FallsThroughAndFailsWithAuthenticationException**:
@@ -142,6 +148,9 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   CredentialServiceRegistrar_EnsureRegistered_RepeatedCalls_RegistersExactlyOnce,
   NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar,
   NuGetCache_EnsureCachedAsync_FreshRealRegistrar_RegistersRealCredentialService,
-  CredentialServiceRegistrar_Register_HostServiceAppearsBeforeAssignment_IsNotOverwritten
+  CredentialServiceRegistrar_Register_HostServiceAppearsBeforeAssignment_IsNotOverwritten,
+  CredentialServiceRegistrar_Register_HostServiceAlreadyPresent_DoesNotCreateDefault,
+  CredentialServiceRegistrar_Register_ConcurrentCalls_AssignExactlyOnce,
+  CredentialServiceRegistrar_Register_CreateDefaultThrows_AssignsNothingAndRecovers
 - **`Caching-CredentialServiceRegistrar-DefaultWiredToRealFlow`**:
   NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService

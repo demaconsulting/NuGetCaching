@@ -42,30 +42,39 @@ dotnet add package DemaConsulting.NuGet.Caching
 ## Usage
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using DemaConsulting.NuGet.Caching;
 
 // Ensure a specific NuGet package version is available in the local global packages cache
 string packagePath = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
 Console.WriteLine($"Package cached at: {packagePath}");
 
-// Discover available versions (normalized strings, ascending); stable versions only by default
+// Discover available versions (normalized strings, ascending); stable versions only by default.
+// GetVersionsAsync includes unlisted versions; use ListVersionsAsync and IsListed to filter them out.
 IReadOnlyList<string> versions = await NuGetCache.GetVersionsAsync("Newtonsoft.Json");
 Console.WriteLine(versions.Count > 0
     ? $"Latest stable version: {versions[^1]}"
     : "No stable versions found.");
 
-// Authenticate against a private feed with a credential callback (new in 1.6.0)
+// Authenticate against a private feed with a credential callback and require signed packages
 var options = new NuGetCacheOptions
 {
     CredentialCallback = (uri, ct) => Task.FromResult<NuGetCredential?>(
         new NuGetCredential("user", Environment.GetEnvironmentVariable("FEED_TOKEN")!)),
     AuthenticationTimeout = TimeSpan.FromSeconds(30),
+    RequireSignedPackages = true,
 };
-string privatePath = await NuGetCache.EnsureCachedAsync(
-    "Private.Package", "1.0.0", null, CancellationToken.None, options);
+string privatePath = await NuGetCache.EnsureCachedAsync("Private.Package", "1.0.0", options: options);
+
+// List versions with listed state and publication date, or see what is already cached offline
+IReadOnlyList<NuGetPackageVersion> details = await NuGetCache.ListVersionsAsync("Newtonsoft.Json");
+IReadOnlyList<string> installed = NuGetCache.GetCachedVersions("Newtonsoft.Json");
 ```
 
-See the user guide for `NuGetCacheOptions`, logging, `NuGetAuthenticationException`, and limitations.
+See the user guide for `NuGetCacheOptions` (explicit `Sources`, `IncludeLocalSources`,
+`RequireSignedPackages`), logging, `NuGetAuthenticationException`, and limitations.
 Versions are NuGet-normalized strings and may carry `+metadata` or four parts.
 
 ## Documentation

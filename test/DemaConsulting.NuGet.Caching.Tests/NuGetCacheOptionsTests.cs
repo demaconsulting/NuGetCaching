@@ -27,13 +27,16 @@ namespace DemaConsulting.NuGet.Caching.Tests;
 public class NuGetCacheOptionsTests
 {
     /// <summary>
-    ///     Tests that a default <see cref="NuGetCacheOptions"/> equals the 1.5.0 behavior.
+    ///     Tests that a default <see cref="NuGetCacheOptions"/> has every option switched off.
     /// </summary>
     [Fact]
-    public void NuGetCacheOptions_Default_MatchesVersion150Behavior()
+    public void NuGetCacheOptions_Default_HasAllOptionsOff()
     {
         var options = new NuGetCacheOptions();
 
+        Assert.Null(options.Sources);
+        Assert.False(options.IncludeLocalSources);
+        Assert.False(options.RequireSignedPackages);
         Assert.False(options.Interactive);
         Assert.Null(options.Logger);
         Assert.Null(options.CredentialCallback);
@@ -68,9 +71,9 @@ public class NuGetCacheOptionsTests
         var options = new NuGetCacheOptions { AuthenticationTimeout = TimeSpan.FromMilliseconds(milliseconds) };
 
         var ensure = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await NuGetCache.EnsureCachedAsync("Any.Package", "1.0.0", null, CancellationToken.None, options));
+            await NuGetCache.EnsureCachedAsync("Any.Package", "1.0.0", null, options, CancellationToken.None));
         var versions = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await NuGetCache.GetVersionsAsync("Any.Package", false, null, CancellationToken.None, options));
+            await NuGetCache.GetVersionsAsync("Any.Package", false, null, options, CancellationToken.None));
 
         Assert.Equal(nameof(NuGetCacheOptions.AuthenticationTimeout), ensure.ParamName);
         Assert.Equal(nameof(NuGetCacheOptions.AuthenticationTimeout), versions.ParamName);
@@ -94,12 +97,14 @@ public class NuGetCacheOptionsTests
 
             // Precondition: settings loading really fails for this root with valid options
             await Assert.ThrowsAnyAsync<Exception>(async () =>
-                await NuGetCache.GetVersionsAsync("Any.Package", false, root, CancellationToken.None, good));
+                await NuGetCache.GetVersionsAsync("Any.Package", false, root, good, CancellationToken.None));
 
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-                await NuGetCache.EnsureCachedAsync("Any.Package", "1.0.0", root, CancellationToken.None, bad));
+                await NuGetCache.EnsureCachedAsync("Any.Package", "1.0.0", root, bad, CancellationToken.None));
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-                await NuGetCache.GetVersionsAsync("Any.Package", false, root, CancellationToken.None, bad));
+                await NuGetCache.GetVersionsAsync("Any.Package", false, root, bad, CancellationToken.None));
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+                await NuGetCache.ListVersionsAsync("Any.Package", false, root, bad, CancellationToken.None));
         }
         finally
         {
@@ -163,76 +168,59 @@ public class NuGetCacheOptionsTests
     }
 
     /// <summary>
-    ///     Tests that the public options overloads reject null options and null package IDs.
+    ///     Tests that the public methods reject null or blank package IDs (and null versions).
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task NuGetCache_OptionsOverloads_NullArguments_Throw()
+    public async Task NuGetCache_PublicMethods_InvalidArguments_Throw()
     {
+        var token = TestContext.Current.CancellationToken;
         string? noRoot = null;
+        NuGetCacheOptions? noOptions = null;
         await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync("Package", "1.0.0", noRoot, TestContext.Current.CancellationToken, null!));
+            async () => await NuGetCache.EnsureCachedAsync(null!, "1.0.0", noRoot, noOptions, token));
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await NuGetCache.EnsureCachedAsync(" ", "1.0.0", noRoot, noOptions, token));
         await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.GetVersionsAsync("Package", false, noRoot, TestContext.Current.CancellationToken, null!));
+            async () => await NuGetCache.EnsureCachedAsync("Package", null!, noRoot, noOptions, token));
         await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.GetVersionsAsync(null!, false, noRoot, TestContext.Current.CancellationToken, new NuGetCacheOptions()));
+            async () => await NuGetCache.GetVersionsAsync(null!, false, noRoot, noOptions, token));
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await NuGetCache.GetVersionsAsync("", false, noRoot, noOptions, token));
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await NuGetCache.ListVersionsAsync(null!, false, noRoot, noOptions, token));
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await NuGetCache.ListVersionsAsync("\t", false, noRoot, noOptions, token));
+        Assert.Throws<ArgumentNullException>(() => NuGetCache.GetCachedVersions(null!));
+        Assert.Throws<ArgumentException>(() => NuGetCache.GetCachedVersions(" "));
     }
 
     /// <summary>
-    ///     Tests that call forms valid in 1.5.0, including a positional <c>default</c> token, still bind
-    ///     to the 1.5.0 overloads (a source-compatibility check): the calls compile unambiguously and
-    ///     behave as in 1.5.0 against a root whose <c>nuget.config</c> clears all sources, instead of
-    ///     failing for missing options.
-    /// </summary>
-    /// <returns>A task representing the asynchronous test.</returns>
-    [Fact]
-    public async Task NuGetCache_Version150CallForms_BindToVersion150Overloads()
-    {
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        try
-        {
-            Directory.CreateDirectory(root);
-#pragma warning disable S6966 // File.WriteAllTextAsync is unavailable on net481
-            File.WriteAllText(
-                Path.Combine(root, "nuget.config"),
-                "<?xml version=\"1.0\" encoding=\"utf-8\"?><configuration><packageSources><clear /></packageSources></configuration>");
-#pragma warning restore S6966
-
-#pragma warning disable xUnit1051 // the default token is the point of this call-form test
-            var versions = await NuGetCache.GetVersionsAsync("Package", false, root, default);
-
-            // The 1.5.0 overload reports a missing package as exactly InvalidOperationException
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => await NuGetCache.EnsureCachedAsync("Not.Cached." + Guid.NewGuid().ToString("N"), "1.0.0", root, default));
-#pragma warning restore xUnit1051
-
-            Assert.Empty(versions);
-        }
-        finally
-        {
-            if (Directory.Exists(root))
-            {
-                Directory.Delete(root, recursive: true);
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Tests that the public options overloads take a required token followed by the options, last.
+    ///     Tests that the public methods have a single shape with optional root, options and token,
+    ///     the options coming before the token.
     /// </summary>
     [Fact]
-    public void NuGetCache_OptionsOverloads_Signature_HasRequiredTokenThenOptionsLast()
+    public void NuGetCache_PublicMethods_Signature_HasOptionalRootOptionsThenToken()
     {
-        var ensure = typeof(NuGetCache).GetMethod(
-            "EnsureCachedAsync",
-            [typeof(string), typeof(string), typeof(string), typeof(CancellationToken), typeof(NuGetCacheOptions)])!;
-        var versions = typeof(NuGetCache).GetMethod(
-            "GetVersionsAsync",
-            [typeof(string), typeof(bool), typeof(string), typeof(CancellationToken), typeof(NuGetCacheOptions)])!;
+        var methods = typeof(NuGetCache).GetMethods().Where(m => m.IsStatic && m.Name != "GetCachedVersions").ToList();
+        var ensure = Assert.Single(methods, m => m.Name == "EnsureCachedAsync");
+        var versions = Assert.Single(methods, m => m.Name == "GetVersionsAsync");
+        var list = Assert.Single(methods, m => m.Name == "ListVersionsAsync");
 
-        Assert.NotNull(ensure);
-        Assert.NotNull(versions);
-        Assert.All([ensure, versions], method => Assert.All(method.GetParameters(), p => Assert.False(p.HasDefaultValue)));
+        foreach (var method in new[] { ensure, versions, list })
+        {
+            var parameters = method.GetParameters();
+            var count = parameters.Length;
+            Assert.Equal(typeof(CancellationToken), parameters[count - 1].ParameterType);
+            Assert.Equal(typeof(NuGetCacheOptions), parameters[count - 2].ParameterType);
+            Assert.Equal(typeof(string), parameters[count - 3].ParameterType);
+            Assert.All(parameters.Skip(count - 3), p => Assert.True(p.HasDefaultValue));
+        }
+
+        Assert.Equal(5, ensure.GetParameters().Length);
+        Assert.Equal(5, versions.GetParameters().Length);
+        Assert.True(versions.GetParameters()[1].HasDefaultValue);
+        Assert.Equal(5, list.GetParameters().Length);
     }
 
     /// <summary>
@@ -292,8 +280,8 @@ public class NuGetCacheOptionsTests
                 await NuGetCache.GetVersionsAsync(
                     "Denied.Package", false, settings, options, CredentialServiceRegistrar.DefaultCredentialRegistrar, CancellationToken.None));
 
-            // The 1.5.0 overloads keep throwing exactly InvalidOperationException
-            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            // Without any options the exception type is the same
+            await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
                 await NuGetCache.EnsureCachedAsync("Denied.Package", "1.0.0", settings, CancellationToken.None));
 
             Assert.Equal("test-source", ensure.Source);

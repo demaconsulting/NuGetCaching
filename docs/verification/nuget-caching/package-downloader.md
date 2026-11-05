@@ -113,6 +113,49 @@ both segments are lower-cased following the NuGet global packages folder convent
 
 **Requirement coverage**: `Caching-PackageDownloader-PackagePathConvention`.
 
+#### Signature requirement scenarios
+
+The signature tests live in `NuGetCacheSignatureTests` and exercise this unit through `NuGetCache`:
+
+- **NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException**: an unsigned
+  package from a WireMock feed is rejected with `InvalidOperationException` and not installed. This holds on
+  every OS because the explicit check does not depend on NuGet's platform-gated verification.
+- **NuGetCache_NuGetConfigRequireMode_UnsignedPackageDownload_ThrowsInvalidOperationException**: the same
+  rejection when `signatureValidationMode=require` comes from `nuget.config` and the option is not set.
+- **NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: an unsigned
+  package already installed is rejected on the cache-hit path.
+- **NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: the cache-hit
+  check also applies when only `nuget.config` requires signatures.
+- **NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException** and
+  **NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit**: a package
+  with a corrupt signature entry is rejected on download (not installed) and on cache hit.
+- **NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds**: a real, unmodified package from
+  nuget.org (Newtonsoft.Json 13.0.1, signed by its author and countersigned by the nuget.org repository;
+  downloaded from nuget.org once per test run, with no binary checked in) is accepted with no trusted
+  signers configured and fully installed.
+- **NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds** and
+  **NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds**: the same package is accepted
+  when `nuget.config` lists its author certificate, or its repository certificate, as a trusted signer.
+- **NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException**: the
+  package is rejected and not installed when trusted signers are configured and none match.
+- **NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit** and
+  **NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit**: the
+  installed signed package passes the cache-hit check, and is rejected when the trusted signers do not match.
+
+The signed-package tests are network-dependent: the package is downloaded once per test run from
+`https://api.nuget.org/v3-flatcontainer/` into a temporary folder (removed when the run ends) and verified
+against a SHA-256 pinned in the test; a hash mismatch fails the tests because it would indicate tampering,
+while a download failure (offline, network error, timeout) skips them with a clear reason. They also set
+`NUGET_CERT_REVOCATION_MODE=offline` (in a non-parallel test collection) so they
+never need network access for revocation checking; the package's certificates are expired, so acceptance
+rests on the signature timestamps. Before each test, a one-time preflight checks that the operating system
+trusts the DigiCert roots the package chains to (revocation and validity dates ignored). If it does not
+(for example a Linux distribution that has removed the legacy DigiCert Assured ID and High Assurance EV
+roots), the test is skipped with that reason rather than failing; this is an environment gap, not a
+product defect. There is no OS-based skip.
+
+**Requirement coverage**: `Caching-PackageDownloader-SignatureRequirement`.
+
 ### Requirements Coverage
 
 - **`Caching-PackageDownloader-DownloadOutcome`**:
@@ -125,3 +168,16 @@ both segments are lower-cased following the NuGet global packages folder convent
   PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsAuthFailureInfo
 - **`Caching-PackageDownloader-PackagePathConvention`**:
   PackageDownloader_GetPackagePath_MixedCaseIdAndVersion_ReturnsLowerCasedPath
+- **`Caching-PackageDownloader-SignatureRequirement`**:
+  NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_NuGetConfigRequireMode_UnsignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit,
+  NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit

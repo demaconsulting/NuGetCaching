@@ -144,13 +144,47 @@ method:
    `NuGetProtocolException` or an `HttpRequestException`; a generic protocol-error result on any
    other `NuGetProtocolException`; or an empty result on any other `HttpRequestException`
    (transient network failure).
-2. Installs the package into the global packages folder using
+2. When the client policy is `require`, explicitly verifies the downloaded bytes with `VerifySignedAsync`
+   (see below) before anything is installed, so unsigned or invalid packages fail closed on every platform
+   (NuGet's own check is skipped on Linux/macOS unless `DOTNET_NUGET_SIGNATURE_VERIFICATION=true`).
+3. Installs the package into the global packages folder using
    `GlobalPackagesFolderUtility.AddPackageAsync`.
-3. Returns a success result containing the conventional package path (computed via
+4. Returns a success result containing the conventional package path (computed via
    `GetPackagePath`).
 
 Satisfies requirements `Caching-PackageDownloader-DownloadOutcome`,
 `Caching-PackageDownloader-AuthDiagnostic`, and `Caching-PackageDownloader-AuthFailureInfo`.
+
+Satisfies requirement `Caching-PackageDownloader-SignatureRequirement`.
+
+#### `CreateClientPolicy(settings, requireSigned, logger)`
+
+Returns `ClientPolicyContext.GetClientPolicy(settings, logger)`; when `requireSigned` is true the settings
+are first wrapped in `RequireSignedSettings`, an `ISettings` decorator whose `config` section carries
+`signatureValidationMode=require` (loaded once from a short-lived temporary `nuget.config` because NuGet's
+in-memory section types are internal) while every other section, including `trustedSigners`, passes through
+to the inner settings. Mutating members throw `NotSupportedException`.
+
+#### `VerifyCachedPackageSignedAsync(...)`
+
+Used on the cache-hit path when the effective policy requires signatures (the option, or
+`signatureValidationMode=require` in `nuget.config`). Opens the installed `.nupkg` and applies
+`VerifySignedAsync`; throws `InvalidOperationException` when the file is missing, unsigned or invalid.
+
+#### `VerifySignedAsync(...)`
+
+Platform-independent explicit check shared by the download and cache-hit paths. Requires
+`PackageArchiveReader.IsSignedAsync` to be true, then runs a `PackageSignatureVerifier` with integrity and
+trust/validity providers, plus the client `trustedSigners` allow-list provider only when signers are configured
+(no signers means any validly signed, trusted package is accepted), mirroring
+NuGet's own extraction-time providers. Throws `InvalidOperationException` when unsigned or invalid.
+
+Trust roots and revocation: the trust/validity provider builds certificate chains for the signing and
+timestamp certificates against the operating system trust store, so a signature is accepted only where the
+signer's root (for nuget.org packages, a DigiCert root) is trusted by the OS, and it checks revocation online
+by default. Setting the `NUGET_CERT_REVOCATION_MODE` environment variable to `offline` makes NuGet use only
+cached revocation data; an unknown revocation status is then reported as a warning, not an error. The
+library does not change these settings, so callers in restricted-network environments can choose the mode.
 
 #### `GetPackagePath(string globalPackagesFolder, string packageId, string version)`
 
@@ -177,7 +211,9 @@ Satisfies requirement `Caching-PackageDownloader-PackagePathConvention`.
   generic protocol-error message, or an empty result for transient network failures) so the
   caller can continue to the next source.
 - **Propagated**: `OperationCanceledException` and any other exception, including those from
-  `GlobalPackagesFolderUtility.AddPackageAsync`, propagate to the caller.
+  `GlobalPackagesFolderUtility.AddPackageAsync`, propagate to the caller. A NuGet `SignatureException`
+  is rethrown as `InvalidOperationException` naming the package, version and source; it is not treated as
+  "not in this source", so the next source is not tried.
 - **`GetPackagePath`**: propagates `ArgumentException` from `PathHelpers.SafePathCombine` when
   an identifier or version would escape the global packages folder.
 

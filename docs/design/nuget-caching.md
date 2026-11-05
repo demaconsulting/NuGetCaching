@@ -16,8 +16,9 @@ to cache without depending on NuGet types.
 
 The system comprises six software units:
 
-- **NuGetCache**: The public API surface providing the `EnsureCachedAsync` and
-  `GetVersionsAsync` methods; a thin
+- **NuGetCache**: The public API surface providing the `EnsureCachedAsync`, `GetVersionsAsync`,
+  `ListVersionsAsync`, and `GetCachedVersions` methods, each taking optional `root` and
+  `NuGetCacheOptions` arguments; a thin
   orchestrator that validates input, checks the cache-hit fast path, registers the credential
   service, and enumerates configured sources, delegating resolution and download to the
   units below
@@ -111,8 +112,9 @@ The returned path follows the NuGet global packages folder convention:
 2. The system validates `packageId` is not null, throwing `ArgumentNullException`
 3. The system loads NuGet configuration and registers the credential service via
    `CredentialServiceRegistrar`
-4. Source selection: enabled sources filtered by package source mapping are chosen, then local
-   folder sources are excluded so that only remote sources are queried (the global packages
+4. Source selection: enabled sources filtered by package source mapping are chosen (or exactly the
+   `NuGetCacheOptions.Sources` when supplied); local folder sources are excluded unless
+   `IncludeLocalSources` is set or the source is named explicitly (the global packages
    folder is not consulted)
 5. Enumeration: for each remote source, `PackageSourceResolver` resolves the
    `FindPackageByIdResource`, and all versions the source advertises for the package are read
@@ -120,6 +122,11 @@ The returned path follows the NuGet global packages folder convention:
 7. Sorting: versions are collected into a semantically ordered, de-duplicated set (ascending)
 8. The normalized version strings are returned as a read-only list of strings; the list is empty
    when no source carries the package
+
+`ListVersionsAsync` follows the same flow but reads package metadata and returns
+`NuGetPackageVersion` records (version, source, listed flag, publication date).
+`GetCachedVersions` is an offline, synchronous scan of the global packages folder for completely
+installed versions of a package.
 
 ## Error Handling
 
@@ -129,8 +136,10 @@ The system communicates error states to callers through exceptions:
 - **`ArgumentException`**: Thrown when `version` is not a valid NuGet version string
   (propagated from `NuGetVersion.Parse`).
 - **`InvalidOperationException`**: Thrown when the requested package version cannot
-  be found in any configured NuGet source. The exception message identifies the
-  package identifier and version.
+  be found in any configured NuGet source, or when `RequireSignedPackages` rejects the package. The
+  exception message identifies the package identifier and version.
+- **`NuGetAuthenticationException`** (derived from `InvalidOperationException`): Thrown instead
+  whenever a source answered HTTP 401 or 403, with or without options.
 
 Transient source failures — unreachable hosts, network errors, or unsupported NuGet
 protocol versions — are handled gracefully by skipping the affected source and

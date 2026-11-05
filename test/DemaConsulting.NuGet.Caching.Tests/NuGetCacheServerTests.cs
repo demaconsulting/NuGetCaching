@@ -707,8 +707,7 @@ public class NuGetCacheServerTests
             server.RegisterV3PackageWithBasicAuth(packageId, version, nupkgBytes, "test-user", "test-password");
             var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
 
-            // Act - no credentials are configured, so every request receives HTTP 401
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            var exception = await Assert.ThrowsAsync<NuGetAuthenticationException>(
                 async () => await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None));
 
             // Assert - the diagnostic must be actionable: source name/URL plus 401/Unauthorized detail,
@@ -895,15 +894,15 @@ public class NuGetCacheServerTests
             var reads = 0;
             var assigned = false;
             CredentialServiceRegistrar.Register(
-                () => ++reads >= 3 ? hostOwned : store,
+                () => ++reads >= 2 ? hostOwned : store,
                 v => assigned = true,
-                () => store = defaultLazy);
+                () => defaultLazy.Value);
             Assert.False(assigned);
 
             // No interference: the wrapper is assigned
             store = null;
             Lazy<global::NuGet.Configuration.ICredentialService>? result = null;
-            CredentialServiceRegistrar.Register(() => store, v => result = v, () => store = defaultLazy);
+            CredentialServiceRegistrar.Register(() => store, v => result = v, () => defaultLazy.Value);
             Assert.NotNull(result);
             Assert.NotSame(defaultLazy, result);
         }
@@ -911,6 +910,78 @@ public class NuGetCacheServerTests
         {
             HttpHandlerResourceV3.CredentialService = original;
         }
+    }
+
+    /// <summary>
+    ///     Tests that a host service already present is left alone and the default service is never created.
+    /// </summary>
+    [Fact]
+    public void CredentialServiceRegistrar_Register_HostServiceAlreadyPresent_DoesNotCreateDefault()
+    {
+        var hostOwned = new Lazy<global::NuGet.Configuration.ICredentialService>(() => new StubCredentialService());
+        var created = 0;
+        var assigned = 0;
+
+        CredentialServiceRegistrar.Register(
+            () => hostOwned,
+            _ => assigned++,
+            () =>
+            {
+                created++;
+                return new StubCredentialService();
+            });
+
+        Assert.Equal(0, created);
+        Assert.Equal(0, assigned);
+    }
+
+    /// <summary>
+    ///     Tests that concurrent registrations create the default service once and assign exactly once.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task CredentialServiceRegistrar_Register_ConcurrentCalls_AssignExactlyOnce()
+    {
+        Lazy<global::NuGet.Configuration.ICredentialService>? store = null;
+        var created = 0;
+        var assigned = 0;
+
+        await Task.WhenAll(Enumerable.Range(0, 32).Select(_ => Task.Run(() =>
+            CredentialServiceRegistrar.Register(
+                () => Volatile.Read(ref store),
+                v =>
+                {
+                    Interlocked.Increment(ref assigned);
+                    Volatile.Write(ref store, v);
+                },
+                () =>
+                {
+                    Interlocked.Increment(ref created);
+                    return new StubCredentialService();
+                }))));
+
+        Assert.Equal(1, created);
+        Assert.Equal(1, assigned);
+        Assert.NotNull(store);
+    }
+
+    /// <summary>
+    ///     Tests that a failure creating the default service assigns nothing and does not poison later attempts.
+    /// </summary>
+    [Fact]
+    public void CredentialServiceRegistrar_Register_CreateDefaultThrows_AssignsNothingAndRecovers()
+    {
+        Lazy<global::NuGet.Configuration.ICredentialService>? store = null;
+
+        Assert.Throws<InvalidOperationException>(() =>
+            CredentialServiceRegistrar.Register(
+                () => store,
+                v => store = v,
+                () => throw new InvalidOperationException("boom")));
+        Assert.Null(store);
+
+        CredentialServiceRegistrar.Register(() => store, v => store = v, () => new StubCredentialService());
+        Assert.NotNull(store);
     }
 
     /// <summary>

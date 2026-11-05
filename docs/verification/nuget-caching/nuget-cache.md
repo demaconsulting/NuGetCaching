@@ -255,7 +255,7 @@ reported as an actionable authentication diagnostic rather than a generic, indis
 #### NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar
 
 **Scenario**: An ordinary, unauthenticated WireMock v3 feed. The internal `EnsureCachedAsync`
-overload is called with an injected `SpyCredentialServiceRegistrar` test double (implementing
+The internal core is called with an injected `SpyCredentialServiceRegistrar` test double (implementing
 `ICredentialServiceRegistrar`) against a fresh, empty global packages folder.
 
 **Expected**: After the call completes, the spy's invocation counter is exactly `1`, directly
@@ -269,8 +269,8 @@ so neither would catch a regression that removed or skipped the registration cal
 
 #### NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
 
-**Scenario**: An ordinary, unauthenticated WireMock v3 feed. The public `ISettings`-only
-`EnsureCachedAsync` overload (which delegates to the real, default `CredentialServiceRegistrar`)
+**Scenario**: An ordinary, unauthenticated WireMock v3 feed. The `ISettings`-only internal
+`EnsureCachedAsync` seam (which delegates to the real, default `CredentialServiceRegistrar`)
 is called against a fresh, empty global packages folder.
 
 **Expected**: After the call completes, `HttpHandlerResourceV3.CredentialService` is non-null,
@@ -408,7 +408,7 @@ invoked, proving cancellation is observed before registration and source enumera
 
 #### NuGetCache_GetVersionsAsync_AnySource_InvokesCredentialServiceRegistrar
 
-**Scenario**: The internal overload is called with a spy `ICredentialServiceRegistrar`.
+**Scenario**: The internal core is called with a spy `ICredentialServiceRegistrar`.
 
 **Expected**: The spy is invoked exactly once.
 
@@ -440,29 +440,28 @@ invoked, proving cancellation is observed before registration and source enumera
 
 #### NuGetCache_GetVersionsAsync_NullInternalArguments_ThrowsArgumentNullException
 
-**Scenario**: The internal overload is called with a null `packageId`, `settings`, or registrar.
+**Scenario**: The internal core is called with a null `packageId`, `settings`, or registrar.
 
 **Expected**: Throws `ArgumentNullException` in each case.
 
 **Requirement coverage**: `Caching-NuGetCache-GetVersionsNullArguments`.
 
-#### Options overload scenarios
+#### Options scenarios
 
 The following tests live in `NuGetCacheOptionsTests` and `CredentialDispatcherTests`. The
 callback tests run against a local `NuGetTestServer` returning 401 until it receives HTTP basic
-authentication, and call the internal options overloads with a fresh registrar so the
+authentication, and call the internal cores with a fresh registrar so the
 process-wide credential service can be isolated and restored.
 
-- **NuGetCacheOptions_Default_MatchesVersion150Behavior**: a new `NuGetCacheOptions` has
-  non-interactive mode, no logger, no callback, and no timeout. Covers `OptionsOverloads`.
-- **NuGetCache_OptionsOverloads_NullArguments_Throw**: both public options overloads throw
-  `ArgumentNullException` for a null `options`. Covers `OptionsOverloads`.
-- **NuGetCache_Version150CallForms_BindToVersion150Overloads**: calls with the 1.5.0 argument
-  shapes, including a positional `default` token on both `GetVersionsAsync` and `EnsureCachedAsync`,
-  compile unambiguously against and run the 1.5.0 overloads. Covers `OptionsOverloads`.
-- **NuGetCache_OptionsOverloads_Signature_HasRequiredTokenThenOptionsLast**: reflection check that the
-  public options overloads are `(..., CancellationToken, NuGetCacheOptions)` with no optional
-  parameters. Covers `OptionsOverloads`.
+- **NuGetCacheOptions_Default_HasAllOptionsOff**: a new `NuGetCacheOptions` has
+  non-interactive mode, no logger, no callback, no timeout, no explicit sources, local sources off, and
+  signed packages not required. Covers `SingleApiShape`.
+- **NuGetCache_PublicMethods_InvalidArguments_Throw**: the public methods throw
+  `ArgumentNullException`/`ArgumentException` for a null or blank `packageId` (and a null `version`).
+  Covers `SingleApiShape`.
+- **NuGetCache_PublicMethods_Signature_HasOptionalRootOptionsThenToken**: reflection check that the public
+  methods are `(..., string? root = null, NuGetCacheOptions? options = null, CancellationToken = default)`.
+  Covers `SingleApiShape`.
 - **NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source** and
   **NuGetCache_GetVersionsAsync_CallbackSuppliesCredentials_ReturnsVersions**: the callback
   returns basic credentials after the 401 and the operation succeeds. Covers `CredentialCallback`.
@@ -472,8 +471,11 @@ process-wide credential service can be isolated and restored.
 - **NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails**: wrong
   credentials are asked for once per URI and request type, not in a loop. Covers `CredentialCallback`.
 - **NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException**: 401 with no
-  credentials throws `NuGetAuthenticationException` from the options overloads and a plain
-  `InvalidOperationException` from the 1.5.0 overloads. Covers `AuthenticationException`.
+  credentials throws `NuGetAuthenticationException`, with or without options. Covers
+  `AuthenticationException`; **NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException**
+  covers the same for `ListVersionsAsync`; **NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException**
+  covers a 401 on the registration endpoint with a public flat container (not swallowed by the
+  metadata fallback; recorded as a source failure and thrown because nothing was found).
 - **NuGetAuthenticationException_Properties_AreExposed**: `Source`, `Uri`, and message are
   preserved. Covers `AuthenticationException`.
 - **NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: a
@@ -483,13 +485,54 @@ process-wide credential service can be isolated and restored.
   cover the same guarantee.
   Covers `AuthenticationTimeout`.
 - **NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException** (zero, negative,
-  and over-`int.MaxValue`-ms timeouts, both overloads) and
+  and over-`int.MaxValue`-ms timeouts, all three async methods) and
   **NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow** (null, infinite, 1 tick, max). Cover
   `AuthenticationTimeout` validation.
 - **NuGetCache_InvalidAuthenticationTimeout_ValidatedBeforeSettingsLoad**: with a root holding a
   malformed `nuget.config` (settings loading fails), an invalid timeout still throws
-  `ArgumentOutOfRangeException` from both options overloads, proving validation precedes settings
+  `ArgumentOutOfRangeException` from the public methods, proving validation precedes settings
   loading. Covers `AuthenticationTimeout` validation.
+
+#### Sources, listing, and signature scenarios
+
+These tests live in `NuGetCacheSourcesTests`, `NuGetCacheListingTests`, and `NuGetCacheSignatureTests`
+and use `NuGetTestServer` (WireMock) or local folder sources.
+
+- **NuGetCacheOptions_Validate_InvalidSourceEntry_ThrowsArgumentException** and
+  **NuGetCacheOptions_Validate_ValidSources_DoNotThrow**: `Sources` entries that are null, blank, or
+  malformed are rejected; names, URLs, and rooted paths are accepted.
+- **NuGetCache_Sources_UnknownRelativeEntry_ThrowsArgumentException**: an entry that is neither a configured
+  name, URL, nor rooted path throws.
+- **NuGetCache_Sources_ExplicitUrl_ReplacesConfiguredSources**,
+  **NuGetCache_Sources_ConfiguredName_ResolvesToConfiguredSource**,
+  **NuGetCache_Sources_ExplicitSource_BypassesSourceMapping**, and
+  **NuGetCache_Sources_DuplicateEntries_QueryTheSourceOnce**: explicit sources replace configured ones, a
+  configured name reuses the configured source, package source mapping is bypassed, and duplicates are
+  queried once. Cover `Sources`.
+- **NuGetCache_GetVersionsAsync_LocalSource_RequiresIncludeLocalSourcesOrExplicitSource** and
+  **NuGetCache_EnsureCachedAsync_LocalSource_IsAlwaysConsulted**: local sources are skipped by version
+  queries unless `IncludeLocalSources` or an explicit source applies, and are always used for download.
+  Cover `IncludeLocalSources`.
+- **NuGetCache_GetCachedVersions_InstalledVersions_ReturnsCompleteOnesSorted**,
+  **NuGetCache_GetCachedVersions_NotInstalled_ReturnsEmptyWithoutNetworkAccess**, and
+  **NuGetCache_GetCachedVersions_RootWithConfig_ReadsConfiguredGlobalPackagesFolder**: installed versions
+  are returned sorted, only complete installs count, nothing is installed yields an empty list with no
+  HTTP traffic, and the `nuget.config` global packages folder is honored. Cover `GetCachedVersions`.
+- **NuGetCache_ListVersionsAsync_RegistrationMetadata_ReturnsListedStateAndPublishedDate**,
+  **NuGetCache_ListVersionsAsync_NoRegistrationMetadata_FallsBackToFlatList**,
+  **NuGetCache_ListVersionsAsync_VersionInTwoSources_FirstSourceWins**, and
+  **NuGetPackageVersion_Record_HasValueSemantics**: metadata supplies listed state and date, absent
+  metadata falls back to the flat list, the first source wins, and the record has value equality. Cover
+  `ListVersions`.
+- **NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException**,
+  **NuGetCache_RequireSignedPackages_Off_AcceptsUnsignedPackage**, and
+  **NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: an unsigned
+  package is rejected on download and on cache hit when required, and accepted otherwise. Cover
+  `RequireSignedPackages`; the invalid-signature fixtures are a package with a corrupt signature entry, and
+  acceptance, trusted-signer matching and mismatch (download and cache hit) use a real signed nuget.org
+  package (Newtonsoft.Json 13.0.1, downloaded at test time with a pinned SHA-256, skipped when offline, no
+  checked-in binary) with offline revocation checking; see the signature scenarios in the
+  package-downloader verification design.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
   while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.
 - **NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret**,
@@ -523,10 +566,10 @@ process-wide credential service can be isolated and restored.
   NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
 - **`Caching-NuGetCache-AuthDiagnostic`**:
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
-- **`Caching-NuGetCache-OptionsOverloads`**:
-  NuGetCacheOptions_Default_MatchesVersion150Behavior,
-  NuGetCache_OptionsOverloads_NullArguments_Throw,
-  NuGetCache_Version150CallForms_BindToVersion150Overloads,
+- **`Caching-NuGetCache-SingleApiShape`**:
+  NuGetCacheOptions_Default_HasAllOptionsOff,
+  NuGetCache_PublicMethods_Signature_HasOptionalRootOptionsThenToken,
+  NuGetCache_PublicMethods_InvalidArguments_Throw,
   NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings
 - **`Caching-NuGetCache-CredentialCallback`**:
   NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source,
@@ -535,9 +578,13 @@ process-wide credential service can be isolated and restored.
   NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails
 - **`Caching-NuGetCache-AuthenticationException`**:
   NuGetAuthenticationException_Properties_AreExposed,
-  NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException
+  NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException,
+  NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic,
+  NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException,
+  NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException
 - **`Caching-NuGetCache-AuthenticationTimeout`**:
   NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
+  NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
   NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow,
   NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException,
   NuGetCache_InvalidAuthenticationTimeout_ValidatedBeforeSettingsLoad
@@ -581,6 +628,38 @@ process-wide credential service can be isolated and restored.
 - **`Caching-NuGetCache-GetVersionsNullArguments`**:
   NuGetCache_GetVersionsAsync_NullPackageId_ThrowsArgumentNullException,
   NuGetCache_GetVersionsAsync_NullInternalArguments_ThrowsArgumentNullException
+- **`Caching-NuGetCache-Sources`**:
+  NuGetCacheOptions_Validate_InvalidSourceEntry_ThrowsArgumentException,
+  NuGetCacheOptions_Validate_ValidSources_DoNotThrow,
+  NuGetCache_Sources_UnknownRelativeEntry_ThrowsArgumentException,
+  NuGetCache_Sources_ExplicitUrl_ReplacesConfiguredSources,
+  NuGetCache_Sources_ConfiguredName_ResolvesToConfiguredSource,
+  NuGetCache_Sources_ExplicitSource_BypassesSourceMapping,
+  NuGetCache_Sources_DuplicateEntries_QueryTheSourceOnce
+- **`Caching-NuGetCache-IncludeLocalSources`**:
+  NuGetCache_GetVersionsAsync_LocalSource_RequiresIncludeLocalSourcesOrExplicitSource,
+  NuGetCache_EnsureCachedAsync_LocalSource_IsAlwaysConsulted
+- **`Caching-NuGetCache-GetCachedVersions`**:
+  NuGetCache_GetCachedVersions_InstalledVersions_ReturnsCompleteOnesSorted,
+  NuGetCache_GetCachedVersions_NotInstalled_ReturnsEmptyWithoutNetworkAccess,
+  NuGetCache_GetCachedVersions_RootWithConfig_ReadsConfiguredGlobalPackagesFolder
+- **`Caching-NuGetCache-ListVersions`**:
+  NuGetCache_ListVersionsAsync_RegistrationMetadata_ReturnsListedStateAndPublishedDate,
+  NuGetCache_ListVersionsAsync_NoRegistrationMetadata_FallsBackToFlatList,
+  NuGetCache_ListVersionsAsync_VersionInTwoSources_FirstSourceWins,
+  NuGetPackageVersion_Record_HasValueSemantics
+- **`Caching-NuGetCache-RequireSignedPackages`**:
+  NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_Off_AcceptsUnsignedPackage,
+  NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit,
+  NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit
 - **`Caching-NuGetCache-NotFound`**:
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion,

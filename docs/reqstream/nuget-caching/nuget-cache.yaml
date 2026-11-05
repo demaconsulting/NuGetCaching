@@ -196,22 +196,21 @@ sections:
         tests:
           - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
 
-      - id: Caching-NuGetCache-OptionsOverloads
+      - id: Caching-NuGetCache-SingleApiShape
         title: >-
-          The EnsureCachedAsync and GetVersionsAsync methods shall provide additional
-          overloads that accept a required NuGetCacheOptions argument, shall reject a
-          null options argument with ArgumentNullException, and shall leave the existing
-          overloads' signatures and behavior unchanged.
+          The EnsureCachedAsync, GetVersionsAsync, and ListVersionsAsync methods shall each
+          be a single public method with optional root, options, and cancellation-token
+          parameters (options before the token), and shall reject a null, empty, or
+          white-space package ID.
         justification: |
-          Callers that need interactive credential acquisition, logging, or an
-          authentication timeout need a way to supply them per call. Adding new
-          overloads, rather than changing existing signatures, keeps the library
-          source- and binary-compatible with version 1.5.0 callers, and a call that
-          supplies no options must behave exactly as before.
+          A single method per operation, with every configuration knob in one optional
+          NuGetCacheOptions argument, keeps the API small and lets new options be added
+          without adding overloads. Validating the package ID up front gives callers a clear
+          error before any I/O. A call that supplies no options runs with every option off.
         tests:
-          - NuGetCacheOptions_Default_MatchesVersion150Behavior
-          - NuGetCache_OptionsOverloads_NullArguments_Throw
-          - NuGetCache_Version150CallForms_BindToVersion150Overloads
+          - NuGetCacheOptions_Default_HasAllOptionsOff
+          - NuGetCache_PublicMethods_Signature_HasOptionalRootOptionsThenToken
+          - NuGetCache_PublicMethods_InvalidArguments_Throw
           - NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings
 
       - id: Caching-NuGetCache-CredentialCallback
@@ -239,19 +238,22 @@ sections:
 
       - id: Caching-NuGetCache-AuthenticationException
         title: >-
-          The options overloads shall throw NuGetAuthenticationException, identifying the
-          source and URI, when the operation fails and a source rejected a request with
-          401 or 403.
+          Every operation shall throw NuGetAuthenticationException, identifying the source
+          and URI, when the operation fails and a source rejected a request with 401 or 403,
+          whether or not options were supplied.
         justification: |
           Callers need to distinguish an authentication failure from other failures
           programmatically instead of parsing a message. The exception derives from
-          InvalidOperationException, so existing handlers keep working; the 1.5.0
-          overloads keep throwing a plain InvalidOperationException.
+          InvalidOperationException, so handlers that catch InvalidOperationException keep
+          working.
         children:
           - Caching-PackageDownloader-AuthFailureInfo
         tests:
           - NuGetAuthenticationException_Properties_AreExposed
           - NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException
+          - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
+          - NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException
+          - NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException
 
       - id: Caching-NuGetCache-AuthenticationTimeout
         title: >-
@@ -261,8 +263,9 @@ sections:
           A credential callback or interactive provider that waits for a human can
           block an unattended build forever. A bounded wait lets the caller fail fast.
           The timeout abandons the wait and cancels the token supplied to the callback;
-          it does not guarantee that an external credential-provider plugin process is
-          terminated. The cancellation is guaranteed even when NuGet retries or wraps the
+          it does not terminate an external credential-provider plugin process, because
+          NuGet's plugin manager owns it and ends it on its idle timeout or at process exit.
+          The cancellation is guaranteed even when NuGet retries or wraps the
           failed request, for both EnsureCachedAsync and GetVersionsAsync. A timeout that
           is zero, negative (other than Timeout.InfiniteTimeSpan) or longer than
           Int32.MaxValue milliseconds is rejected with ArgumentOutOfRangeException.
@@ -347,10 +350,11 @@ sections:
         title: >-
           The GetVersionsAsync method shall query only the enabled remote (HTTP/HTTPS)
           package sources permitted for the package by package source mapping, excluding
-          local folder sources.
+          local folder sources unless IncludeLocalSources is set or the local source is
+          named explicitly in Sources.
         justification: |
           Version discovery answers what a feed offers. Local folder feeds and the global
-          packages folder are not remote feeds, so they are excluded, while enabled-source
+          packages folder are not remote feeds, so they are excluded by default, while enabled-source
           selection and package source mapping match EnsureCachedAsync to prevent drift.
         children:
           - Caching-PackageSourceResolver-Resolve
@@ -435,3 +439,85 @@ sections:
         tests:
           - NuGetCache_GetVersionsAsync_NullPackageId_ThrowsArgumentNullException
           - NuGetCache_GetVersionsAsync_NullInternalArguments_ThrowsArgumentNullException
+
+      - id: Caching-NuGetCache-Sources
+        title: >-
+          When Sources is supplied, the library shall use exactly those sources instead of
+          the configured ones, resolving each entry as a configured source name, an
+          http(s) URL, a file URI, or a rooted path, bypassing package source mapping,
+          collapsing duplicates, and rejecting any other entry with ArgumentException.
+        justification: |
+          Callers that know where a package lives (a specific feed or local folder) need to
+          direct a call there without editing nuget.config. Naming a configured source keeps
+          its credentials; anything unrecognized is an error rather than a silently ignored
+          entry.
+        tests:
+          - NuGetCacheOptions_Validate_InvalidSourceEntry_ThrowsArgumentException
+          - NuGetCacheOptions_Validate_ValidSources_DoNotThrow
+          - NuGetCache_Sources_UnknownRelativeEntry_ThrowsArgumentException
+          - NuGetCache_Sources_ExplicitUrl_ReplacesConfiguredSources
+          - NuGetCache_Sources_ConfiguredName_ResolvesToConfiguredSource
+          - NuGetCache_Sources_ExplicitSource_BypassesSourceMapping
+          - NuGetCache_Sources_DuplicateEntries_QueryTheSourceOnce
+
+      - id: Caching-NuGetCache-IncludeLocalSources
+        title: >-
+          The version operations shall include enabled local folder sources only when
+          IncludeLocalSources is set or the local source is named in Sources, while
+          EnsureCachedAsync shall always consult local sources.
+        justification: |
+          Local feeds are common in offline and build-output scenarios but were historically
+          excluded from discovery; an opt-in keeps the default behavior while enabling them.
+        tests:
+          - NuGetCache_GetVersionsAsync_LocalSource_RequiresIncludeLocalSourcesOrExplicitSource
+          - NuGetCache_EnsureCachedAsync_LocalSource_IsAlwaysConsulted
+
+      - id: Caching-NuGetCache-GetCachedVersions
+        title: >-
+          The GetCachedVersions method shall synchronously return, without any network
+          access, the completely installed versions of a package in the global packages
+          folder in ascending order, and an empty list when none are installed.
+        justification: |
+          Offline callers need to know what is already available before deciding to download;
+          the completeness marker avoids reporting partially extracted packages.
+        tests:
+          - NuGetCache_GetCachedVersions_InstalledVersions_ReturnsCompleteOnesSorted
+          - NuGetCache_GetCachedVersions_NotInstalled_ReturnsEmptyWithoutNetworkAccess
+          - NuGetCache_GetCachedVersions_RootWithConfig_ReadsConfiguredGlobalPackagesFolder
+
+      - id: Caching-NuGetCache-ListVersions
+        title: >-
+          The ListVersionsAsync method shall return, per version, the source, whether the
+          version is listed, and its publication date when the source provides them, falling
+          back to the flat version list (listed, no date) otherwise.
+        justification: |
+          Callers choosing a version often need to skip unlisted versions or order by release
+          date, which the plain string list cannot express. The fallback keeps the method
+          usable against sources without package metadata.
+        tests:
+          - NuGetCache_ListVersionsAsync_RegistrationMetadata_ReturnsListedStateAndPublishedDate
+          - NuGetCache_ListVersionsAsync_NoRegistrationMetadata_FallsBackToFlatList
+          - NuGetCache_ListVersionsAsync_VersionInTwoSources_FirstSourceWins
+          - NuGetPackageVersion_Record_HasValueSemantics
+
+      - id: Caching-NuGetCache-RequireSignedPackages
+        title: >-
+          When RequireSignedPackages is set, EnsureCachedAsync shall reject a package that
+          is unsigned or has an invalid signature with InvalidOperationException, both when
+          downloading it and when it is already installed.
+        justification: |
+          Supply-chain-sensitive callers must be able to refuse unsigned content per call
+          without changing nuget.config, and the already-installed fast path must not bypass
+          that policy.
+        tests:
+          - NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_Off_AcceptsUnsignedPackage
+          - NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit
+          - NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit
+          - NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit
+          - NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit

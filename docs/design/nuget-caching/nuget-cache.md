@@ -29,14 +29,22 @@ packages when they are not already present locally.
 ### Data Model
 
 `NuGetCache` is a static class with no fields, properties, or instance state; all state is
-local to each call. Public method parameters use only BCL types: `string packageId`,
-`string version` (for `EnsureCachedAsync`), `bool includePrerelease` (for `GetVersionsAsync`),
-`string? root`, and `CancellationToken`. `EnsureCachedAsync` returns an absolute folder path
-(`Task<string>`) and `GetVersionsAsync` returns normalized version strings
-(`Task<IReadOnlyList<string>>`, ascending semantic order, no duplicates). Internally
-`NuGetVersion` is used for parsing, sorting (via `SortedSet<NuGetVersion>`), and
-normalization, but never appears in a public signature. Internal overloads additionally
-accept `ISettings` and `ICredentialServiceRegistrar` as injection seams for testing.
+local to each call. It exposes four public operations, each with one public method:
+`EnsureCachedAsync(packageId, version, root = null, options = null, cancellationToken = default)`
+returning the absolute package folder (`Task<string>`);
+`GetVersionsAsync(packageId, includePrerelease = false, root = null, options = null, cancellationToken = default)`
+returning normalized version strings (`Task<IReadOnlyList<string>>`, ascending semantic order, no
+duplicates); `ListVersionsAsync` with the same parameters returning `Task<IReadOnlyList<NuGetPackageVersion>>`
+(version, source, listed flag, publication date); and the synchronous, offline
+`GetCachedVersions(packageId, root = null)` returning installed version strings. Public parameters use
+only BCL types plus `NuGetCacheOptions` and the `NuGetPackageVersion` record. Internally `NuGetVersion` is
+used for parsing, sorting, and normalization but never appears in a public signature.
+
+The internal cores (`EnsureCachedAsync`, `GetVersionsAsync`, `ListVersionsAsync` taking `ISettings`,
+`NuGetCacheOptions?`, and an `ICredentialServiceRegistrar`, plus `GetCachedVersionsCore`) are the single
+implementation of each operation and the injection seams for tests. A few thin internal overloads (settings
+only, or settings plus registrar, without options) exist purely so existing tests need not spell out
+`null` options; they hold no logic.
 
 ### Design Decisions
 
@@ -81,7 +89,7 @@ partially-extracted package directory is mistaken for a complete installation.
 
 #### Credential Service Registration
 
-Before resolving any `SourceRepository`, the internal `EnsureCachedAsync` overload calls
+Before resolving any `SourceRepository`, the internal `EnsureCachedAsync` core calls
 `ICredentialServiceRegistrar.EnsureRegistered()` on an injected registrar (see the
 `CredentialServiceRegistrar` design document for the full registration rationale and
 memoization strategy). This registers the NuGet SDK's default credential service,
@@ -94,7 +102,7 @@ regardless of credential-service registration; the credential service becomes re
 when those static credentials are absent, incorrect, or when a credential-provider
 plugin must be consulted. `NuGetCache` uses `CredentialServiceRegistrar.DefaultCredentialRegistrar`
 (a single static instance shared by every real, non-test call) as the default registrar for
-the public and `ISettings`-only overloads, injected through the internal
+the public methods, injected through the internal
 `ICredentialServiceRegistrar` seam (mirroring the existing `ISettings` injection seam) so
 tests can substitute a spy double instead of depending on any shared, process-wide
 test-only state.
@@ -144,21 +152,58 @@ misconfiguration, without requiring additional logging infrastructure.
 
 #### Version Discovery
 
-`GetVersionsAsync` complements `EnsureCachedAsync`. Design decisions: the public API is
-string-only (no `NuGetVersion` in public signatures) so consumers need no NuGet dependency;
-`NuGetVersion` is used internally for semantic sort and de-duplication; only remote sources
-are queried (the global packages folder is not a feed, and local folder sources and any other
-non-HTTP/HTTPS sources are excluded by an explicit `PackageSource.IsHttp` predicate); an unknown package yields an empty
+`GetVersionsAsync` and `ListVersionsAsync` complement `EnsureCachedAsync` and share one private
+implementation (`QueryVersionsAsync`). Design decisions: `GetVersionsAsync` is string-only (no `NuGetVersion` in
+public signatures) so consumers need no NuGet dependency, and it uses the cheap flat version list;
+`ListVersionsAsync` reads package metadata (`PackageMetadataResource`, unlisted versions included)
+to report the listed flag and publication date, falling back to the flat list (listed, no date) when
+a source has no metadata; `NuGetVersion` is used internally for semantic sort and de-duplication, and
+the first source that reports a version wins; the global packages folder is never queried;
+by default only remote (`PackageSource.IsHttp`) sources are queried, local folder sources join when
+`IncludeLocalSources` is set or when they are named in `Sources`, and any other non-HTTP/HTTPS, non-local
+source is excluded; an unknown package yields an empty
 list; unreachable sources are skipped like in `EnsureCachedAsync`, with an
 `InvalidOperationException` carrying per-source diagnostics thrown only when nothing was found and
 a source failed; and source selection
 (including package source mapping) is shared through a private `GetAllowedSources` helper
-to prevent drift between the two methods.
+to prevent drift between the operations.
+
+#### Explicit Sources
+
+When `NuGetCacheOptions.Sources` is set, `ResolveSources` uses exactly those sources instead of the
+configured ones and bypasses package source mapping. Each entry is resolved, in order, as a configured
+source name (even a disabled one), an http(s) URL, a `file:` URI, or a rooted path; an entry equal to a
+configured source reuses it so its credentials and protocol version apply; duplicates are collapsed; anything
+else throws `ArgumentException` (parameter name `Sources`). `NuGetCacheOptions.Validate()` rejects
+null, empty, white-space, and malformed-URI entries up front.
+
+#### Signature Requirement
+
+`NuGetCacheOptions.RequireSignedPackages` makes `EnsureCachedAsync` require signed packages for this call
+only. A `ClientPolicyContext` cannot be constructed publicly, so `PackageDownloader.CreateClientPolicy` builds
+one from an `ISettings` decorator (`RequireSignedSettings`) that overrides only the `config` section with
+`signatureValidationMode=require`; the section is read once from a short-lived temporary `nuget.config`
+(the in-memory section types are internal to NuGet), and other sections, including `trustedSigners`,
+pass through to the real settings. NuGet's own install-time verification is a silent no-op on Linux and
+macOS unless `DOTNET_NUGET_SIGNATURE_VERIFICATION=true` is set (`CanVerifySignedPackages` returns false), so
+the library never relies on it alone: whenever the effective policy is `require` - from the option or from
+`signatureValidationMode=require` in `nuget.config` - `PackageDownloader` verifies the package explicitly
+(must be signed; integrity, the `trustedSigners` allow-list only when signers are configured, trust and
+validity) before installing it, on every
+platform. With no `trustedSigners` configured, any validly signed package with a trusted signature is
+accepted; the allow-list is never applied as an empty set. When the explicit check passes with no signers
+configured, the install itself uses an accept-mode policy so NuGet's own Windows check cannot reject it for
+the missing allow-list. A failure, including a `SignatureException` from NuGet, surfaces as `InvalidOperationException`
+naming the package, version and source (it is not treated as "not in this source"). On the cache-hit fast
+path, `NuGetCache` builds the policy only when a requirement applies - the option or
+`signatureValidationMode=require` read from `nuget.config` - so ordinary hits create no policy context, and
+`PackageDownloader.VerifyCachedPackageSignedAsync` then applies the same explicit verification (including the
+same allow-list rule) to the installed package. A call without the option follows the `nuget.config` setting as before.
 
 #### Testability via Injected Settings
 
-The public `EnsureCachedAsync` method is a thin wrapper that calls the internal overload
-with `Settings.LoadDefaultSettings(root)`. The internal overload accepts an `ISettings`
+Each public method is a thin wrapper that calls the internal core
+with `Settings.LoadDefaultSettings(root)`. The internal core accepts an `ISettings`
 parameter that replaces the call to `LoadDefaultSettings`. This design gives tests full
 control over the NuGet source and global packages folder without touching the developer's
 real machine configuration:
@@ -166,108 +211,105 @@ real machine configuration:
 - A test can point the settings at a local WireMock server running on a random port.
 - A test can specify a disposable temp directory as the global packages folder, preventing
   cross-test pollution and avoiding accidental use of the developer's real package cache.
-- All caching logic lives in one place (the internal overload), so there is a single
+- All caching logic lives in one place (the internal core), so there is a single
   implementation path shared by both the production (default-settings) call and all tests.
 
-The internal overload is only accessible to the `DemaConsulting.NuGet.Caching.Tests`
+The internal members are only accessible to the `DemaConsulting.NuGet.Caching.Tests`
 assembly, enforced via `InternalsVisibleTo` in the library project file. This keeps the
 public API surface minimal while enabling complete test coverage of the download path.
-
-A third, further internal overload additionally accepts an explicit
+The internal cores additionally accept an explicit
 `ICredentialServiceRegistrar`, letting tests inject a spy double to directly verify
 credential-service registration invocation (see "Credential Service Registration" above)
 without depending on shared, process-wide static state.
 
 ### Key Methods
 
-#### `EnsureCachedAsync(string packageId, string version, string? root, CancellationToken)` (public)
+#### `EnsureCachedAsync(packageId, version, root, options, cancellationToken)` (public)
 
-Thin wrapper that delegates immediately to the internal `EnsureCachedAsync` overload,
+Thin wrapper that delegates immediately to the internal core,
 passing `Settings.LoadDefaultSettings(root ?? Directory.GetCurrentDirectory())` as the
 `settings` argument. Callers should pass the directory containing their project or
 `packages.config` file as `root` so that a repo-local `nuget.config` is discovered the
 same way `dotnet restore` discovers it; omitting `root` falls back to the current working
-directory. See the internal overload description below for the complete processing steps.
+directory. See the internal core description below for the complete processing steps.
 
 Returns the absolute path to the cached package folder.
 
-Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullPackageId`,
+Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-SingleApiShape`,
+`Caching-NuGetCache-NullPackageId`,
 `Caching-NuGetCache-NullVersion`, `Caching-NuGetCache-InvalidVersion`,
 `Caching-NuGetCache-TransientFailure`, `Caching-NuGetCache-MultiSource`,
 `Caching-NuGetCache-V2Fallback`, `Caching-NuGetCache-CacheHit`, `Caching-NuGetCache-NotFound`,
-`Caching-NuGetCache-HonorCredentials`, and `Caching-NuGetCache-AuthDiagnostic`.
+`Caching-NuGetCache-HonorCredentials`, `Caching-NuGetCache-AuthDiagnostic`,
+`Caching-NuGetCache-Sources`, `Caching-NuGetCache-IncludeLocalSources`, and
+`Caching-NuGetCache-RequireSignedPackages`.
 
-#### `EnsureCachedAsync(string packageId, string version, ISettings settings, CancellationToken)` (internal)
-
-Thin wrapper that delegates immediately to a further internal `EnsureCachedAsync` overload,
-passing `CredentialServiceRegistrar.DefaultCredentialRegistrar` - a single static
-`CredentialServiceRegistrar` instance shared by every real (non-test) call in the process -
-as the `credentialRegistrar` argument. This overload exists to support testing with an
-injected `ISettings`; all non-test callers reach it only via the public wrapper. See the
-next overload for the complete processing steps.
-
-#### `EnsureCachedAsync(..., ISettings, ICredentialServiceRegistrar, CancellationToken)` (internal)
+#### `EnsureCachedAsync(..., ISettings, NuGetCacheOptions?, ICredentialServiceRegistrar, CancellationToken)` (internal)
 
 Contains all orchestration logic for the public method. The method:
 
-1. Validates that `packageId`, `version`, `settings`, and `credentialRegistrar` are not
-   null, throwing `ArgumentNullException` for any null argument.
-2. Parses the `version` string using `NuGetVersion.Parse`, throwing
-   `ArgumentException` when the version string is not a valid NuGet version.
-3. Resolves the global packages folder from the injected `settings`.
+1. Validates that `packageId` is not null, empty or white space, that `version`, `settings`, and
+   `credentialRegistrar` are not null, and that `options` (when supplied) pass `Validate()`.
+2. Opens the per-call credential scope and parses the `version` string using `NuGetVersion.Parse`,
+   throwing `ArgumentException` when it is not a valid NuGet version.
+3. Resolves the global packages folder from the injected `settings` and builds the client policy
+   context (see "Signature Requirement").
 4. Computes the expected on-disk package path (via `PackageDownloader.GetPackagePath`) and
    returns it immediately if the `.nupkg.metadata` sentinel file exists (cache-hit fast
-   path) - skipping the remaining steps below, including credential-service registration,
-   entirely.
+   path) - after verifying the signature when `RequireSignedPackages` is set - and otherwise
+   skipping the remaining steps below, including credential-service registration, entirely.
 5. Calls `credentialRegistrar.EnsureRegistered()` so any subsequently resolved
    `SourceRepository` can consult the NuGet credential service for authenticated
    sources.
-6. Iterates over enabled, mapped package sources. For each source, calls
+6. Resolves the sources (explicit `Sources`, or enabled and mapped configured sources; local sources
+   are always consulted). For each source, calls
    `PackageSourceResolver.ResolveAsync` to resolve the resource (applying v2 fallback as
    needed), then `PackageDownloader.TryDownloadAsync` to download and install the package.
    Source-level diagnostic messages are accumulated in a list.
-7. Throws `InvalidOperationException` if no source provided the package. When at
+7. Throws `InvalidOperationException` if no source provided the package, or
+   `NuGetAuthenticationException` when a source answered 401/403. When at
    least one source returned a diagnostic message, those messages are appended to
    the exception so the caller can identify the misconfigured source.
 
 Returns the absolute path to the cached package folder.
 
-Satisfies requirements `Caching-NuGetCache-EnsureCached`, `Caching-NuGetCache-NullPackageId`,
-`Caching-NuGetCache-NullVersion`, `Caching-NuGetCache-InvalidVersion`,
-`Caching-NuGetCache-TransientFailure`, `Caching-NuGetCache-MultiSource`,
-`Caching-NuGetCache-V2Fallback`, `Caching-NuGetCache-CacheHit`, `Caching-NuGetCache-NotFound`,
-`Caching-NuGetCache-HonorCredentials`, and `Caching-NuGetCache-AuthDiagnostic`.
+#### `GetVersionsAsync(packageId, includePrerelease, root, options, cancellationToken)` (public)
 
-#### `GetVersionsAsync(string packageId, bool includePrerelease, string? root, CancellationToken)` (public)
-
-Validates `packageId`, then delegates to the internal overload with
+Validates `packageId` and delegates to the internal core with
 `Settings.LoadDefaultSettings(root ?? Directory.GetCurrentDirectory())`. The public signature
 uses only BCL types (`Task<IReadOnlyList<string>>`); `NuGetVersion` never appears in it, so
 callers need no dependency on NuGet types.
 
-#### `GetVersionsAsync` internal overloads (`ISettings`, and `ISettings` with `ICredentialServiceRegistrar`)
+#### `ListVersionsAsync(packageId, includePrerelease, root, options, cancellationToken)` (public)
 
-The first delegates to the second with `CredentialServiceRegistrar.DefaultCredentialRegistrar`.
-The second contains all logic:
+Identical in shape and source handling to `GetVersionsAsync` but returns `NuGetPackageVersion` records
+carrying the normalized version, the source name that supplied it, whether it is listed, and the
+publication date when known.
 
-1. Validates `packageId`, `settings`, and `credentialRegistrar` (`ArgumentNullException`).
-2. Calls `credentialRegistrar.EnsureRegistered()`.
-3. Selects sources via the shared private `GetAllowedSources` helper (enabled sources filtered
-   by package source mapping), keeping only HTTP/HTTPS sources via the explicit
-   `PackageSource.IsHttp` predicate - so local folder sources and any other non-HTTP source
-   are ignored - using the same helper as `EnsureCachedAsync`, which keeps local sources.
-4. For each source, resolves the resource through `PackageSourceResolver.ResolveAsync`
-   (skipping sources that yield no resource), then calls
-   `FindPackageByIdResource.GetAllVersionsAsync` using a fresh, non-caching
-   `SourceCacheContext`. `HttpRequestException` and `NuGetProtocolException` skip the source;
-   cancellation propagates.
-5. Adds versions to a `SortedSet<NuGetVersion>` (semantic ordering and de-duplication),
-   skipping prerelease versions unless `includePrerelease` is true.
-6. Returns the normalized strings (`ToNormalizedString`) as a list; empty when nothing is found.
+#### `GetCachedVersions(packageId, root)` (public, synchronous)
 
-Only remote (HTTP/HTTPS) sources are queried; local folder sources, other non-HTTP sources, and the global packages
-folder are not consulted (`EnsureCachedAsync` still uses local sources). A package that
-no source carries yields an empty list rather than an exception. Cancellation is honored:
+Validates `packageId`, loads the default settings rooted at `root`, and calls the internal
+`GetCachedVersionsCore`, which enumerates `{globalPackagesFolder}/{id.lower}/*`, keeps folders that
+contain the `.nupkg.metadata` completeness marker and parse as versions, and returns the normalized strings
+in ascending order. It performs no network access and never registers a credential service.
+
+#### Version query core (internal)
+
+The internal `GetVersionsAsync` and `ListVersionsAsync` cores delegate to the private
+`QueryVersionsAsync`, which:
+
+1. Validates `packageId`, `settings`, `credentialRegistrar`, and `options`, and honors a pre-canceled token.
+2. Opens the credential scope, calls `credentialRegistrar.EnsureRegistered()`, and resolves the sources
+   with the same rules as above, keeping local sources only for `IncludeLocalSources` or explicit `Sources`.
+3. For each source, resolves the resource through `PackageSourceResolver.ResolveAsync`, then reads the
+   versions (flat list, or package metadata for `ListVersionsAsync`) using a fresh `SourceCacheContext`.
+   `HttpRequestException` and `NuGetProtocolException` skip the source (an authentication failure is
+   recorded); cancellation propagates.
+4. Adds versions to a `SortedDictionary<NuGetVersion, NuGetPackageVersion>` (semantic ordering; the first
+   source wins), skipping prerelease versions unless `includePrerelease` is true.
+5. Returns the list; empty when nothing is found.
+
+A package that no source carries yields an empty list rather than an exception. Cancellation is honored:
 the token is checked between sources and `OperationCanceledException` propagates rather
 than being treated as a skipped source.
 
@@ -277,21 +319,18 @@ Satisfies requirements `Caching-NuGetCache-GetVersions`, `Caching-NuGetCache-Get
 `Caching-NuGetCache-GetVersionsAuth`, `Caching-NuGetCache-GetVersionsSourceFailure`,
 `Caching-NuGetCache-GetVersionsAllSourcesFail`,
 `Caching-NuGetCache-GetVersionsCancellation`, `Caching-NuGetCache-GetVersionsPrerelease`,
-`Caching-NuGetCache-GetVersionsNotFound`, and `Caching-NuGetCache-GetVersionsNullArguments`.
+`Caching-NuGetCache-GetVersionsNotFound`, `Caching-NuGetCache-GetVersionsNullArguments`,
+`Caching-NuGetCache-GetCachedVersions`, and `Caching-NuGetCache-ListVersions`.
 
-### Options Overloads
+### Options
 
-Two additional public overloads, `EnsureCachedAsync(packageId, version, root, CancellationToken
-cancellationToken, NuGetCacheOptions options)` and `GetVersionsAsync(packageId, includePrerelease, root,
-CancellationToken cancellationToken, NuGetCacheOptions options)`, accept a required
-`NuGetCacheOptions`. Both the token and the options are required and the options come last, so
-no 1.5.0 call form (including a positional `default` token, which would otherwise be ambiguous
-between `CancellationToken` and `NuGetCacheOptions`) can bind to them; this keeps the change source- and
-binary-compatible. Internal overloads taking `ISettings`, `NuGetCacheOptions?`, and an
-`ICredentialServiceRegistrar` are the shared implementation; the 1.5.0 internal overloads
-delegate to them with `null` options.
+Every method takes the optional `NuGetCacheOptions` argument (`Sources`, `IncludeLocalSources`,
+`RequireSignedPackages`, `Interactive`, `CredentialCallback`, `Logger`, `AuthenticationTimeout`). A call that
+passes `null` runs with every option off. Because `root`, `options`, and the token are all optional and the
+options precede the token, positional use such as `EnsureCachedAsync(id, version, null, null, token)` is
+unambiguous.
 
-When the options overloads run, `NuGetCache`:
+When a call runs, `NuGetCache`:
 
 1. Opens a `CredentialDispatcher` scope (an `AsyncLocal` call context holding the options and
    the adapted logger) for the duration of the call, so the process-wide dispatching credential
@@ -299,9 +338,9 @@ When the options overloads run, `NuGetCache`:
 2. Passes the logger (adapted from `Microsoft.Extensions.Logging.ILogger` by
    `NuGetLoggerAdapter`) to the NuGet SDK in place of the null logger.
 3. Records the first authentication failure reported by the sibling units
-   (`AuthFailureInfo`: source name and URL) and, if the operation fails, throws
+   (`AuthFailureInfo`: source name and URL) and, if the operation fails, always throws
    `NuGetAuthenticationException` (derived from `InvalidOperationException`) instead of a plain
-   `InvalidOperationException`. The 1.5.0 overloads keep throwing the plain type.
+   `InvalidOperationException`, whether or not options were supplied.
 4. Logs a warning when `Interactive`, `CredentialCallback`, or `AuthenticationTimeout` was supplied
    but a host application had already registered its own credential service (the host's service wins).
 5. Records an authentication failure against the effective repository (which may be the v2 fallback)
@@ -309,50 +348,59 @@ When the options overloads run, `NuGetCache`:
 
 Limitations: the credential service is process-wide, so a host-registered service bypasses the
 callback, timeout, and interactive mode. `AuthenticationTimeout` cancels the wait and the token
-given to the callback or provider; it does not guarantee that an external credential-provider
-plugin process is terminated (NuGet's `PluginManager` owns those processes, and this was not
-verified to dispose them). Versions are returned as NuGet-normalized strings and may carry
-`+metadata` or four parts.
+given to the callback or provider. Plugin lifetime was verified by decompiling NuGet.Protocol 7.3.1: the
+shared `PluginManager` (a static `Lazy` instance) starts a plugin with `CancellationToken.None`, so
+cancelling or timing out a request does not terminate the plugin process; it exits on NuGet's idle timeout
+(30 minutes by default, `NUGET_PLUGIN_IDLE_TIMEOUT_IN_SECONDS`), when it detects that the parent exited, or
+when the process ends. The library does not dispose the shared manager, because that would affect other users
+of NuGet in the same process and the SDK has no reset hook. Versions are returned as NuGet-normalized strings
+and may carry `+metadata` or four parts.
 
 ### Error Handling
 
 `EnsureCachedAsync`:
 
-- **Thrown to the caller**: `ArgumentNullException` (null `packageId`, `version`, `settings`,
-  `options` on the options overloads, or registrar), `ArgumentOutOfRangeException` (an
+- **Thrown to the caller**: `ArgumentNullException` (null `packageId`, `version`, `settings`, or
+  registrar), `ArgumentException` (empty or white-space `packageId`, an invalid `Sources` entry, or an invalid
+  version string propagated from `NuGetVersion.Parse`), `ArgumentOutOfRangeException` (an
   `AuthenticationTimeout` that is zero, negative other than `Timeout.InfiniteTimeSpan`, or longer than
   `int.MaxValue` milliseconds; checked by `NuGetCacheOptions.Validate()` before any I/O),
-  `ArgumentException` (invalid version string, propagated from `NuGetVersion.Parse`),
   `InvalidOperationException` when no source supplies the package (message includes
-  accumulated per-source diagnostics; `NuGetAuthenticationException` from the options overloads when
-  a source returned 401/403), and `OperationCanceledException` when the token is
+  accumulated per-source diagnostics) or when `RequireSignedPackages` rejects the package,
+  `NuGetAuthenticationException` when a source returned 401/403, and `OperationCanceledException` when the token is
   canceled or `AuthenticationTimeout` elapses (cancellation propagates unchanged; a timeout takes
   priority over any failure NuGet reported instead, via the scope's `ThrowIfTimedOut()` checks).
 - **Handled locally**: transient source failures are absorbed by the sibling units, which
   return an empty or diagnostic result so the next source is tried.
 
-`GetVersionsAsync`:
+`GetVersionsAsync` and `ListVersionsAsync`:
 
-- **Thrown to the caller**: `ArgumentNullException` for null arguments, and
+- **Thrown to the caller**: `ArgumentNullException`/`ArgumentException` for invalid arguments,
+  `ArgumentOutOfRangeException` for an invalid timeout, `InvalidOperationException` (or
+  `NuGetAuthenticationException` for 401/403) when nothing was found and a source failed, and
   `OperationCanceledException` when the token is canceled (never treated as a skipped source).
 - **Handled locally**: `HttpRequestException` and `NuGetProtocolException` while enumerating a
   source skip that source; a package carried by no source yields an empty list, not an exception.
 
+`GetCachedVersions`: throws `ArgumentNullException`/`ArgumentException` for an invalid `packageId`; otherwise
+never throws for a missing package or folder (empty list).
+
 ### Dependencies
 
-- `PackageSourceResolver` (resource resolution, both methods).
-- `PackageDownloader` (download and package-path convention, `EnsureCachedAsync`).
+- `PackageSourceResolver` (resource resolution, version operations and `EnsureCachedAsync`).
+- `PackageDownloader` (download, signature policy, and package-path convention, `EnsureCachedAsync`).
 - `CredentialServiceRegistrar` / `ICredentialServiceRegistrar` (credential service registration)
-  and `CredentialDispatcher` (per-call scope, via the options overloads).
+  and `CredentialDispatcher` (per-call scope).
 - `NuGetLoggerAdapter` (adapts `Microsoft.Extensions.Logging.ILogger` for the NuGet SDK).
+- `NuGetPackageVersion` (result record of `ListVersionsAsync`).
 - `PathHelpers` (safe path combination for the sentinel-file path).
 - `AuthFailureClassifier` (used indirectly through the resolver and downloader).
 - **NuGet** (OTS): `NuGet.Configuration` (`Settings`, `SettingsUtility`, `PackageSourceProvider`,
   package source mapping) and `NuGet.Protocol` (`SourceRepository`, `FindPackageByIdResource`,
-  `SourceCacheContext`).
+  `PackageMetadataResource`, `SourceCacheContext`).
 
 ### Callers
 
 - External consumers of the library (the public API surface), such as build tools and
   automation that need a package cached or its available versions listed.
-- The test assembly, through the internal overloads exposed via `InternalsVisibleTo`.
+- The test assembly, through the internal cores exposed via `InternalsVisibleTo`.

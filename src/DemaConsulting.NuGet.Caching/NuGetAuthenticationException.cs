@@ -25,14 +25,12 @@ namespace DemaConsulting.NuGet.Caching;
 ///     with HTTP 401 (Unauthorized) or 403 (Forbidden).
 /// </summary>
 /// <remarks>
-///     This type derives from <see cref="InvalidOperationException"/>, which is what 1.5.0 threw for
-///     these failures, so existing <c>catch (InvalidOperationException)</c> handlers keep working.
-///     It is thrown only by the <see cref="NuGetCache"/> overloads that accept a
-///     <see cref="NuGetCacheOptions"/>; the 1.5.0 overloads keep throwing a plain
-///     <see cref="InvalidOperationException"/>. It is thrown only when the whole operation fails (the
-///     package was not found, or no versions were found) and at least one source failed with an
-///     authentication error. The message is the
-///     same diagnostic text 1.5.0 produced and never contains credential values.
+///     This type derives from <see cref="InvalidOperationException"/>, so a
+///     <c>catch (InvalidOperationException)</c> handler also catches it. It is thrown on every
+///     <see cref="NuGetCache"/> call, whether or not <see cref="NuGetCacheOptions"/> were supplied,
+///     when the whole operation fails (the package was not found, or no versions were found) and at
+///     least one source failed with an authentication error. The message is a diagnostic text that
+///     never contains credential values.
 /// </remarks>
 public sealed class NuGetAuthenticationException : InvalidOperationException
 {

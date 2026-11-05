@@ -19,6 +19,8 @@
 // SOFTWARE.
 
 using NuGet.Common;
+using NuGet.Configuration;
+using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Packaging.Signing;
 using NuGet.Protocol;
@@ -145,18 +147,250 @@ internal static class PackageDownloader
         // Rewind the stream then install the package into the global packages folder.
         // The DownloadResourceResult is disposed automatically by the using declaration.
         packageStream.Seek(0, SeekOrigin.Begin);
-        using var downloadResult = await GlobalPackagesFolderUtility.AddPackageAsync(
-            sourceRepository.PackageSource.Source,
-            identity,
-            packageStream,
-            globalPackagesFolder,
-            Guid.Empty,
-            clientPolicyContext,
-            logger,
-            cancellationToken);
+        try
+        {
+            // NuGet skips its own signature verification on Linux/macOS unless an environment variable
+            // opts in, so a required signature is verified explicitly here (before anything is installed)
+            // to fail closed on every platform
+            if (clientPolicyContext.Policy == SignatureValidationMode.Require)
+            {
+                using (var reader = new PackageArchiveReader(packageStream, leaveStreamOpen: true))
+                {
+                    await VerifySignedAsync(
+                        reader,
+                        clientPolicyContext,
+                        $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{source}'",
+                        cancellationToken);
+                }
+
+                packageStream.Seek(0, SeekOrigin.Begin);
+            }
+
+            // NuGet's own install-time verification (Windows) rejects 'require' mode when no trustedSigners are
+            // configured. The explicit check above already enforced the contract (signed and valid, allow-list only
+            // when configured), so in that case install under an accept policy to avoid a contradictory rejection
+            var installPolicy = clientPolicyContext.Policy == SignatureValidationMode.Require
+                && clientPolicyContext.AllowList is not { Count: > 0 }
+                    ? ClientPolicyContext.GetClientPolicy(NullSettings.Instance, logger)
+                    : clientPolicyContext;
+
+            using var downloadResult = await GlobalPackagesFolderUtility.AddPackageAsync(
+                sourceRepository.PackageSource.Source,
+                identity,
+                packageStream,
+                globalPackagesFolder,
+                Guid.Empty,
+                installPolicy,
+                logger,
+                cancellationToken);
+        }
+        catch (SignatureException ex)
+        {
+            // A signature failure is a security failure, not an availability problem, so it is never
+            // skipped to the next source: it is reported with a clear message and the NuGet detail
+            throw new InvalidOperationException(
+                $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{source}' failed signature verification: {ex.Message}",
+                ex);
+        }
 
         // Return the conventional package path that NuGet uses on disk
         return new TryDownloadResult(GetPackagePath(globalPackagesFolder, packageId, version.ToNormalizedString()), null);
+    }
+
+    /// <summary>
+    ///     Creates the client signing policy used when installing packages.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="ClientPolicyContext"/> has no public constructor, so the policy is always derived from
+    ///     NuGet settings. When <paramref name="requireSigned"/> is <see langword="true"/> the settings are
+    ///     wrapped so <c>signatureValidationMode</c> reads as <c>require</c> while every other setting
+    ///     (notably the <c>trustedSigners</c> allow-list) is read from the original settings unchanged. The
+    ///     only <c>config</c> setting the signing policy reads is the mode, so replacing that section is
+    ///     sufficient. Nothing is written to the caller's configuration.
+    /// </remarks>
+    /// <param name="settings">The NuGet settings.</param>
+    /// <param name="requireSigned">Whether signed packages are required regardless of the configured mode.</param>
+    /// <param name="logger">The NuGet logger.</param>
+    /// <returns>The client policy context.</returns>
+    internal static ClientPolicyContext CreateClientPolicy(ISettings settings, bool requireSigned, ILogger logger) =>
+        ClientPolicyContext.GetClientPolicy(requireSigned ? new RequireSignedSettings(settings) : settings, logger);
+
+    /// <summary>
+    ///     Verifies that an already-installed package is validly signed, using the package file stored in
+    ///     the global packages folder.
+    /// </summary>
+    /// <param name="packagePath">The installed package folder.</param>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="version">The package version.</param>
+    /// <param name="clientPolicyContext">The client policy (require mode).</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>A task that completes when the package is verified.</returns>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the stored package file is missing, unsigned, or its signature is invalid.
+    /// </exception>
+    internal static async Task VerifyCachedPackageSignedAsync(
+        string packagePath,
+        string packageId,
+        NuGetVersion version,
+        ClientPolicyContext clientPolicyContext,
+        CancellationToken cancellationToken)
+    {
+        var normalized = version.ToNormalizedString();
+        var nupkgPath = PathHelpers.SafePathCombine(
+            packagePath, $"{packageId.ToLowerInvariant()}.{normalized.ToLowerInvariant()}.nupkg");
+        var prefix = $"Package '{packageId}' version '{normalized}' in the global packages folder";
+        if (!File.Exists(nupkgPath))
+        {
+            throw new InvalidOperationException(
+                $"{prefix} cannot be checked for a signature because its package file is missing; delete the folder to download it again.");
+        }
+
+        using var reader = new PackageArchiveReader(nupkgPath);
+        await VerifySignedAsync(reader, clientPolicyContext, prefix, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Explicitly verifies that a package is signed and that its signature is valid under the client
+    ///     policy, independent of the platform.
+    /// </summary>
+    /// <remarks>
+    ///     NuGet's own install-time verification is silently skipped on Linux and macOS unless the
+    ///     <c>DOTNET_NUGET_SIGNATURE_VERIFICATION</c> environment variable is <c>true</c>
+    ///     (<c>CanVerifySignedPackages</c> returns <see langword="false"/>), so relying on it alone would
+    ///     accept unsigned packages there. This check does not depend on that switch, so a required
+    ///     signature fails closed on every platform. The verification providers mirror those NuGet uses
+    ///     (integrity, the client <c>trustedSigners</c> allow-list when any signers are configured, and trust and
+    ///     validity). With no <c>trustedSigners</c> configured, any validly signed package whose signature chains
+    ///     to a trusted root is accepted; when signers are configured the signer must match one of them. The same
+    ///     rules apply to a freshly downloaded package and to one already installed.
+    /// </remarks>
+    /// <param name="reader">The package reader.</param>
+    /// <param name="clientPolicyContext">The client policy (require mode).</param>
+    /// <param name="description">Description of the package used in error messages.</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>A task that completes when the package is verified.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the package is unsigned or its signature is invalid.</exception>
+    private static async Task VerifySignedAsync(
+        PackageArchiveReader reader,
+        ClientPolicyContext clientPolicyContext,
+        string description,
+        CancellationToken cancellationToken)
+    {
+        if (!await reader.IsSignedAsync(cancellationToken))
+        {
+            throw new InvalidOperationException(
+                $"{description} has no package signature, but signed packages are required (signature verification failed).");
+        }
+
+        // The allow-list provider is applied only when trusted signers are configured: a required
+        // signature without any trustedSigners accepts any validly signed, trusted package
+        var allowList = clientPolicyContext.AllowList;
+        var hasAllowList = allowList is { Count: > 0 };
+        var untrustedRoots = hasAllowList
+            ? allowList!
+                .Where(e => e.AllowUntrustedRoot)
+                .Select(e => new KeyValuePair<string, HashAlgorithmName>(e.Fingerprint, e.FingerprintAlgorithm))
+                .ToList()
+            : null;
+        var providers = new List<ISignatureVerificationProvider>
+        {
+            new IntegrityVerificationProvider()
+        };
+        if (hasAllowList)
+        {
+            providers.Add(new AllowListVerificationProvider(
+                allowList!,
+                true,
+                "No trusted signers are configured for signature validation mode 'require'.",
+                "The package signature does not match any trusted signer in the client configuration."));
+        }
+
+        providers.Add(new SignatureTrustAndValidityVerificationProvider(
+            untrustedRoots is { Count: > 0 } ? untrustedRoots : null));
+        var verifier = new PackageSignatureVerifier(providers);
+        var result = await verifier.VerifySignaturesAsync(reader, clientPolicyContext.VerifierSettings, cancellationToken);
+        if (!result.IsValid)
+        {
+            throw new InvalidOperationException($"{description} failed signature verification.");
+        }
+    }
+
+    /// <summary>
+    ///     A read-only view of NuGet settings in which <c>signatureValidationMode</c> is <c>require</c>.
+    /// </summary>
+    private sealed class RequireSignedSettings : ISettings
+    {
+        /// <summary>
+        ///     The <c>config</c> section holding only <c>signatureValidationMode=require</c>. NuGet offers no
+        ///     public way to construct a settings section in memory, so it is read once from a short-lived
+        ///     temporary <c>nuget.config</c> that is deleted immediately; nothing else is ever written.
+        /// </summary>
+        private static readonly Lazy<SettingSection?> RequireConfigSection = new(
+            LoadRequireConfigSection, LazyThreadSafetyMode.ExecutionAndPublication);
+
+        private readonly ISettings _inner;
+
+        private static SettingSection? LoadRequireConfigSection()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "dema-nuget-caching-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            try
+            {
+                File.WriteAllText(
+                    Path.Combine(directory, "nuget.config"),
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?><configuration><config>"
+                    + "<add key=\"signatureValidationMode\" value=\"require\" /></config></configuration>");
+                return Settings.LoadSpecificSettings(directory, "nuget.config").GetSection(ConfigurationConstants.Config);
+            }
+            finally
+            {
+                try
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Best-effort cleanup of an empty temporary folder; a leftover is harmless
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Initializes a new instance wrapping <paramref name="inner"/>.
+        /// </summary>
+        /// <param name="inner">The settings to wrap.</param>
+        internal RequireSignedSettings(ISettings inner) => _inner = inner;
+
+        /// <inheritdoc />
+        public event EventHandler? SettingsChanged
+        {
+            add => _inner.SettingsChanged += value;
+            remove => _inner.SettingsChanged -= value;
+        }
+
+        /// <inheritdoc />
+        public SettingSection? GetSection(string sectionName) =>
+            string.Equals(sectionName, ConfigurationConstants.Config, StringComparison.OrdinalIgnoreCase)
+                ? RequireConfigSection.Value
+                : _inner.GetSection(sectionName);
+
+        /// <inheritdoc />
+        public void AddOrUpdate(string sectionName, SettingItem item) =>
+            throw new NotSupportedException("These settings are read-only.");
+
+        /// <inheritdoc />
+        public void Remove(string sectionName, SettingItem item) =>
+            throw new NotSupportedException("These settings are read-only.");
+
+        /// <inheritdoc />
+        public void SaveToDisk() =>
+            throw new NotSupportedException("These settings are read-only.");
+
+        /// <inheritdoc />
+        public IList<string> GetConfigFilePaths() => _inner.GetConfigFilePaths();
+
+        /// <inheritdoc />
+        public IList<string> GetConfigRoots() => _inner.GetConfigRoots();
     }
 
     /// <summary>

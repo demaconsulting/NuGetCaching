@@ -103,10 +103,14 @@ reviews:
       - "docs/verification/nuget-caching/nuget-cache.md"
       - "src/DemaConsulting.NuGet.Caching/NuGetCache.cs"
       - "src/DemaConsulting.NuGet.Caching/NuGetCacheOptions.cs"
+      - "src/DemaConsulting.NuGet.Caching/NuGetPackageVersion.cs"
       - "src/DemaConsulting.NuGet.Caching/NuGetCredential.cs"
       - "src/DemaConsulting.NuGet.Caching/NuGetAuthenticationException.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheOptionsTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheSourcesTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheListingTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheSignatureTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCredentialTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheServerTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetTestServer.cs"
@@ -151,6 +155,7 @@ reviews:
       - "docs/verification/nuget-caching/package-downloader.md"
       - "src/DemaConsulting.NuGet.Caching/PackageDownloader.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/PackageDownloaderTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheSignatureTests.cs"
 
   # NuGetCaching - AuthFailureClassifier
   - id: NuGetCaching-AuthFailureClassifier

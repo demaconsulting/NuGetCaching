@@ -24,6 +24,7 @@ words:
   - mstest
   - xunit
   - netstandard
+  - NETFRAMEWORK
   - Newtonsoft
   - pandoc
   - reqstream

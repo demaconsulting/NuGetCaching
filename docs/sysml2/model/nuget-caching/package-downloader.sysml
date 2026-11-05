@@ -4,6 +4,7 @@ package NuGetCaching {
 
         comment sourceRef /* Source: src/DemaConsulting.NuGet.Caching/PackageDownloader.cs */
         comment testRef /* Test: test/DemaConsulting.NuGet.Caching.Tests/PackageDownloaderTests.cs */
+        comment testRef /* Test: test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheSignatureTests.cs */
         comment designRef /* Design: docs/design/nuget-caching/package-downloader.md */
         comment verificationRef /* Verification: docs/verification/nuget-caching/package-downloader.md */
         comment reqRef /* Requirements: docs/reqstream/nuget-caching/package-downloader.yaml */

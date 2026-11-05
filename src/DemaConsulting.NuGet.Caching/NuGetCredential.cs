@@ -58,7 +58,9 @@ public sealed record NuGetCredential
     ///     Gets the password or access token presented to the package source.
     /// </summary>
     /// <remarks>
-    ///     This value is redacted from <see cref="object.ToString"/> output.
+    ///     This value is redacted from <see cref="object.ToString"/> output. It is set through the
+    ///     constructor parameter (or an object initializer, because the accessor is <c>init</c>) and cannot be
+    ///     changed afterward.
     /// </remarks>
     public string Secret { get; init; }
 
