@@ -777,7 +777,7 @@ public static class NuGetCache
             // An empty answer (for example no registration endpoint) falls back to the flat version list
             return list.Count == 0 ? null : list;
         }
-        catch (Exception ex) when (ex is HttpRequestException or NuGetProtocolException
+        catch (Exception ex) when ((ex is HttpRequestException or NuGetProtocolException)
             && !AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out _))
         {
             // Not an authentication failure: the flat version list may still work

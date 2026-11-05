@@ -199,6 +199,23 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Registers a public v3 flat-container version list while the registration (package
+    ///     metadata) endpoint rejects every request with HTTP 401.
+    /// </summary>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="versions">The versions served by the public flat container.</param>
+    internal void RegisterV3PackageVersionsWithUnauthorizedMetadata(string packageId, params string[] versions)
+    {
+        RegisterV3PackageVersions(packageId, versions);
+
+        _server
+            .Given(Request.Create().WithPath($"/v3-registration/{packageId.ToLowerInvariant()}/index.json").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
     ///     Registers only the v3 service index, with the package version list endpoint dropping
     ///     the connection to simulate a network failure during version discovery.
     /// </summary>

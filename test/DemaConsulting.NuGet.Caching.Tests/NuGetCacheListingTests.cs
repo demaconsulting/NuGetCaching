@@ -318,6 +318,35 @@ public class NuGetCacheListingTests
     }
 
     /// <summary>
+    ///     Tests that a 401 from the registration endpoint is not swallowed into the flat-list
+    ///     fallback: the source is recorded as failed and, with nothing found, the call surfaces
+    ///     <see cref="NuGetAuthenticationException"/> even though the flat container is public.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException()
+    {
+        var folder = CreateTempFolder();
+        try
+        {
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageVersionsWithUnauthorizedMetadata("Meta.Denied", "1.0.0");
+            var settings = server.CreateSettings(folder, server.IndexUrl);
+
+            var exception = await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.ListVersionsAsync(
+                    "Meta.Denied", false, settings, null, CredentialServiceRegistrar.DefaultCredentialRegistrar, CancellationToken.None));
+
+            Assert.Equal("test-source", exception.Source);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
     ///     Tests the value semantics of <see cref="NuGetPackageVersion"/>.
     /// </summary>
     [Fact]

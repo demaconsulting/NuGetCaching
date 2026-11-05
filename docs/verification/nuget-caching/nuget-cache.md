@@ -473,7 +473,9 @@ process-wide credential service can be isolated and restored.
 - **NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException**: 401 with no
   credentials throws `NuGetAuthenticationException`, with or without options. Covers
   `AuthenticationException`; **NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException**
-  covers the same for `ListVersionsAsync`.
+  covers the same for `ListVersionsAsync`; **NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException**
+  covers a 401 on the registration endpoint with a public flat container (not swallowed by the
+  metadata fallback; recorded as a source failure and thrown because nothing was found).
 - **NuGetAuthenticationException_Properties_AreExposed**: `Source`, `Uri`, and message are
   preserved. Covers `AuthenticationException`.
 - **NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: a
@@ -577,7 +579,8 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   NuGetAuthenticationException_Properties_AreExposed,
   NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException,
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic,
-  NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException
+  NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException,
+  NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException
 - **`Caching-NuGetCache-AuthenticationTimeout`**:
   NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
   NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,

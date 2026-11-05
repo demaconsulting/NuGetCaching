@@ -79,7 +79,7 @@
 
   <!-- Test Data: a real, unmodified, signed package (any change would invalidate its signature) -->
   <ItemGroup>
-    <None Include="TestData\*.nupkg" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="TestData\*.nupkg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Project References -->

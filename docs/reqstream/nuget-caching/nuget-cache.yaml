@@ -253,6 +253,7 @@ sections:
           - NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException
           - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
           - NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException
+          - NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException
 
       - id: Caching-NuGetCache-AuthenticationTimeout
         title: >-
