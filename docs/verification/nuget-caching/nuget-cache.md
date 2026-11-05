@@ -378,12 +378,23 @@ local nor HTTP/HTTPS (a custom-scheme URI).
 **Expected**: Returns only `1.0.0`; the non-HTTP source is ignored rather than queried.
 
 **Requirement coverage**: `Caching-NuGetCache-GetVersionsSources`.
-_ThrowsOperationCanceledException
+
+#### NuGetCache_GetVersionsAsync_CancelledToken_ThrowsOperationCanceledException
 
 **Scenario**: `GetVersionsAsync` is called with an already-cancelled token.
 
 **Expected**: Throws `OperationCanceledException` (or a derived type); cancellation is not
 swallowed as a skipped source.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsCancellation`.
+
+#### NuGetCache_GetVersionsAsync_CancelledTokenNoHttpSources_ThrowsBeforeRegistration
+
+**Scenario**: `GetVersionsAsync` is called with an already-cancelled token, settings that contain
+no sources, and a spy `ICredentialServiceRegistrar`.
+
+**Expected**: Throws `OperationCanceledException` (or a derived type) and the registrar is never
+invoked, proving cancellation is observed before registration and source enumeration.
 
 **Requirement coverage**: `Caching-NuGetCache-GetVersionsCancellation`.
 
@@ -476,6 +487,7 @@ swallowed as a skipped source.
   NuGetCache_GetVersionsAsync_PackageSourceMapping_HonorsMapping,
   NuGetCache_GetVersionsAsync_LocalFolderSource_IsIgnored,
   NuGetCache_GetVersionsAsync_NonHttpNonLocalSource_IsIgnored
+- **`Caching-NuGetCache-GetVersionsAuth`**:
   NuGetCache_GetVersionsAsync_AuthenticatedSourceWithCredentials_ReturnsVersions,
   NuGetCache_GetVersionsAsync_AnySource_InvokesCredentialServiceRegistrar
 - **`Caching-NuGetCache-GetVersionsSourceFailure`**:
@@ -483,7 +495,8 @@ swallowed as a skipped source.
 - **`Caching-NuGetCache-GetVersionsAllSourcesFail`**:
   NuGetCache_GetVersionsAsync_AllSourcesFail_ThrowsInvalidOperationException
 - **`Caching-NuGetCache-GetVersionsCancellation`**:
-  NuGetCache_GetVersionsAsync_CancelledToken_ThrowsOperationCanceledException
+  NuGetCache_GetVersionsAsync_CancelledToken_ThrowsOperationCanceledException,
+  NuGetCache_GetVersionsAsync_CancelledTokenNoHttpSources_ThrowsBeforeRegistration
 - **`Caching-NuGetCache-GetVersionsPrerelease`**:
   NuGetCache_GetVersionsAsync_PrereleaseExcludedByDefault,
   NuGetCache_GetVersionsAsync_IncludePrerelease_ReturnsPrereleaseVersions

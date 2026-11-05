@@ -162,6 +162,10 @@ rejected the request, an `InvalidOperationException` describing each failed sour
 
 - `OperationCanceledException`: Thrown when `cancellationToken` is canceled; cancellation
   propagates to the caller as `OperationCanceledException`.
+
+- `InvalidOperationException`: Thrown when no versions were found and at least one source was
+  unreachable or rejected the request. The message describes each failed source.
+
 **Example:**
 
 ```csharp

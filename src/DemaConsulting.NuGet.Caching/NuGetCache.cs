@@ -399,6 +399,9 @@ public static class NuGetCache
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(credentialRegistrar);
 
+        // Honor a pre-canceled token before any registration or source enumeration
+        cancellationToken.ThrowIfCancellationRequested();
+
         // Register the credential service before contacting any source (see EnsureCachedAsync)
         credentialRegistrar.EnsureRegistered();
 

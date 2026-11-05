@@ -1384,6 +1384,28 @@ public class NuGetCacheServerTests
     }
 
     /// <summary>
+    ///     Tests that GetVersionsAsync observes a pre-canceled token before registering credentials,
+    ///     even when no HTTP source would be enumerated.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_CancelledTokenNoHttpSources_ThrowsBeforeRegistration()
+    {
+        // Arrange - settings with no sources, so the source loop would never check the token
+        var settings = NullSettings.Instance;
+        var registrar = new SpyCredentialServiceRegistrar();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act
+        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await NuGetCache.GetVersionsAsync("TestPackage.Cancel", false, settings, registrar, cts.Token));
+
+        // Assert - cancellation was observed before credential registration
+        Assert.Equal(0, registrar.EnsureRegisteredCallCount);
+    }
+
+    /// <summary>
     ///     A test double implementing <see cref="ICredentialServiceRegistrar"/> that
     ///     simply counts invocations of <see cref="EnsureRegistered"/>, letting tests assert that
     ///     <c>EnsureCachedAsync</c> invokes credential-service registration without touching any

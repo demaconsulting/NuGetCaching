@@ -299,6 +299,7 @@ sections:
           source failure would return misleading partial results.
         tests:
           - NuGetCache_GetVersionsAsync_CancelledToken_ThrowsOperationCanceledException
+          - NuGetCache_GetVersionsAsync_CancelledTokenNoHttpSources_ThrowsBeforeRegistration
 
       - id: Caching-NuGetCache-GetVersionsPrerelease
         title: >-
