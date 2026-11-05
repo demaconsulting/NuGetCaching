@@ -14,7 +14,8 @@ and package download and installation. It is the only run-time OTS dependency of
 - `SourceRepository` resources to list package versions and download packages.
 - Global-packages folder utilities to install packages.
 - `NuGetVersion` for internal version parsing and ordering (never exposed publicly).
-- `NuGet.Credentials` for credential providers.
+- `NuGet.Credentials` for credential providers, and `Microsoft.Extensions.Logging.Abstractions`
+  (the `ILogger` accepted in `NuGetCacheOptions`, adapted to the NuGet logger).
 
 ### Integration Pattern
 

@@ -58,7 +58,14 @@ internal static class PackageSourceResolver
     internal readonly record struct PackageSourceResolution(
         SourceRepository Repository,
         FindPackageByIdResource? Resource,
-        string? ErrorMessage);
+        string? ErrorMessage)
+    {
+        /// <summary>
+        ///     Gets the source that rejected the request with HTTP 401/403, or <see langword="null"/>
+        ///     when the failure (if any) was not an authentication failure.
+        /// </summary>
+        internal AuthFailureInfo? AuthFailure { get; init; }
+    }
 
     /// <summary>
     ///     Resolves the <see cref="FindPackageByIdResource"/> for a source repository, with automatic
@@ -80,6 +87,7 @@ internal static class PackageSourceResolver
         var sourceName = sourceRepository.PackageSource.Name;
         var candidates = BuildCandidateRepositories(sourceRepository, providers);
         string? protocolErrorMessage = null;
+        AuthFailureInfo? protocolAuthFailure = null;
 
         foreach (var candidate in candidates)
         {
@@ -99,7 +107,10 @@ internal static class PackageSourceResolver
                 // failure or a genuine "package not found" outcome. Use the failing candidate's own
                 // URL (which may be the v2 fallback, not the originally configured source) so the
                 // diagnostic identifies the endpoint that actually rejected the request.
-                return new PackageSourceResolution(candidate, null, authMessage);
+                return new PackageSourceResolution(candidate, null, authMessage)
+                {
+                    AuthFailure = new AuthFailureInfo(sourceName, candidate.PackageSource.Source),
+                };
             }
             catch (HttpRequestException)
             {
@@ -108,14 +119,18 @@ internal static class PackageSourceResolver
                 // candidate (e.g. the v3 service index) so a later candidate's unrelated transient
                 // failure (e.g. the v2 fallback) doesn't downgrade a real authentication failure
                 // into a generic, indistinguishable "not found" result.
-                return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage);
+                return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage) { AuthFailure = protocolAuthFailure };
             }
             catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
             {
                 // Same as above, but the NuGet SDK wrapped the 401/403 as a protocol exception
                 // (e.g. while loading the v3 service index) rather than a raw HttpRequestException.
                 // Use the failing candidate's own URL for the same reason as above.
-                protocolErrorMessage ??= authMessage;
+                if (protocolErrorMessage == null)
+                {
+                    protocolErrorMessage = authMessage;
+                    protocolAuthFailure = new AuthFailureInfo(sourceName, candidate.PackageSource.Source);
+                }
             }
             catch (NuGetProtocolException ex)
             {
@@ -126,7 +141,7 @@ internal static class PackageSourceResolver
             }
         }
 
-        return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage);
+        return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage) { AuthFailure = protocolAuthFailure };
     }
 
     /// <summary>

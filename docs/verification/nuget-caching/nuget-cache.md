@@ -446,7 +446,41 @@ invoked, proving cancellation is observed before registration and source enumera
 
 **Requirement coverage**: `Caching-NuGetCache-GetVersionsNullArguments`.
 
-### Requirements Coverage
+#### Options overload scenarios
+
+The following tests live in `NuGetCacheOptionsTests` and `CredentialDispatcherTests`. The
+callback tests run against a local `NuGetTestServer` returning 401 until it receives HTTP basic
+authentication, and call the internal options overloads with a fresh registrar so the
+process-wide credential service can be isolated and restored.
+
+- **NuGetCacheOptions_Default_MatchesVersion150Behavior**: a new `NuGetCacheOptions` has
+  non-interactive mode, no logger, no callback, and no timeout. Covers `OptionsOverloads`.
+- **NuGetCache_OptionsOverloads_NullArguments_Throw**: both public options overloads throw
+  `ArgumentNullException` for a null `options`. Covers `OptionsOverloads`.
+- **NuGetCache_Version150CallForms_BindToVersion150Overloads**: a call with the 1.5.0 argument
+  shapes, including a `default` token, compiles against and runs the 1.5.0 overload. Covers
+  `OptionsOverloads`.
+- **NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source** and
+  **NuGetCache_GetVersionsAsync_CallbackSuppliesCredentials_ReturnsVersions**: the callback
+  returns basic credentials after the 401 and the operation succeeds. Covers `CredentialCallback`.
+- **NuGetCache_EnsureCachedAsync_CallbackReturnsNull_FallsThroughAndFailsWithAuthenticationException**:
+  a null answer falls through to the providers; with none available the call throws
+  `NuGetAuthenticationException` naming `test-source`. Covers `CredentialCallback`.
+- **NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails**: wrong
+  credentials are asked for once per URI and request type, not in a loop. Covers `CredentialCallback`.
+- **NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException**: 401 with no
+  credentials throws `NuGetAuthenticationException` from the options overloads and a plain
+  `InvalidOperationException` from the 1.5.0 overloads. Covers `AuthenticationException`.
+- **NuGetAuthenticationException_Properties_AreExposed**: `Source`, `Uri`, and message are
+  preserved. Covers `AuthenticationException`.
+- **NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: a
+  callback that never completes, with a 500 ms timeout, ends in `OperationCanceledException`.
+  Covers `AuthenticationTimeout`.
+- **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
+  while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.
+- **NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret**,
+  **NuGetCredential_ToString_RedactsSecret**, and **NuGetCredential_Formatted_DoesNotExposeSecret**:
+  the logger receives messages and neither logs nor string forms contain the secret. Covers `Logging`.
 
 - **`Caching-NuGetCache-EnsureCached`**:
   NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder,
@@ -473,6 +507,27 @@ invoked, proving cancellation is observed before registration and source enumera
   NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
 - **`Caching-NuGetCache-AuthDiagnostic`**:
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
+- **`Caching-NuGetCache-OptionsOverloads`**:
+  NuGetCacheOptions_Default_MatchesVersion150Behavior,
+  NuGetCache_OptionsOverloads_NullArguments_Throw,
+  NuGetCache_Version150CallForms_BindToVersion150Overloads,
+  NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings
+- **`Caching-NuGetCache-CredentialCallback`**:
+  NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source,
+  NuGetCache_GetVersionsAsync_CallbackSuppliesCredentials_ReturnsVersions,
+  NuGetCache_EnsureCachedAsync_CallbackReturnsNull_FallsThroughAndFailsWithAuthenticationException,
+  NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails
+- **`Caching-NuGetCache-AuthenticationException`**:
+  NuGetAuthenticationException_Properties_AreExposed,
+  NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException
+- **`Caching-NuGetCache-AuthenticationTimeout`**:
+  NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
+- **`Caching-NuGetCache-OptionsIsolation`**:
+  NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated
+- **`Caching-NuGetCache-Logging`**:
+  NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret,
+  NuGetCredential_ToString_RedactsSecret,
+  NuGetCredential_Formatted_DoesNotExposeSecret
 - **`Caching-NuGetCache-GetVersions`**:
   NuGetCache_GetVersionsAsync_ReturnedVersionUsableByEnsureCachedAsync,
   NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings

@@ -117,6 +117,35 @@ restore pipeline. Subsequent calls on the same instance are a cheap, thread-safe
 Satisfies requirements `Caching-CredentialServiceRegistrar-RegisterOnce` and
 `Caching-CredentialServiceRegistrar-DefaultWiredToRealFlow`.
 
+#### Dispatching Credential Service
+
+After the default service is created, the registrar wraps it in an internal `CredentialDispatcher`
+and assigns that as the process-wide `HttpHandlerResourceV3.CredentialService`, exactly once. If a
+host application has already registered a credential service, the registrar leaves it in place
+(first writer wins) and per-call options cannot apply (`NuGetCache` logs a warning).
+
+The dispatcher reads an `AsyncLocal` call context set by `CredentialDispatcher.BeginScope` from the
+options overloads of `NuGetCache`:
+
+- **No scope** (1.5.0 calls): delegates to the original non-interactive default service, so
+  behavior is exactly as before.
+- **Scope with a callback**: for non-proxy requests the callback is consulted first. A non-null
+  `NuGetCredential` becomes the response; null falls through to the providers. A per-call set of
+  (URI, request type) pairs is the loop guard: a second request for a pair already answered returns
+  null, because the NuGet SDK asks again only after the previous credential was rejected.
+- **Interactive** (or any scope that needs providers): a lazily created `CredentialService` built from
+  the secure plugin credential providers (dialogs allowed) and the default network credentials provider.
+- **Timeout**: acquisition runs under a linked cancellation token with `CancelAfter(AuthenticationTimeout)`
+  and is raced against the timeout, so a callback that ignores its token is abandoned and the call fails
+  with `OperationCanceledException`. Plugin processes are owned by NuGet's `PluginManager` and may
+  outlive the timeout; disposal was not verified and is documented as a limitation.
+
+`NuGetLoggerAdapter` adapts a `Microsoft.Extensions.Logging.ILogger` to the NuGet logger so SDK
+messages reach the caller's logger.
+
+Satisfies requirements `Caching-CredentialServiceRegistrar-DispatchPerCall`,
+`Caching-CredentialServiceRegistrar-CallbackFirst`, and `Caching-CredentialServiceRegistrar-LoopGuard`.
+
 ### Error Handling
 
 The class performs no local error handling. Because registration is memoized with
@@ -126,8 +155,9 @@ on the same instance rethrow it rather than retrying.
 
 ### Dependencies
 
-- **NuGet** (OTS): `DefaultCredentialServiceUtility.SetupDefaultCredentialService` and
-  `NullLogger` from the NuGet client SDK.
+- **NuGet** (OTS): `DefaultCredentialServiceUtility.SetupDefaultCredentialService`, `CredentialService`,
+  plugin credential providers, and `NullLogger` from the NuGet client SDK.
+- `Microsoft.Extensions.Logging.Abstractions` (logger adapter), treated as part of the NuGet OTS item.
 - BCL: `System.Lazy<T>`, `System.Threading.LazyThreadSafetyMode`.
 - No other units or subsystems.
 

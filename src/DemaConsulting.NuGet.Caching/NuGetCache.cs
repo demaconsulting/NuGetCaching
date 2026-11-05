@@ -96,6 +96,62 @@ public static class NuGetCache
 
     /// <summary>
     ///     Ensures a specific NuGet package version is available in the local global packages cache,
+    ///     applying the supplied per-call <paramref name="options"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Behaves like <see cref="EnsureCachedAsync(string, string, string?, CancellationToken)"/>, and
+    ///     additionally honors <see cref="NuGetCacheOptions"/>: interactive credential providers, a
+    ///     logger, an in-memory credential callback, and an authentication timeout. The options apply
+    ///     only to this call, even when other calls with different options run concurrently.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
+    /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
+    /// <param name="root">
+    ///     The directory from which to begin discovering <c>nuget.config</c> files, or
+    ///     <see langword="null"/> for the current working directory.
+    /// </param>
+    /// <param name="options">The per-call options. Must not be <see langword="null"/>.</param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>
+    ///     The absolute path to the cached package folder inside the global packages folder.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/>, <paramref name="version"/>, or
+    ///     <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
+    /// </exception>
+    /// <exception cref="NuGetAuthenticationException">
+    ///     Thrown when the package was not found and a source rejected the request with HTTP 401 or 403.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the package cannot be found in any configured NuGet source.
+    /// </exception>
+    /// <exception cref="OperationCanceledException">
+    ///     Thrown when <paramref name="cancellationToken"/> is canceled or
+    ///     <see cref="NuGetCacheOptions.AuthenticationTimeout"/> elapses.
+    /// </exception>
+    public static async Task<string> EnsureCachedAsync(
+        string packageId,
+        string version,
+        string? root,
+        NuGetCacheOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        return await EnsureCachedAsync(
+            packageId,
+            version,
+            Settings.LoadDefaultSettings(root ?? Directory.GetCurrentDirectory()),
+            options,
+            CredentialServiceRegistrar.DefaultCredentialRegistrar,
+            cancellationToken);
+    }
+
+    /// <summary>
+    ///     Ensures a specific NuGet package version is available in the local global packages cache,
     ///     using the provided NuGet <paramref name="settings"/> instance.
     /// </summary>
     /// <remarks>
@@ -181,11 +237,59 @@ public static class NuGetCache
         ICredentialServiceRegistrar credentialRegistrar,
         CancellationToken cancellationToken = default)
     {
+        return await EnsureCachedAsync(packageId, version, settings, null, credentialRegistrar, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Ensures a specific NuGet package version is available in the local global packages cache,
+    ///     using the provided NuGet <paramref name="settings"/>, per-call <paramref name="options"/>,
+    ///     and an explicit <paramref name="credentialRegistrar"/>.
+    /// </summary>
+    /// <remarks>
+    ///     All caching logic lives here. A <see langword="null"/> <paramref name="options"/> gives
+    ///     exactly the 1.5.0 behavior.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
+    /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
+    /// <param name="settings">The NuGet settings instance. Must not be <see langword="null"/>.</param>
+    /// <param name="options">The per-call options, or <see langword="null"/> for 1.5.0 behavior.</param>
+    /// <param name="credentialRegistrar">
+    ///     The credential-service registrar to invoke before resolving any source.
+    /// </param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>
+    ///     The absolute path to the cached package folder inside the global packages folder.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/>, <paramref name="version"/>,
+    ///     <paramref name="settings"/>, or <paramref name="credentialRegistrar"/> is
+    ///     <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the package cannot be found in any configured NuGet source; a
+    ///     <see cref="NuGetAuthenticationException"/> when a source rejected the request with 401/403.
+    /// </exception>
+    internal static async Task<string> EnsureCachedAsync(
+        string packageId,
+        string version,
+        ISettings settings,
+        NuGetCacheOptions? options,
+        ICredentialServiceRegistrar credentialRegistrar,
+        CancellationToken cancellationToken = default)
+    {
         // Validate input parameters before performing any I/O
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(version);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(credentialRegistrar);
+
+        // Make the per-call options visible to NuGet's process-wide credential service
+        var logger = NuGetLoggerAdapter.Create(options?.Logger);
+        using var scope = CredentialDispatcher.BeginScope(options, logger);
+        ILogger nugetLogger = logger ?? NullLogger.Instance;
 
         // Parse the version string early to validate it and obtain the normalized form;
         // NuGet stores packages using the normalized version (e.g. "1.0" becomes "1.0.0")
@@ -208,7 +312,7 @@ public static class NuGetCache
         }
 
         // Build the client policy context used for package signing validation
-        var clientPolicyContext = ClientPolicyContext.GetClientPolicy(settings, NullLogger.Instance);
+        var clientPolicyContext = ClientPolicyContext.GetClientPolicy(settings, nugetLogger);
 
         // Create a shared source cache context for all download attempts in this call
         using var sourceCacheContext = new SourceCacheContext();
@@ -221,6 +325,7 @@ public static class NuGetCache
         // retry (e.g. Azure Artifacts or JFrog credential-provider plugins), which are not
         // exercised by static credentials alone.
         credentialRegistrar.EnsureRegistered();
+        WarnWhenOptionsCannotApply(options, logger);
 
         // Get the core V3 providers needed to communicate with NuGet v3 and v2 feeds
         var providers = Repository.Provider.GetCoreV3();
@@ -231,6 +336,7 @@ public static class NuGetCache
         // Accumulate per-source diagnostic messages so they can be included in the
         // final exception when all sources fail - giving callers actionable context
         var sourceErrors = new List<string>();
+        AuthFailureInfo? authFailure = null;
 
         foreach (var packageSource in allowedSources)
         {
@@ -238,8 +344,10 @@ public static class NuGetCache
             var sourceRepository = new SourceRepository(packageSource, providers);
 
             // Resolve the FindPackageByIdResource, applying v2 fallback as needed
-            var (effectiveRepository, resource, resourceError) = await PackageSourceResolver.ResolveAsync(
+            var resolution = await PackageSourceResolver.ResolveAsync(
                 sourceRepository, providers, cancellationToken);
+            var (effectiveRepository, resource, resourceError) = resolution;
+            authFailure ??= resolution.AuthFailure;
 
             if (resource == null)
             {
@@ -259,13 +367,15 @@ public static class NuGetCache
                 globalPackagesFolder,
                 clientPolicyContext,
                 sourceCacheContext,
-                cancellationToken);
+                cancellationToken,
+                nugetLogger);
 
             if (result.PackagePath != null)
             {
                 return result.PackagePath;
             }
 
+            authFailure ??= result.AuthFailure;
             if (result.ErrorMessage != null)
             {
                 sourceErrors.Add(result.ErrorMessage);
@@ -279,7 +389,7 @@ public static class NuGetCache
             ? baseMessage + Environment.NewLine + string.Join(Environment.NewLine, sourceErrors.Select(e => $"  - {e}"))
             : baseMessage;
 
-        throw new InvalidOperationException(fullMessage);
+        throw CreateFailure(fullMessage, authFailure, options);
     }
 
     /// <summary>
@@ -329,6 +439,59 @@ public static class NuGetCache
 
         return await GetVersionsAsync(
             packageId, includePrerelease, Settings.LoadDefaultSettings(root ?? Directory.GetCurrentDirectory()), cancellationToken);
+    }
+
+    /// <summary>
+    ///     Gets the versions of a NuGet package available from the configured remote sources,
+    ///     applying the supplied per-call <paramref name="options"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Behaves like <see cref="GetVersionsAsync(string, bool, string?, CancellationToken)"/>, and
+    ///     additionally honors <see cref="NuGetCacheOptions"/>. The returned strings are
+    ///     NuGet-normalized versions; a version may carry <c>+metadata</c> (build metadata) or have four
+    ///     parts (for example <c>1.2.3.4</c>), so do not assume strict three-part semantic versions.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
+    /// <param name="includePrerelease">Whether prerelease versions are included.</param>
+    /// <param name="root">
+    ///     The directory from which to begin discovering <c>nuget.config</c> files, or
+    ///     <see langword="null"/> for the current working directory.
+    /// </param>
+    /// <param name="options">The per-call options. Must not be <see langword="null"/>.</param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>
+    ///     The normalized version strings in ascending order, or an empty list when the package is not found.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="NuGetAuthenticationException">
+    ///     Thrown when no versions were found and a source rejected the request with HTTP 401 or 403.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when no versions were found and at least one source was unreachable or failed.
+    /// </exception>
+    /// <exception cref="OperationCanceledException">
+    ///     Thrown when <paramref name="cancellationToken"/> is canceled or
+    ///     <see cref="NuGetCacheOptions.AuthenticationTimeout"/> elapses.
+    /// </exception>
+    public static async Task<IReadOnlyList<string>> GetVersionsAsync(
+        string packageId,
+        bool includePrerelease,
+        string? root,
+        NuGetCacheOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(packageId);
+        ArgumentNullException.ThrowIfNull(options);
+
+        return await GetVersionsAsync(
+            packageId,
+            includePrerelease,
+            Settings.LoadDefaultSettings(root ?? Directory.GetCurrentDirectory()),
+            options,
+            CredentialServiceRegistrar.DefaultCredentialRegistrar,
+            cancellationToken);
     }
 
     /// <summary>
@@ -395,6 +558,41 @@ public static class NuGetCache
         ICredentialServiceRegistrar credentialRegistrar,
         CancellationToken cancellationToken = default)
     {
+        return await GetVersionsAsync(packageId, includePrerelease, settings, null, credentialRegistrar, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Gets the versions of a NuGet package available from the sources in the provided
+    ///     NuGet <paramref name="settings"/> instance, using per-call <paramref name="options"/> and
+    ///     an explicit <paramref name="credentialRegistrar"/>.
+    /// </summary>
+    /// <remarks>
+    ///     All version-discovery logic lives here. A <see langword="null"/>
+    ///     <paramref name="options"/> gives exactly the 1.5.0 behavior.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="includePrerelease">Whether prerelease versions are included.</param>
+    /// <param name="settings">The NuGet settings used to resolve package sources and mapping.</param>
+    /// <param name="options">The per-call options, or <see langword="null"/> for 1.5.0 behavior.</param>
+    /// <param name="credentialRegistrar">The credential-service registrar to invoke first.</param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>The normalized version strings in ascending order, or an empty list.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/>, <paramref name="settings"/>, or
+    ///     <paramref name="credentialRegistrar"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when no versions were found and at least one source failed; a
+    ///     <see cref="NuGetAuthenticationException"/> when a source rejected the request with 401/403.
+    /// </exception>
+    internal static async Task<IReadOnlyList<string>> GetVersionsAsync(
+        string packageId,
+        bool includePrerelease,
+        ISettings settings,
+        NuGetCacheOptions? options,
+        ICredentialServiceRegistrar credentialRegistrar,
+        CancellationToken cancellationToken = default)
+    {
         // Validate input parameters before performing any I/O
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(settings);
@@ -403,8 +601,14 @@ public static class NuGetCache
         // Honor a pre-canceled token before any registration or source enumeration
         cancellationToken.ThrowIfCancellationRequested();
 
+        // Make the per-call options visible to NuGet's process-wide credential service
+        var logger = NuGetLoggerAdapter.Create(options?.Logger);
+        using var scope = CredentialDispatcher.BeginScope(options, logger);
+        ILogger nugetLogger = logger ?? NullLogger.Instance;
+
         // Register the credential service before contacting any source (see EnsureCachedAsync)
         credentialRegistrar.EnsureRegistered();
+        WarnWhenOptionsCannotApply(options, logger);
 
         var providers = Repository.Provider.GetCoreV3();
         var allowedSources = GetAllowedSources(settings, packageId);
@@ -415,6 +619,7 @@ public static class NuGetCache
         // A sorted set de-duplicates by semantic equality and keeps ascending order
         var versions = new SortedSet<NuGetVersion>();
         var sourceErrors = new List<string>();
+        AuthFailureInfo? authFailure = null;
 
         // Version discovery queries remote (HTTP/HTTPS) sources only; an explicit HTTP predicate is
         // used (rather than !IsLocal) so non-local, non-HTTP sources are ignored, not queried
@@ -426,12 +631,14 @@ public static class NuGetCache
             var sourceRepository = new SourceRepository(packageSource, providers);
 
             // Resolve the FindPackageByIdResource, applying v2 fallback as needed
-            var (_, resource, resourceError) = await PackageSourceResolver.ResolveAsync(
+            var resolution = await PackageSourceResolver.ResolveAsync(
                 sourceRepository, providers, cancellationToken);
+            var resource = resolution.Resource;
 
             if (resource == null)
             {
-                sourceErrors.Add(resourceError ?? $"{packageSource.Source}: Source is unreachable or unsupported.");
+                authFailure ??= resolution.AuthFailure;
+                sourceErrors.Add(resolution.ErrorMessage ?? $"{packageSource.Source}: Source is unreachable or unsupported.");
                 continue;
             }
 
@@ -439,15 +646,20 @@ public static class NuGetCache
             try
             {
                 sourceVersions = await resource.GetAllVersionsAsync(
-                    packageId, sourceCacheContext, NullLogger.Instance, cancellationToken);
+                    packageId, sourceCacheContext, nugetLogger, cancellationToken);
             }
             catch (Exception ex) when (ex is HttpRequestException or NuGetProtocolException)
             {
                 // Record the failure and try the next source; reported only if nothing is found
-                sourceErrors.Add(
-                    AuthFailureClassifier.TryDescribeAuthFailure(ex, packageSource.Name, packageSource.Source, out var authMessage)
-                        ? authMessage
-                        : $"{packageSource.Source}: Error retrieving versions. ({ex.Message})");
+                if (AuthFailureClassifier.TryDescribeAuthFailure(ex, packageSource.Name, packageSource.Source, out var authMessage))
+                {
+                    authFailure ??= new AuthFailureInfo(packageSource.Name, packageSource.Source);
+                    sourceErrors.Add(authMessage);
+                }
+                else
+                {
+                    sourceErrors.Add($"{packageSource.Source}: Error retrieving versions. ({ex.Message})");
+                }
                 continue;
             }
 
@@ -463,13 +675,55 @@ public static class NuGetCache
         // Mirror EnsureCachedAsync: failures matter only when no source supplied any version
         if (versions.Count == 0 && sourceErrors.Count > 0)
         {
-            throw new InvalidOperationException(
+            throw CreateFailure(
                 $"Unable to retrieve versions of package '{packageId}' from the configured NuGet sources."
                 + Environment.NewLine
-                + string.Join(Environment.NewLine, sourceErrors.Select(e => $"  - {e}")));
+                + string.Join(Environment.NewLine, sourceErrors.Select(e => $"  - {e}")),
+                authFailure,
+                options);
         }
 
         return versions.Select(v => v.ToNormalizedString()).ToList();
+    }
+
+    /// <summary>
+    ///     Creates the exception for a failed operation: a <see cref="NuGetAuthenticationException"/>
+    ///     when options were supplied and a source rejected the request with 401/403, otherwise a plain
+    ///     <see cref="InvalidOperationException"/> as in 1.5.0.
+    /// </summary>
+    /// <param name="message">The full diagnostic message.</param>
+    /// <param name="authFailure">The first authentication failure, or <see langword="null"/>.</param>
+    /// <param name="options">The per-call options; <see langword="null"/> for the 1.5.0 overloads.</param>
+    /// <returns>The exception to throw.</returns>
+    private static InvalidOperationException CreateFailure(string message, AuthFailureInfo? authFailure, NuGetCacheOptions? options)
+    {
+        // Only callers that opted in with options see the richer exception type; the 1.5.0 overloads
+        // keep throwing exactly InvalidOperationException so their behavior is unchanged
+        if (authFailure == null || options == null)
+        {
+            return new InvalidOperationException(message);
+        }
+
+        Uri.TryCreate(authFailure.SourceUrl, UriKind.Absolute, out var uri);
+        return new NuGetAuthenticationException(message, authFailure.SourceName, uri);
+    }
+
+    /// <summary>
+    ///     Logs a warning when options that need the library's credential dispatcher were supplied
+    ///     but another credential service (registered earlier by the host) is in place.
+    /// </summary>
+    /// <param name="options">The per-call options, or <see langword="null"/>.</param>
+    /// <param name="logger">The call's logger, or <see langword="null"/>.</param>
+    private static void WarnWhenOptionsCannotApply(NuGetCacheOptions? options, NuGetLoggerAdapter? logger)
+    {
+        if (logger != null
+            && options is { Interactive: true } or { CredentialCallback: not null }
+            && !CredentialServiceRegistrar.IsDispatcherActive)
+        {
+            logger.LogWarning(
+                "A different NuGet credential service is already registered in this process; " +
+                "the Interactive and CredentialCallback options are not applied.");
+        }
     }
 
     /// <summary>

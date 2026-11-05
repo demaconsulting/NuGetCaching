@@ -13,7 +13,7 @@ that require them.
 
 ### Verification Approach
 
-This unit has no dedicated test file; its tests live in `NuGetCacheServerTests`. A pure unit
+This unit's tests live in `NuGetCacheServerTests` and `CredentialDispatcherTests`. A pure unit
 test constructs a `CredentialServiceRegistrar` with the internal action-accepting constructor and
 counts how many times registration runs across repeated and concurrent `EnsureRegistered` calls.
 Integration tests inject an `ICredentialServiceRegistrar` test double to confirm
@@ -88,8 +88,38 @@ fresh-instance test above covers the transition.
 
 **Requirement coverage**: `Caching-CredentialServiceRegistrar-DefaultWiredToRealFlow`.
 
+### Dispatcher Test Scenarios
+
+The dispatcher tests live in `CredentialDispatcherTests`. Each runs with the process-wide credential
+service nulled, a fresh `CredentialServiceRegistrar` registered, and the original value restored afterward.
+
+- **CredentialServiceRegistrar_EnsureRegistered_RegistersDispatcherOnlyWhenNoServiceExists**: the
+  dispatcher is installed when nothing is registered and a pre-registered host service is left in place.
+- **NuGetCache_EnsureCachedAsync_WithOptions_InvokesCredentialServiceRegistrar**: the options overload
+  calls the injected registrar test double.
+- **NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source**: the callback is
+  consulted before providers and its credential unlocks the 401 source.
+- **NuGetCache_EnsureCachedAsync_CallbackReturnsNull_FallsThroughAndFailsWithAuthenticationException**:
+  null falls through and the call fails with `NuGetAuthenticationException`.
+- **NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails**: a rejected
+  credential is not requested again for the same URI and type.
+- **NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: the timeout
+  surfaces as `OperationCanceledException` even when the callback ignores its token.
+- **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: concurrent calls with and without a
+  callback do not see each other's options.
+
 ### Requirements Coverage
 
+- **`Caching-CredentialServiceRegistrar-DispatchPerCall`**:
+  CredentialServiceRegistrar_EnsureRegistered_RegistersDispatcherOnlyWhenNoServiceExists,
+  NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated,
+  NuGetCache_EnsureCachedAsync_WithOptions_InvokesCredentialServiceRegistrar
+- **`Caching-CredentialServiceRegistrar-CallbackFirst`**:
+  NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source,
+  NuGetCache_EnsureCachedAsync_CallbackReturnsNull_FallsThroughAndFailsWithAuthenticationException
+- **`Caching-CredentialServiceRegistrar-LoopGuard`**:
+  NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails,
+  NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
 - **`Caching-CredentialServiceRegistrar-RegisterOnce`**:
   CredentialServiceRegistrar_EnsureRegistered_RepeatedCalls_RegistersExactlyOnce,
   NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar,

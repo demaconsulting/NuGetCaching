@@ -279,15 +279,48 @@ Satisfies requirements `Caching-NuGetCache-GetVersions`, `Caching-NuGetCache-Get
 `Caching-NuGetCache-GetVersionsCancellation`, `Caching-NuGetCache-GetVersionsPrerelease`,
 `Caching-NuGetCache-GetVersionsNotFound`, and `Caching-NuGetCache-GetVersionsNullArguments`.
 
+### Options Overloads
+
+Two additional public overloads, `EnsureCachedAsync(packageId, version, root, NuGetCacheOptions options,
+CancellationToken = default)` and `GetVersionsAsync(packageId, includePrerelease, root,
+NuGetCacheOptions options, CancellationToken = default)`, accept a required
+`NuGetCacheOptions`. The options parameter is required and precedes the optional token so
+that every 1.5.0 call form still binds to the 1.5.0 overload; this keeps the change source- and
+binary-compatible. Internal overloads taking `ISettings`, `NuGetCacheOptions?`, and an
+`ICredentialServiceRegistrar` are the shared implementation; the 1.5.0 internal overloads
+delegate to them with `null` options.
+
+When the options overloads run, `NuGetCache`:
+
+1. Opens a `CredentialDispatcher` scope (an `AsyncLocal` call context holding the options and
+   the adapted logger) for the duration of the call, so the process-wide dispatching credential
+   service can see this call's options and no other call's.
+2. Passes the logger (adapted from `Microsoft.Extensions.Logging.ILogger` by
+   `NuGetLoggerAdapter`) to the NuGet SDK in place of the null logger.
+3. Records the first authentication failure reported by the sibling units
+   (`AuthFailureInfo`: source name and URL) and, if the operation fails, throws
+   `NuGetAuthenticationException` (derived from `InvalidOperationException`) instead of a plain
+   `InvalidOperationException`. The 1.5.0 overloads keep throwing the plain type.
+4. Logs a warning when options cannot apply because a host application had already registered
+   its own credential service (the host's service wins).
+
+Limitations: the credential service is process-wide, so a host-registered service bypasses the
+callback, timeout, and interactive mode. `AuthenticationTimeout` cancels the wait and the token
+given to the callback or provider; it does not guarantee that an external credential-provider
+plugin process is terminated (NuGet's `PluginManager` owns those processes, and this was not
+verified to dispose them). Versions are returned as NuGet-normalized strings and may carry
+`+metadata` or four parts.
+
 ### Error Handling
 
 `EnsureCachedAsync`:
 
-- **Thrown to the caller**: `ArgumentNullException` (null `packageId`, `version`, `settings`, or
-  registrar), `ArgumentException` (invalid version string, propagated from `NuGetVersion.Parse`),
+- **Thrown to the caller**: `ArgumentNullException` (null `packageId`, `version`, `settings`,
+  `options` on the options overloads, or registrar), `ArgumentException` (invalid version string, propagated from `NuGetVersion.Parse`),
   `InvalidOperationException` when no source supplies the package (message includes
-  accumulated per-source diagnostics), and `OperationCanceledException` when the token is
-  canceled (cancellation propagates unchanged).
+  accumulated per-source diagnostics; `NuGetAuthenticationException` from the options overloads when
+  a source returned 401/403), and `OperationCanceledException` when the token is
+  canceled or `AuthenticationTimeout` elapses (cancellation propagates unchanged).
 - **Handled locally**: transient source failures are absorbed by the sibling units, which
   return an empty or diagnostic result so the next source is tried.
 
@@ -302,7 +335,9 @@ Satisfies requirements `Caching-NuGetCache-GetVersions`, `Caching-NuGetCache-Get
 
 - `PackageSourceResolver` (resource resolution, both methods).
 - `PackageDownloader` (download and package-path convention, `EnsureCachedAsync`).
-- `CredentialServiceRegistrar` / `ICredentialServiceRegistrar` (credential service registration).
+- `CredentialServiceRegistrar` / `ICredentialServiceRegistrar` (credential service registration)
+  and `CredentialDispatcher` (per-call scope, via the options overloads).
+- `NuGetLoggerAdapter` (adapts `Microsoft.Extensions.Logging.ILogger` for the NuGet SDK).
 - `PathHelpers` (safe path combination for the sentinel-file path).
 - `AuthFailureClassifier` (used indirectly through the resolver and downloader).
 - **NuGet** (OTS): `NuGet.Configuration` (`Settings`, `SettingsUtility`, `PackageSourceProvider`,

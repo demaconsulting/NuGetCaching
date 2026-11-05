@@ -37,6 +37,26 @@ sections:
           - NuGetCaching_EnsureCachedAsync_WhenPackageIdIsNull_ThrowsArgumentNullException
           - NuGetCaching_EnsureCachedAsync_WhenVersionIsNull_ThrowsArgumentNullException
 
+      - id: Caching-Sys-CacheOptions
+        title: >-
+          The system shall let callers supply per-call options for interactive credential
+          acquisition, a credential callback, logging, and an authentication timeout
+          without changing the behavior of calls that supply none.
+        tags:
+          - system
+        justification: |
+          Hosts such as CLI tools need to authenticate against private feeds and
+          diagnose failures, while existing 1.5.0 callers must keep working unchanged.
+        children:
+          - Caching-NuGetCache-OptionsOverloads
+          - Caching-NuGetCache-CredentialCallback
+          - Caching-NuGetCache-AuthenticationException
+          - Caching-NuGetCache-AuthenticationTimeout
+          - Caching-NuGetCache-OptionsIsolation
+          - Caching-NuGetCache-Logging
+        tests:
+          - NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder
+
       - id: Caching-Sys-VersionDiscovery
         title: The system shall list the available versions of a NuGet package as strings.
         tags:
