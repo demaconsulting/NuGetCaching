@@ -72,8 +72,10 @@ sections:
         justification: |
           A signature failure means the content is untrustworthy, not that the source lacks
           the package, so falling through to another source would hide the problem. The
-          policy is applied through the client policy context for downloads and through an
-          explicit verifier for the already-installed fast path.
+          policy is applied through the client policy context and an explicit, platform-independent
+          verification for downloads (NuGet skips its own on Linux and macOS by default) and
+          through the same explicit verifier for the already-installed fast path.
         tests:
           - NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_NuGetConfigRequireMode_UnsignedPackageDownload_ThrowsInvalidOperationException
           - NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit

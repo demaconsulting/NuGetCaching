@@ -239,9 +239,12 @@ and an empty list is returned when nothing is installed. Throws `ArgumentNullExc
   `ListVersionsAsync`. `EnsureCachedAsync` always consults local sources.
 - `RequireSignedPackages` (bool, default false): requires the package to be signed for this call. An
   unsigned or invalidly signed package is rejected with `InvalidOperationException` and not installed, and
-  an already-installed package is verified on the cache-hit path. The cache-hit verification checks
-  integrity and signature validity but does not apply the `trustedSigners` allow-list from `nuget.config`.
-  When false, the `nuget.config` signature validation mode applies as before.
+  an already-installed package is verified on the cache-hit path. Verification is performed explicitly by
+  the library on every platform (NuGet's own check is skipped on Linux and macOS unless
+  `DOTNET_NUGET_SIGNATURE_VERIFICATION=true`), checks integrity, signature validity, and the `trustedSigners`
+  allow-list from `nuget.config`, so unsigned packages are never silently accepted. The same explicit check
+  applies when `nuget.config` sets `signatureValidationMode=require`. When false, the `nuget.config` signature
+  validation mode applies as before.
 - `Interactive` (bool, default false): allows credential providers to show prompts or dialogs.
 - `Logger` (`Microsoft.Extensions.Logging.ILogger?`): receives NuGet SDK messages. Secrets are never logged.
 - `CredentialCallback` (`Func<Uri, CancellationToken, Task<NuGetCredential?>>?`): called when a source

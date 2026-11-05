@@ -184,11 +184,15 @@ only. A `ClientPolicyContext` cannot be constructed publicly, so `PackageDownloa
 one from an `ISettings` decorator (`RequireSignedSettings`) that overrides only the `config` section with
 `signatureValidationMode=require`; the section is read once from a short-lived temporary `nuget.config`
 (the in-memory section types are internal to NuGet), and other sections, including `trustedSigners`,
-pass through to the real settings. During download, NuGet enforces the policy and a `SignatureException` is
-rethrown as `InvalidOperationException` naming the package, version and source (it is not treated as
-"not in this source"). On the cache-hit fast path, `PackageDownloader.VerifyCachedPackageSignedAsync` verifies
-the installed package's signature with integrity and trust/validity providers; that check does not apply the
-`trustedSigners` allow-list. A call without the option follows the `nuget.config` setting as before.
+pass through to the real settings. NuGet's own install-time verification is a silent no-op on Linux and
+macOS unless `DOTNET_NUGET_SIGNATURE_VERIFICATION=true` is set (`CanVerifySignedPackages` returns false), so
+the library never relies on it alone: whenever the effective policy is `require` - from the option or from
+`signatureValidationMode=require` in `nuget.config` - `PackageDownloader` verifies the package explicitly
+(must be signed; integrity, `trustedSigners` allow-list, trust and validity) before installing it, on every
+platform. A failure, including a `SignatureException` from NuGet, surfaces as `InvalidOperationException`
+naming the package, version and source (it is not treated as "not in this source"). On the cache-hit fast
+path, `PackageDownloader.VerifyCachedPackageSignedAsync` applies the same explicit verification to the
+installed package. A call without the option follows the `nuget.config` setting as before.
 
 #### Testability via Injected Settings
 

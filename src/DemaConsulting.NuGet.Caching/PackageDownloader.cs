@@ -149,6 +149,23 @@ internal static class PackageDownloader
         packageStream.Seek(0, SeekOrigin.Begin);
         try
         {
+            // NuGet skips its own signature verification on Linux/macOS unless an environment variable
+            // opts in, so a required signature is verified explicitly here (before anything is installed)
+            // to fail closed on every platform
+            if (clientPolicyContext.Policy == SignatureValidationMode.Require)
+            {
+                using (var reader = new PackageArchiveReader(packageStream, leaveStreamOpen: true))
+                {
+                    await VerifySignedAsync(
+                        reader,
+                        clientPolicyContext,
+                        $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{source}'",
+                        cancellationToken);
+                }
+
+                packageStream.Seek(0, SeekOrigin.Begin);
+            }
+
             using var downloadResult = await GlobalPackagesFolderUtility.AddPackageAsync(
                 sourceRepository.PackageSource.Source,
                 identity,
@@ -221,17 +238,59 @@ internal static class PackageDownloader
         }
 
         using var reader = new PackageArchiveReader(nupkgPath);
+        await VerifySignedAsync(reader, clientPolicyContext, prefix, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Explicitly verifies that a package is signed and that its signature is valid under the client
+    ///     policy, independent of the platform.
+    /// </summary>
+    /// <remarks>
+    ///     NuGet's own install-time verification is silently skipped on Linux and macOS unless the
+    ///     <c>DOTNET_NUGET_SIGNATURE_VERIFICATION</c> environment variable is <c>true</c>
+    ///     (<c>CanVerifySignedPackages</c> returns <see langword="false"/>), so relying on it alone would
+    ///     accept unsigned packages there. This check does not depend on that switch, so a required
+    ///     signature fails closed on every platform. The verification providers mirror those NuGet uses
+    ///     (integrity, client trusted-signer allow-list, trust and validity).
+    /// </remarks>
+    /// <param name="reader">The package reader.</param>
+    /// <param name="clientPolicyContext">The client policy (require mode).</param>
+    /// <param name="description">Description of the package used in error messages.</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>A task that completes when the package is verified.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the package is unsigned or its signature is invalid.</exception>
+    private static async Task VerifySignedAsync(
+        PackageArchiveReader reader,
+        ClientPolicyContext clientPolicyContext,
+        string description,
+        CancellationToken cancellationToken)
+    {
         if (!await reader.IsSignedAsync(cancellationToken))
         {
-            throw new InvalidOperationException($"{prefix} is not signed, but signed packages are required.");
+            throw new InvalidOperationException(
+                $"{description} has no package signature, but signed packages are required (signature verification failed).");
         }
 
-        var verifier = new PackageSignatureVerifier(
-            [new IntegrityVerificationProvider(), new SignatureTrustAndValidityVerificationProvider()]);
+        var allowList = clientPolicyContext.AllowList;
+        var untrustedRoots = allowList?
+            .Where(e => e.AllowUntrustedRoot)
+            .Select(e => new KeyValuePair<string, HashAlgorithmName>(e.Fingerprint, e.FingerprintAlgorithm))
+            .ToList();
+        var providers = new List<ISignatureVerificationProvider>
+        {
+            new IntegrityVerificationProvider(),
+            new AllowListVerificationProvider(
+                allowList ?? [],
+                clientPolicyContext.Policy == SignatureValidationMode.Require,
+                "No trusted signers are configured for signature validation mode 'require'.",
+                "The package signature does not match any trusted signer in the client configuration."),
+            new SignatureTrustAndValidityVerificationProvider(untrustedRoots is { Count: > 0 } ? untrustedRoots : null)
+        };
+        var verifier = new PackageSignatureVerifier(providers);
         var result = await verifier.VerifySignaturesAsync(reader, clientPolicyContext.VerifierSettings, cancellationToken);
         if (!result.IsValid)
         {
-            throw new InvalidOperationException($"{prefix} failed signature verification.");
+            throw new InvalidOperationException($"{description} failed signature verification.");
         }
     }
 

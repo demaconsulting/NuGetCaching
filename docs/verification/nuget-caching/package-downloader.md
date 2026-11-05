@@ -118,7 +118,10 @@ both segments are lower-cased following the NuGet global packages folder convent
 The signature tests live in `NuGetCacheSignatureTests` and exercise this unit through `NuGetCache`:
 
 - **NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException**: an unsigned
-  package from a WireMock feed is rejected with `InvalidOperationException` and not installed.
+  package from a WireMock feed is rejected with `InvalidOperationException` and not installed. This holds on
+  every OS because the explicit check does not depend on NuGet's platform-gated verification.
+- **NuGetCache_NuGetConfigRequireMode_UnsignedPackageDownload_ThrowsInvalidOperationException**: the same
+  rejection when `signatureValidationMode=require` comes from `nuget.config` and the option is not set.
 - **NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: an unsigned
   package already installed is rejected on the cache-hit path.
 
@@ -138,4 +141,5 @@ The signature tests live in `NuGetCacheSignatureTests` and exercise this unit th
   PackageDownloader_GetPackagePath_MixedCaseIdAndVersion_ReturnsLowerCasedPath
 - **`Caching-PackageDownloader-SignatureRequirement`**:
   NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_NuGetConfigRequireMode_UnsignedPackageDownload_ThrowsInvalidOperationException,
   NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit

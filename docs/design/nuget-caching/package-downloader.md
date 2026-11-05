@@ -144,9 +144,12 @@ method:
    `NuGetProtocolException` or an `HttpRequestException`; a generic protocol-error result on any
    other `NuGetProtocolException`; or an empty result on any other `HttpRequestException`
    (transient network failure).
-2. Installs the package into the global packages folder using
+2. When the client policy is `require`, explicitly verifies the downloaded bytes with `VerifySignedAsync`
+   (see below) before anything is installed, so unsigned or invalid packages fail closed on every platform
+   (NuGet's own check is skipped on Linux/macOS unless `DOTNET_NUGET_SIGNATURE_VERIFICATION=true`).
+3. Installs the package into the global packages folder using
    `GlobalPackagesFolderUtility.AddPackageAsync`.
-3. Returns a success result containing the conventional package path (computed via
+4. Returns a success result containing the conventional package path (computed via
    `GetPackagePath`).
 
 Satisfies requirements `Caching-PackageDownloader-DownloadOutcome`,
@@ -164,9 +167,15 @@ to the inner settings. Mutating members throw `NotSupportedException`.
 
 #### `VerifyCachedPackageSignedAsync(...)`
 
-Used on the cache-hit path when `RequireSignedPackages` is set. Verifies the installed `.nupkg` with a
-`PackageSignatureVerifier` (integrity and trust/validity providers) and throws `InvalidOperationException`
-when the package is unsigned or invalid. It does not apply the `trustedSigners` allow-list.
+Used on the cache-hit path when `RequireSignedPackages` is set. Opens the installed `.nupkg` and applies
+`VerifySignedAsync`; throws `InvalidOperationException` when the file is missing, unsigned or invalid.
+
+#### `VerifySignedAsync(...)`
+
+Platform-independent explicit check shared by the download and cache-hit paths. Requires
+`PackageArchiveReader.IsSignedAsync` to be true, then runs a `PackageSignatureVerifier` with integrity, client
+`trustedSigners` allow-list (non-empty required in `require` mode) and trust/validity providers, mirroring
+NuGet's own extraction-time providers. Throws `InvalidOperationException` when unsigned or invalid.
 
 #### `GetPackagePath(string globalPackagesFolder, string packageId, string version)`
 
