@@ -57,7 +57,16 @@ public static class NuGetCache
     ///     <c>1.0.0</c>), and the returned folder follows the NuGet layout
     ///     <c>{globalPackagesFolder}/{lowercase id}/{normalized version}</c>. Every permitted source is
     ///     consulted, local folder feeds included. The <paramref name="options"/> apply only to this call,
-    ///     even when other calls with different options run concurrently.
+    ///     even when other calls with different options run concurrently. The NuGet credential service is
+    ///     process-wide: <see cref="NuGetCacheOptions.Interactive"/>, <see cref="NuGetCacheOptions.CredentialCallback"/>,
+    ///     and <see cref="NuGetCacheOptions.AuthenticationTimeout"/> apply only when this library registered it, not
+    ///     when the host application registered its own first.
+    ///     This method cannot tell a package that no source has from a source that is unreachable: both throw
+    ///     <see cref="InvalidOperationException"/> with the message "was not found in any configured NuGet source",
+    ///     followed by per-source diagnostics when a source reported one (a transient network failure during the
+    ///     download itself is skipped without a diagnostic). Only HTTP 401 or 403 is distinguished, as
+    ///     <see cref="NuGetAuthenticationException"/>. To tell the cases apart, call <c>GetVersionsAsync</c>,
+    ///     which returns an empty list for a package no source has.
     /// </remarks>
     /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
     /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>
@@ -128,8 +137,12 @@ public static class NuGetCache
     ///     <see cref="NuGetCacheOptions.Sources"/>. Other non-HTTP sources and the global packages folder
     ///     are not consulted (see <see cref="GetCachedVersions"/> for the latter). Versions are merged across
     ///     all permitted sources, de-duplicated, and returned as normalized strings in ascending
-    ///     semantic-version order, including unlisted versions. A package that no source carries yields an
-    ///     empty list. Use <c>ListVersionsAsync</c> for listing and publication details.
+    ///     semantic-version order, including unlisted (deleted-from-search) versions, which cannot be told
+    ///     apart here: use <c>ListVersionsAsync</c> and filter on <see cref="NuGetPackageVersion.IsListed"/> to
+    ///     exclude them. A package that no source carries yields an
+    ///     empty list. Use <c>ListVersionsAsync</c> for listing and publication details. The NuGet credential
+    ///     service is process-wide, so the credential-related options apply only when this library registered it,
+    ///     not when the host application registered its own first.
     /// </remarks>
     /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
     /// <param name="includePrerelease">
@@ -199,7 +212,10 @@ public static class NuGetCache
     ///     source's flat version list instead and reported with <see cref="NuGetPackageVersion.IsListed"/>
     ///     <see langword="true"/> and <see cref="NuGetPackageVersion.Published"/>
     ///     <see langword="null"/>. When several sources carry a version, the first source in query order
-    ///     is reported.
+    ///     is reported. Unlisted versions are included and flagged with <see cref="NuGetPackageVersion.IsListed"/>
+    ///     <see langword="false"/>; filter on it to see only listed versions. The NuGet credential service is
+    ///     process-wide, so the credential-related options apply only when this library registered it, not when
+    ///     the host application registered its own first.
     /// </remarks>
     /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
     /// <param name="includePrerelease">Whether prerelease versions are included.</param>
@@ -259,10 +275,16 @@ public static class NuGetCache
     /// </summary>
     /// <remarks>
     ///     This call is synchronous and offline: it never contacts a package source and never registers a
-    ///     credential service. It reads the global packages folder from the default NuGet settings rooted
-    ///     at <paramref name="root"/> and returns every installed version (prerelease versions included)
-    ///     whose installation is complete, using the same completeness marker as
-    ///     <c>EnsureCachedAsync</c>. The package ID is matched case-insensitively.
+    ///     credential service. It reads the global packages folder from the default NuGet settings
+    ///     and returns every installed version (prerelease versions included) whose installation is complete.
+    ///     A version counts as complete when its folder contains the <c>.nupkg.metadata</c> file that NuGet writes
+    ///     as the last step of an installation (the same check <c>EnsureCachedAsync</c> uses to decide that a
+    ///     package is already installed), so a partly extracted folder is ignored. The global packages folder is
+    ///     the one NuGet itself would use: the <c>NUGET_PACKAGES</c> environment variable when set, otherwise
+    ///     the <c>globalPackagesFolder</c> setting from <c>nuget.config</c>, otherwise the default
+    ///     (<c>.nuget/packages</c> in the user profile). The <paramref name="root"/> argument only chooses where
+    ///     <c>nuget.config</c> discovery starts; it is not itself the packages folder. The package ID is matched
+    ///     case-insensitively.
     /// </remarks>
     /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
     /// <param name="root">

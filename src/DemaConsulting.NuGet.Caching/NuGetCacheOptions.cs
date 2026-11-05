@@ -44,10 +44,46 @@ namespace DemaConsulting.NuGet.Caching;
 public sealed class NuGetCacheOptions
 {
     /// <summary>
+    ///     Initializes a new instance of the <see cref="NuGetCacheOptions"/> class with every option at its
+    ///     default: non-interactive, no logger, no credential callback, no timeout, sources from
+    ///     <c>nuget.config</c>, local sources excluded from version listing, and signatures not required.
+    /// </summary>
+    /// <remarks>
+    ///     Set the properties you need with an object initializer. To supply a password or token, return a
+    ///     <see cref="NuGetCredential"/> from <see cref="CredentialCallback"/>; its <c>Secret</c> is set through
+    ///     its constructor (or an <c>init</c> accessor) and is redacted from <c>ToString</c>.
+    /// </remarks>
+    public NuGetCacheOptions()
+    {
+    }
+
+    /// <summary>
     ///     Gets or sets a value indicating whether NuGet credential-provider plugins may prompt the
     ///     user (for example with a device-code or browser sign-in).
     /// </summary>
     /// <value>The default is <see langword="false"/>.</value>
+    /// <remarks>
+    ///     <para>
+    ///         When <see langword="false"/>, credential providers are run in non-interactive mode: a provider
+    ///         that would need user input fails instead of prompting, and the request then fails as an
+    ///         authentication failure.
+    ///     </para>
+    ///     <para>
+    ///         When <see langword="true"/>, a provider may start a device-code, browser, or dialog sign-in. This
+    ///         library does not display anything itself: text a provider emits for the user (such as a
+    ///         device-code instruction or a sign-in URL) is delivered as NuGet log messages to
+    ///         <see cref="Logger"/>, so supply a logger to show it. Such messages are NuGet Minimal or
+    ///         Information messages, which map to <see cref="LogLevel.Information"/>; there is no separate
+    ///         category, because the messages go to the logger instance you supplied. Without a logger they
+    ///         are discarded and the user will not see the instructions. A provider may also open its own
+    ///         window or browser. Combine with <see cref="AuthenticationTimeout"/> so an unattended prompt
+    ///         cannot wait forever.
+    ///     </para>
+    ///     <para>
+    ///         Has no effect when the host application registered its own NuGet credential service first (a
+    ///         warning is then logged), and does not apply to <see cref="NuGetCache.GetCachedVersions"/>.
+    ///     </para>
+    /// </remarks>
     public bool Interactive { get; set; }
 
     /// <summary>
@@ -105,6 +141,16 @@ public sealed class NuGetCacheOptions
     ///     whose signature is trusted is accepted. NuGet's own verification is
     ///     skipped on Linux and macOS unless <c>DOTNET_NUGET_SIGNATURE_VERIFICATION</c> is <c>true</c>, so the library
     ///     verifies the signature explicitly on every platform and never silently accepts an unsigned package.
+    ///     The check accepts a package whose primary signature (author or repository) is valid, intact, and
+    ///     chains to a trusted root, including any repository countersignature, using NuGet's own trust and
+    ///     validity verification: the library neither requires a specific signature type nor adds its own
+    ///     timestamp or revocation rules, so certificate chain building, timestamp, and revocation handling
+    ///     follow NuGet's defaults on the current machine (an allow-list entry with
+    ///     <c>allowUntrustedRoot</c> permits an untrusted root for that signer). Failures of the signature
+    ///     itself are reported as <see cref="InvalidOperationException"/>; other errors, such as
+    ///     <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/> when the package or the global
+    ///     packages folder cannot be read or written, propagate unchanged. A missing stored package file for an
+    ///     installed package also throws <see cref="InvalidOperationException"/>; delete the folder to download it again.
     /// </remarks>
     public bool RequireSignedPackages { get; set; }
 
@@ -113,9 +159,23 @@ public sealed class NuGetCacheOptions
     /// </summary>
     /// <value>The default is <see langword="null"/>, which discards NuGet messages.</value>
     /// <remarks>
-    ///     NuGet message levels are mapped to <see cref="LogLevel"/> as: Debug to Debug, Verbose to
-    ///     Trace, Information to Information, Minimal to Information, Warning to Warning and Error
-    ///     to Error. Credential values are never logged.
+    ///     <para>
+    ///         NuGet message levels are mapped to <see cref="LogLevel"/> as: Debug to Debug, Verbose to
+    ///         Trace, Information to Information, Minimal to Information, Warning to Warning and Error
+    ///         to Error. Credential values are never logged. Messages are written with the template
+    ///         <c>{Message}</c> to the logger instance you supply; no category or event ID is added.
+    ///     </para>
+    ///     <para>
+    ///         Credential-provider output, including device-code text and sign-in URLs shown when
+    ///         <see cref="Interactive"/> is <see langword="true"/>, is delivered here (normally at
+    ///         <see cref="LogLevel.Information"/>). The library calls the logger synchronously on whichever
+    ///         thread produced the message. That is usually the thread running the awaited call, but it can be a
+    ///         thread-pool or other background thread (for example while a credential exchange is running, or
+    ///         when NuGet reports from a plugin), and concurrent calls may log concurrently. The logger must
+    ///         therefore be thread-safe, and a UI application must marshal to its UI thread (for example with
+    ///         <c>Dispatcher.Invoke</c> or <c>SynchronizationContext.Post</c>) before touching controls.
+    ///         Provider messages that arrive outside any call are dropped.
+    ///     </para>
     /// </remarks>
     public ILogger? Logger { get; set; }
 

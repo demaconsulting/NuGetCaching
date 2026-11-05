@@ -188,9 +188,15 @@ rejected the request, an exception describing each failed source is thrown.
 **Example:**
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using DemaConsulting.NuGet.Caching;
+
 IReadOnlyList<string> versions = await NuGetCache.GetVersionsAsync("Newtonsoft.Json");
 if (versions.Count > 0)
 {
+    // Note: GetVersionsAsync includes unlisted versions; use ListVersionsAsync and IsListed to skip them
     string latest = versions[^1];
     string path = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", latest);
 }
@@ -225,8 +231,11 @@ public static IReadOnlyList<string> GetCachedVersions(string packageId, string? 
 ```
 
 Synchronously lists the versions of a package already installed in the global packages folder, as
-normalized strings in ascending order. It performs no network access. Incomplete installs are ignored,
-and an empty list is returned when nothing is installed. Throws `ArgumentNullException` or
+normalized strings in ascending order. It performs no network access. Incomplete installs (no
+`.nupkg.metadata` file) are ignored, and an empty list is returned when nothing is installed. The
+global packages folder is the `NUGET_PACKAGES` environment variable when set, otherwise the
+`globalPackagesFolder` setting in `nuget.config`, otherwise `.nuget/packages` in the user profile; `root` only
+chooses where `nuget.config` discovery starts. Throws `ArgumentNullException` or
 `ArgumentException` for a null or blank `packageId`.
 
 ##### NuGetCacheOptions
@@ -247,8 +256,12 @@ and an empty list is returned when nothing is installed. Throws `ArgumentNullExc
   packages are never silently accepted. The same explicit check applies, on download and on already-installed
   packages, when `nuget.config` sets `signatureValidationMode=require`. When false, the `nuget.config` signature
   validation mode applies as before.
-- `Interactive` (bool, default false): allows credential providers to show prompts or dialogs.
-- `Logger` (`Microsoft.Extensions.Logging.ILogger?`): receives NuGet SDK messages. Secrets are never logged.
+- `Interactive` (bool, default false): allows credential providers to show prompts or dialogs. Text a
+  provider emits for the user (device-code instructions, sign-in URLs) is delivered only through `Logger`
+  (at Information level), so supply a logger to show it. Without a logger it is discarded.
+- `Logger` (`Microsoft.Extensions.Logging.ILogger?`): receives NuGet SDK messages with the template
+  `{Message}` and no added category. Secrets are never logged. The logger can be called from background
+  threads, so it must be thread-safe and a GUI application must marshal to its UI thread.
 - `CredentialCallback` (`Func<Uri, CancellationToken, Task<NuGetCredential?>>?`): called when a source
   needs credentials, before any credential provider. Return a `NuGetCredential` to use it, or null to
   fall through to the providers. If a credential is rejected, the callback is not asked again for the
@@ -263,6 +276,10 @@ and an empty list is returned when nothing is installed. Throws `ArgumentNullExc
 `NuGetCredential(userName, secret)` is a record whose `ToString()` shows `Secret = ***`.
 
 ```csharp
+using System;
+using System.Threading.Tasks;
+using DemaConsulting.NuGet.Caching;
+
 var options = new NuGetCacheOptions
 {
     CredentialCallback = (uri, ct) =>

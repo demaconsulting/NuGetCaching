@@ -42,13 +42,17 @@ dotnet add package DemaConsulting.NuGet.Caching
 ## Usage
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using DemaConsulting.NuGet.Caching;
 
 // Ensure a specific NuGet package version is available in the local global packages cache
 string packagePath = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
 Console.WriteLine($"Package cached at: {packagePath}");
 
-// Discover available versions (normalized strings, ascending); stable versions only by default
+// Discover available versions (normalized strings, ascending); stable versions only by default.
+// GetVersionsAsync includes unlisted versions; use ListVersionsAsync and IsListed to filter them out.
 IReadOnlyList<string> versions = await NuGetCache.GetVersionsAsync("Newtonsoft.Json");
 Console.WriteLine(versions.Count > 0
     ? $"Latest stable version: {versions[^1]}"
