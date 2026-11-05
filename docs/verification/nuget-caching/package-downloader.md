@@ -131,8 +131,8 @@ The signature tests live in `NuGetCacheSignatureTests` and exercise this unit th
   with a corrupt signature entry is rejected on download (not installed) and on cache hit.
 - **NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds**: a real, unmodified package from
   nuget.org (Newtonsoft.Json 13.0.1, signed by its author and countersigned by the nuget.org repository;
-  stored in `TestData` with its provenance) is accepted with no trusted signers configured and fully
-  installed.
+  downloaded from nuget.org once per test run, with no binary checked in) is accepted with no trusted
+  signers configured and fully installed.
 - **NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds** and
   **NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds**: the same package is accepted
   when `nuget.config` lists its author certificate, or its repository certificate, as a trusted signer.
@@ -142,10 +142,14 @@ The signature tests live in `NuGetCacheSignatureTests` and exercise this unit th
   **NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit**: the
   installed signed package passes the cache-hit check, and is rejected when the trusted signers do not match.
 
-The signed-fixture tests set `NUGET_CERT_REVOCATION_MODE=offline` (in a non-parallel test collection) so they
-never need network access for revocation checking; the fixture's certificates are expired, so acceptance
+The signed-package tests are network-dependent: the package is downloaded once per test run from
+`https://api.nuget.org/v3-flatcontainer/` into a temporary folder (removed when the run ends) and verified
+against a SHA-256 pinned in the test; a hash mismatch fails the tests because it would indicate tampering,
+while a download failure (offline, network error, timeout) skips them with a clear reason. They also set
+`NUGET_CERT_REVOCATION_MODE=offline` (in a non-parallel test collection) so they
+never need network access for revocation checking; the package's certificates are expired, so acceptance
 rests on the signature timestamps. Before each test, a one-time preflight checks that the operating system
-trusts the DigiCert roots the fixture chains to (revocation and validity dates ignored). If it does not
+trusts the DigiCert roots the package chains to (revocation and validity dates ignored). If it does not
 (for example a Linux distribution that has removed the legacy DigiCert Assured ID and High Assurance EV
 roots), the test is skipped with that reason rather than failing; this is an environment gap, not a
 product defect. There is no OS-based skip.

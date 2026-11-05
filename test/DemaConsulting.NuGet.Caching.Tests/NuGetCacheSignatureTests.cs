@@ -23,6 +23,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 #endif
+using System.Net.Http;
 using NuGet.Configuration;
 
 namespace DemaConsulting.NuGet.Caching.Tests;
@@ -31,7 +32,9 @@ namespace DemaConsulting.NuGet.Caching.Tests;
 ///     Tests for <see cref="NuGetCacheOptions.RequireSignedPackages"/>. The test infrastructure produces
 ///     unsigned packages, and invalidly signed ones by adding a corrupt signature entry. Positive
 ///     acceptance is covered with a real, unmodified package from nuget.org (Newtonsoft.Json 13.0.1,
-///     signed by its author and countersigned by the nuget.org repository) stored in the TestData folder.
+///     signed by its author and countersigned by the nuget.org repository) that is downloaded from nuget.org
+///     once per test run, verified against a pinned SHA-256 (a mismatch fails the tests) and removed when the
+///     run ends. No binary is checked in; when the download fails (offline) the tests are skipped.
 ///     The signature tests run in a non-parallel collection because they set the
 ///     <c>NUGET_CERT_REVOCATION_MODE</c> process environment variable (to <c>offline</c>) so that no
 ///     test depends on network access to certificate revocation services.
@@ -58,6 +61,17 @@ public class NuGetCacheSignatureTests
     ///     SHA-256 fingerprint of the fixture's nuget.org repository signing certificate.
     /// </summary>
     private const string RepositoryFingerprint = "5A2901D6ADA3D18260B9C6DFE2133C95D74B9EEF6AE0E5DC334C8454D1477DF4";
+
+    /// <summary>
+    ///     The nuget.org flat-container URL of the signed package.
+    /// </summary>
+    private const string SignedPackageUrl =
+        "https://api.nuget.org/v3-flatcontainer/newtonsoft.json/13.0.1/newtonsoft.json.13.0.1.nupkg";
+
+    /// <summary>
+    ///     Pinned SHA-256 of the unmodified Newtonsoft.Json 13.0.1 package. A mismatch fails the tests.
+    /// </summary>
+    private const string SignedPackageSha256 = "2B6B52556E27E1B7913F33EEDEB95568110C746BD64AFFF74357F1683878323A";
 
     /// <summary>
     ///     A SHA-256 fingerprint that matches no certificate.
@@ -498,11 +512,62 @@ public class NuGetCacheSignatureTests
     }
 
     /// <summary>
-    ///     Locates the signed fixture package copied to the test output folder.
+    ///     Returns the path of the signed package downloaded from nuget.org for this test run. Only valid
+    ///     after <see cref="ArrangeSignedFixture"/> has not skipped the test.
     /// </summary>
-    /// <returns>The fixture path.</returns>
-    private static string SignedFixturePath() =>
-        Path.Combine(AppContext.BaseDirectory, "TestData", "newtonsoft.json.13.0.1.nupkg");
+    /// <returns>The downloaded package path.</returns>
+    private static string SignedFixturePath() => SignedDownload.Value.Path!;
+
+    /// <summary>
+    ///     Downloads the signed package once per test run (thread-safe), verifies its pinned SHA-256 and
+    ///     stores it in a temporary folder that is removed when the process exits. A network failure yields
+    ///     a skip reason; a hash mismatch throws, because it would indicate tampering.
+    /// </summary>
+    private static readonly Lazy<(string? Path, string? SkipReason)> SignedDownload = new(DownloadSignedPackage);
+
+    /// <summary>
+    ///     Downloads and verifies the signed package.
+    /// </summary>
+    /// <returns>The package path, or a skip reason when the download fails.</returns>
+    private static (string? Path, string? SkipReason) DownloadSignedPackage()
+    {
+        byte[] bytes;
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+            bytes = Task.Run(() => client.GetByteArrayAsync(SignedPackageUrl)).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException or IOException)
+        {
+            return (null, $"The signed package {SignedId} {SignedVersion} could not be downloaded from nuget.org " +
+                          $"(offline or network error): {ex.Message}");
+        }
+
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var actual = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty);
+        if (!string.Equals(actual, SignedPackageSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"The downloaded {SignedId} {SignedVersion} package has SHA-256 {actual} but {SignedPackageSha256} " +
+                "was expected; the package may have been tampered with.");
+        }
+
+        var folder = CreateTempFolder();
+        var path = Path.Combine(folder, $"{SignedId.ToLowerInvariant()}.{SignedVersion}.nupkg");
+        File.WriteAllBytes(path, bytes);
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Best-effort cleanup of the temporary download folder
+            }
+        };
+        return (path, null);
+    }
 
     /// <summary>
     ///     Builds a <c>trustedSigners</c> author entry for a certificate fingerprint.
@@ -559,7 +624,7 @@ public class NuGetCacheSignatureTests
     /// <returns>A scope that restores the previous environment value when disposed.</returns>
     private static IDisposable ArrangeSignedFixture()
     {
-        var reason = TrustPreflight.Value;
+        var reason = SignedDownload.Value.SkipReason ?? TrustPreflight.Value;
         if (reason is not null)
         {
             Assert.Skip(reason);

@@ -3,6 +3,5 @@
 * text=auto eol=lf
 
 # Windows batch files require CRLF line endings to function correctly.
-*.nupkg binary
 *.bat text eol=crlf
 *.cmd text eol=crlf

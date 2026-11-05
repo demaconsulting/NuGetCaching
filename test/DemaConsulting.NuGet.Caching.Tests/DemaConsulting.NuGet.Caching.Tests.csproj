@@ -77,11 +77,6 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- Test Data: a real, unmodified, signed package (any change would invalidate its signature) -->
-  <ItemGroup>
-    <None Update="TestData\*.nupkg" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
   <!-- Project References -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\DemaConsulting.NuGet.Caching\DemaConsulting.NuGet.Caching.csproj" />

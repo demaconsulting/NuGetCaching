@@ -530,7 +530,8 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   package is rejected on download and on cache hit when required, and accepted otherwise. Cover
   `RequireSignedPackages`; the invalid-signature fixtures are a package with a corrupt signature entry, and
   acceptance, trusted-signer matching and mismatch (download and cache hit) use a real signed nuget.org
-  package (Newtonsoft.Json 13.0.1) with offline revocation checking; see the signature scenarios in the
+  package (Newtonsoft.Json 13.0.1, downloaded at test time with a pinned SHA-256, skipped when offline, no
+  checked-in binary) with offline revocation checking; see the signature scenarios in the
   package-downloader verification design.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
   while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.

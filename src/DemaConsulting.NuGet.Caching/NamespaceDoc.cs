@@ -52,8 +52,8 @@ namespace DemaConsulting.NuGet.Caching;
 ///         <c>(..., string? root = null, NuGetCacheOptions? options = null, CancellationToken cancellationToken = default)</c>.
 ///     </para>
 ///     <para>
-///         Typical usage - choose a version, then cache it:
-///         <code>
+///         <b>Typical usage</b> - choose a version, then cache it:
+///         <code lang="csharp">
 ///         using System;
 ///         using System.Collections.Generic;
 ///         using System.Linq;
@@ -77,8 +77,8 @@ namespace DemaConsulting.NuGet.Caching;
 ///         </code>
 ///     </para>
 ///     <para>
-///         Typical usage - include prerelease versions and honor a project's configuration:
-///         <code>
+///         <b>Typical usage</b> - include prerelease versions and honor a project's configuration:
+///         <code lang="csharp">
 ///         using System;
 ///         using System.Collections.Generic;
 ///         using System.IO;
@@ -96,7 +96,7 @@ namespace DemaConsulting.NuGet.Caching;
 ///         </code>
 ///     </para>
 ///     <para>
-///         Configuration: package sources, package source mapping, credentials, and the global packages
+///         <b>Configuration</b>: package sources, package source mapping, credentials, and the global packages
 ///         folder are read from the standard NuGet settings, starting at the optional <c>root</c> directory
 ///         (the current directory when omitted) and walking up through ancestor directories to the user and
 ///         machine settings. This mirrors the behavior of the <c>dotnet</c> CLI, so a repository-local
@@ -105,7 +105,7 @@ namespace DemaConsulting.NuGet.Caching;
 ///         local folder feeds to version listing.
 ///     </para>
 ///     <para>
-///         Errors: a package source that is unreachable or rejects the request is skipped as long as
+///         <b>Errors</b>: a package source that is unreachable or rejects the request is skipped as long as
 ///         another source can answer. When no source can answer, the call throws
 ///         <see cref="InvalidOperationException"/> whose message lists each source failure. When a source
 ///         rejected the request with HTTP 401 or 403, the call always throws
@@ -117,7 +117,7 @@ namespace DemaConsulting.NuGet.Caching;
 ///         <see cref="OperationCanceledException"/>.
 ///     </para>
 ///     <para>
-///         Exceptions at a glance:
+///         <b>Exceptions at a glance</b>:
 ///         <list type="table">
 ///             <listheader>
 ///                 <term>Situation</term>
@@ -168,7 +168,7 @@ namespace DemaConsulting.NuGet.Caching;
 ///         </list>
 ///         Catch <see cref="NuGetAuthenticationException"/> before <see cref="InvalidOperationException"/>,
 ///         because the former derives from the latter:
-///         <code>
+///         <code lang="csharp">
 ///         using System;
 ///         using System.Threading;
 ///         using System.Threading.Tasks;
@@ -198,7 +198,7 @@ namespace DemaConsulting.NuGet.Caching;
 ///         </code>
 ///     </para>
 ///     <para>
-///         Credentials, logging, and timeouts: pass a <see cref="NuGetCacheOptions"/> as the
+///         <b>Credentials, logging, and timeouts</b>: pass a <see cref="NuGetCacheOptions"/> as the
 ///         <c>options</c> argument.
 ///         <see cref="NuGetCacheOptions.CredentialCallback"/> supplies a <see cref="NuGetCredential"/> when a source
 ///         answers HTTP 401 or 403 (it is consulted before any credential provider; returning null falls through to the
@@ -217,8 +217,8 @@ namespace DemaConsulting.NuGet.Caching;
 ///         <see cref="NuGetCacheOptions.Logger"/>, at Information level, possibly from a background thread.
 ///     </para>
 ///     <para>
-///         Credential callback example:
-///         <code>
+///         <b>Credential callback example</b>:
+///         <code lang="csharp">
 ///         using System;
 ///         using System.Threading.Tasks;
 ///         using DemaConsulting.NuGet.Caching;
@@ -237,7 +237,7 @@ namespace DemaConsulting.NuGet.Caching;
 ///         </code>
 ///     </para>
 ///     <para>
-///         Signatures: <see cref="NuGetCacheOptions.RequireSignedPackages"/> makes <c>EnsureCachedAsync</c> reject
+///         <b>Signatures</b>: <see cref="NuGetCacheOptions.RequireSignedPackages"/> makes <c>EnsureCachedAsync</c> reject
 ///         unsigned or invalidly signed packages with <see cref="InvalidOperationException"/>, including for
 ///         packages already installed. Without it, the <c>signatureValidationMode</c> from <c>nuget.config</c> applies.
 ///         The package must carry a valid primary signature (author or repository) that is intact and chains to a
@@ -247,10 +247,10 @@ namespace DemaConsulting.NuGet.Caching;
 ///         <see cref="UnauthorizedAccessException"/>) propagate unchanged.
 ///     </para>
 ///     <para>
-///         Versions: returned strings are NuGet-normalized and may carry <c>+metadata</c> or four parts.
+///         <b>Versions</b>: returned strings are NuGet-normalized and may carry <c>+metadata</c> or four parts.
 ///     </para>
 ///     <para>
-///         Thread safety: all members of <see cref="NuGetCache"/> are stateless and safe to call
+///         <b>Thread safety</b>: all members of <see cref="NuGetCache"/> are stateless and safe to call
 ///         concurrently, including with different options.
 ///     </para>
 /// </remarks>
