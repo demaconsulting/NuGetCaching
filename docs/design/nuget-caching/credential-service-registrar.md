@@ -144,7 +144,14 @@ options overloads of `NuGetCache`:
   and is raced against the timeout, so a callback that ignores its token is abandoned and the call fails
   with `OperationCanceledException`. Plugin processes are owned by NuGet's `PluginManager` and may
   outlive the timeout; disposal was not verified and is documented as a limitation.
-
+- **Timed-out flag**: when the timeout elapses the dispatcher records it on the call's context (shared by
+  reference across the call's async flow) and refuses any later credential exchange for that call with
+  `OperationCanceledException`, without invoking the callback again. NuGet's HTTP pipeline may retry or
+  wrap the timeout failure (and a retried challenge would otherwise look like a rejected credential), so
+  `BeginScope` returns a `Scope` whose `ThrowIfTimedOut()` lets `NuGetCache` raise
+  `OperationCanceledException` after each resolve, download, or version query and before building any
+  failure. The timeout therefore always takes priority over swallowed or classified failures. The flag is
+  set only when the caller's own token was not canceled.
 `NuGetLoggerAdapter` adapts a `Microsoft.Extensions.Logging.ILogger` to the NuGet logger so SDK
 messages reach the caller's logger.
 

@@ -206,13 +206,92 @@ public class CredentialDispatcherTests
 
             // Act
             var started = DateTime.UtcNow;
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            var exception = await Record.ExceptionAsync(async () =>
                 await NuGetCache.EnsureCachedAsync(
                     "Timeout.Package", "1.0.0", settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
 
-            // Assert - it returned promptly rather than hanging on the callback
+            // Assert - it returned promptly, and the timeout (not an authentication failure) was reported
+            Assert.IsAssignableFrom<OperationCanceledException>(exception);
+            Assert.IsNotType<NuGetAuthenticationException>(exception);
             Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(30));
         });
+    }
+
+    /// <summary>
+    ///     Tests that a callback that never completes is abandoned after
+    ///     <see cref="NuGetCacheOptions.AuthenticationTimeout"/> and <c>GetVersionsAsync</c> is canceled
+    ///     with <see cref="OperationCanceledException"/> rather than an authentication failure.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageWithBasicAuth(
+                "Timeout.Versions", "1.0.0", NuGetPackageBuilder.CreateMinimalPackage("Timeout.Versions", "1.0.0"), UserName, Password);
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+            var neverCompletes = new TaskCompletionSource<NuGetCredential?>();
+            var options = new NuGetCacheOptions
+            {
+                CredentialCallback = (_, _) => neverCompletes.Task,
+                AuthenticationTimeout = TimeSpan.FromMilliseconds(500),
+            };
+
+            // Act
+            var started = DateTime.UtcNow;
+            var exception = await Record.ExceptionAsync(async () =>
+                await NuGetCache.GetVersionsAsync(
+                    "Timeout.Versions", false, settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
+
+            // Assert
+            Assert.IsAssignableFrom<OperationCanceledException>(exception);
+            Assert.IsNotType<NuGetAuthenticationException>(exception);
+            Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(30));
+        });
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: after an authentication timeout the dispatcher records it on
+    ///     the call's scope, refuses further exchanges without invoking the callback, and the scope
+    ///     reports the timeout as <see cref="OperationCanceledException"/>.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback()
+    {
+        // Arrange
+        var calls = 0;
+        var neverCompletes = new TaskCompletionSource<NuGetCredential?>();
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return neverCompletes.Task;
+            },
+            AuthenticationTimeout = TimeSpan.FromMilliseconds(100),
+        };
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+
+        // Act / Assert - nothing is recorded before the timeout
+        scope.ThrowIfTimedOut();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+
+        // A repeat request is canceled immediately and does not invoke the callback again
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        Assert.Equal(1, calls);
+
+        // The scope reports the timeout so the owning call can surface it
+        Assert.ThrowsAny<OperationCanceledException>(scope.ThrowIfTimedOut);
     }
 
     /// <summary>

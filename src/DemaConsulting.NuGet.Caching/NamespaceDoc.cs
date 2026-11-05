@@ -100,7 +100,8 @@ namespace DemaConsulting.NuGet.Caching;
 ///         <see cref="NuGetCacheOptions.Interactive"/> allows credential providers to prompt,
 ///         <see cref="NuGetCacheOptions.Logger"/> receives NuGet messages, and
 ///         <see cref="NuGetCacheOptions.AuthenticationTimeout"/> bounds credential acquisition (the call then throws
-///         <see cref="OperationCanceledException"/>). These overloads throw <see cref="NuGetAuthenticationException"/>,
+///         <see cref="OperationCanceledException"/>, never <see cref="NuGetAuthenticationException"/>, even when NuGet
+///         retries or wraps the failed request). These overloads throw <see cref="NuGetAuthenticationException"/>,
 ///         a subclass of <see cref="InvalidOperationException"/>, when a source rejected the request with 401 or 403.
 ///         The existing overloads behave exactly as in version 1.5.0. Caveats: the NuGet credential service is
 ///         process-wide, so options apply only when this library registered it (a host application's own

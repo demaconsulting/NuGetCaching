@@ -349,6 +349,7 @@ public static class NuGetCache
             // Resolve the FindPackageByIdResource, applying v2 fallback as needed
             var resolution = await PackageSourceResolver.ResolveAsync(
                 sourceRepository, providers, cancellationToken);
+            scope.ThrowIfTimedOut();
             var (effectiveRepository, resource, resourceError) = resolution;
             authFailure ??= resolution.AuthFailure;
 
@@ -372,6 +373,7 @@ public static class NuGetCache
                 sourceCacheContext,
                 cancellationToken,
                 nugetLogger);
+            scope.ThrowIfTimedOut();
 
             if (result.PackagePath != null)
             {
@@ -384,6 +386,9 @@ public static class NuGetCache
                 sourceErrors.Add(result.ErrorMessage);
             }
         }
+
+        // An authentication timeout takes priority over any failure NuGet reported instead
+        scope.ThrowIfTimedOut();
 
         // Build the final exception message; append per-source diagnostics when available
         // so callers can identify which sources failed and why (e.g. v2-only feed misconfiguration)
@@ -639,6 +644,7 @@ public static class NuGetCache
             // Resolve the FindPackageByIdResource, applying v2 fallback as needed
             var resolution = await PackageSourceResolver.ResolveAsync(
                 sourceRepository, providers, cancellationToken);
+            scope.ThrowIfTimedOut();
             var resource = resolution.Resource;
 
             if (resource == null)
@@ -656,6 +662,9 @@ public static class NuGetCache
             }
             catch (Exception ex) when (ex is HttpRequestException or NuGetProtocolException)
             {
+                // An authentication timeout takes priority over the failure NuGet reported instead
+                scope.ThrowIfTimedOut();
+
                 // Record the failure and try the next source; reported only if nothing is found
                 var effectiveSource = resolution.Repository.PackageSource;
                 if (AuthFailureClassifier.TryDescribeAuthFailure(ex, effectiveSource.Name, effectiveSource.Source, out var authMessage))
@@ -680,6 +689,7 @@ public static class NuGetCache
         }
 
         // Mirror EnsureCachedAsync: failures matter only when no source supplied any version
+        scope.ThrowIfTimedOut();
         if (versions.Count == 0 && sourceErrors.Count > 0)
         {
             throw CreateFailure(

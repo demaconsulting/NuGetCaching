@@ -84,12 +84,16 @@ internal sealed class CredentialDispatcher : ICredentialService
     /// </summary>
     /// <param name="options">The per-call options, or <see langword="null"/> for 1.5.0 behavior.</param>
     /// <param name="logger">The adapted logger for the call, or <see langword="null"/>.</param>
-    /// <returns>A disposable that restores the previous ambient scope.</returns>
-    internal static IDisposable BeginScope(NuGetCacheOptions? options, NuGetLoggerAdapter? logger)
+    /// <returns>
+    ///     A disposable scope that restores the previous ambient scope and can report whether
+    ///     authentication timed out during the call.
+    /// </returns>
+    internal static Scope BeginScope(NuGetCacheOptions? options, NuGetLoggerAdapter? logger)
     {
         var previous = Ambient.Value;
-        Ambient.Value = options == null ? null : new CallContext(options, logger);
-        return new Scope(previous);
+        var current = options == null ? null : new CallContext(options, logger);
+        Ambient.Value = current;
+        return new Scope(previous, current);
     }
 
     /// <inheritdoc />
@@ -106,9 +110,14 @@ internal sealed class CredentialDispatcher : ICredentialService
             return await _defaultService.GetCredentialsAsync(uri, proxy, type, message, cancellationToken);
         }
 
+        // Once authentication has timed out for this call, never start another exchange: NuGet may
+        // retry the failed request, and a repeat challenge must not be turned into a 401 failure
+        context.ThrowIfTimedOut();
+
         return await WithTimeoutAsync(
             context.Options.AuthenticationTimeout,
             token => AcquireAsync(context, uri, proxy, type, message, token),
+            context.MarkTimedOut,
             cancellationToken);
     }
 
@@ -184,6 +193,7 @@ internal sealed class CredentialDispatcher : ICredentialService
     private static async Task<T> WithTimeoutAsync<T>(
         TimeSpan? timeout,
         Func<CancellationToken, Task<T>> work,
+        Action<TimeSpan> onTimeout,
         CancellationToken cancellationToken)
     {
         if (timeout == null)
@@ -201,13 +211,25 @@ internal sealed class CredentialDispatcher : ICredentialService
 
         if (await Task.WhenAny((Task)task, cancelled.Task) == task)
         {
-            return await task;
+            try
+            {
+                return await task;
+            }
+            catch (OperationCanceledException) when (linked.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                // The work honored the timeout token; record the timeout before propagating
+                onTimeout(timeout.Value);
+                throw;
+            }
         }
 
         // Observe any later failure of the abandoned work so it is not reported as unobserved
         _ = task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        // Record the timeout so the owning call can surface it even if NuGet wraps or retries the failure
+        onTimeout(timeout.Value);
         throw new OperationCanceledException(
             $"Authentication did not complete within {timeout.Value.TotalSeconds:0.###} seconds.",
             linked.Token);
@@ -231,14 +253,49 @@ internal sealed class CredentialDispatcher : ICredentialService
         return new CredentialService(providers, nonInteractive: !interactive, handlesDefaultCredentials: true);
     }
 
-    private sealed record CallContext(NuGetCacheOptions Options, NuGetLoggerAdapter? Logger)
+    internal sealed record CallContext(NuGetCacheOptions Options, NuGetLoggerAdapter? Logger)
     {
+        // Set when authentication exceeded AuthenticationTimeout; shared by reference with every
+        // task of the call, so it is visible however NuGet surfaces or wraps the failure
+        private volatile string? _timeoutMessage;
+
         internal ConcurrentDictionary<(string Uri, CredentialRequestType Type), byte> Answered { get; } = new();
+
+        internal void MarkTimedOut(TimeSpan timeout) =>
+            _timeoutMessage ??= $"Authentication did not complete within {timeout.TotalSeconds:0.###} seconds.";
+
+        internal void ThrowIfTimedOut()
+        {
+            var message = _timeoutMessage;
+            if (message != null)
+            {
+                throw new OperationCanceledException(message);
+            }
+        }
     }
 
-    private sealed class Scope(CallContext? previous) : IDisposable
+    /// <summary>
+    ///     The scope of one <c>NuGetCache</c> call; disposing restores the previous ambient scope.
+    /// </summary>
+    internal sealed class Scope : IDisposable
     {
-        public void Dispose() => Ambient.Value = previous;
+        private readonly CallContext? _previous;
+        private readonly CallContext? _current;
+
+        internal Scope(CallContext? previous, CallContext? current)
+        {
+            _previous = previous;
+            _current = current;
+        }
+
+        /// <summary>
+        ///     Throws <see cref="OperationCanceledException"/> when authentication timed out during
+        ///     this call, giving the timeout priority over any failure NuGet reported instead.
+        /// </summary>
+        internal void ThrowIfTimedOut() => _current?.ThrowIfTimedOut();
+
+        /// <inheritdoc />
+        public void Dispose() => Ambient.Value = _previous;
     }
 
     private sealed class AmbientNuGetLogger : LoggerBase

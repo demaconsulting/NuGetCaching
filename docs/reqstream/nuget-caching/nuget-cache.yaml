@@ -262,9 +262,12 @@ sections:
           block an unattended build forever. A bounded wait lets the caller fail fast.
           The timeout abandons the wait and cancels the token supplied to the callback;
           it does not guarantee that an external credential-provider plugin process is
-          terminated.
+          terminated. The cancellation is guaranteed even when NuGet retries or wraps the
+          failed request, for both EnsureCachedAsync and GetVersionsAsync.
         tests:
           - NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
+          - NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
+          - CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback
 
       - id: Caching-NuGetCache-OptionsIsolation
         title: >-

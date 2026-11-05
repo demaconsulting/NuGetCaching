@@ -87,7 +87,8 @@ public sealed class NuGetCacheOptions
     /// </summary>
     /// <value>The default is <see langword="null"/>, which means no limit.</value>
     /// <remarks>
-    ///     When the limit is exceeded the call throws <see cref="OperationCanceledException"/>. The
+    ///     When the limit is exceeded the call throws <see cref="OperationCanceledException"/> (never
+    ///     <see cref="NuGetAuthenticationException"/>, even if NuGet retries or wraps the failed request). The
     ///     token passed to the callback is canceled, but a callback that ignores its token is
     ///     abandoned rather than interrupted. A credential-provider plugin process is owned by NuGet,
     ///     not by this library, and may stay alive after a timeout until NuGet reclaims it; an

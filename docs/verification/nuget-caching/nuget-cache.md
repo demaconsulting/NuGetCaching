@@ -477,7 +477,10 @@ process-wide credential service can be isolated and restored.
 - **NuGetAuthenticationException_Properties_AreExposed**: `Source`, `Uri`, and message are
   preserved. Covers `AuthenticationException`.
 - **NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: a
-  callback that never completes, with a 500 ms timeout, ends in `OperationCanceledException`.
+  callback that never completes, with a 500 ms timeout, ends in `OperationCanceledException` (not
+  `NuGetAuthenticationException`); the `GetVersionsAsync` variant and a deterministic dispatcher-level
+  test (`CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback`)
+  cover the same guarantee.
   Covers `AuthenticationTimeout`.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
   while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.

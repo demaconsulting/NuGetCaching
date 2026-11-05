@@ -104,7 +104,13 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails**: a rejected
   credential is not requested again for the same URI and type.
 - **NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: the timeout
-  surfaces as `OperationCanceledException` even when the callback ignores its token.
+  surfaces as `OperationCanceledException`, not `NuGetAuthenticationException`, even when the
+  callback ignores its token.
+- **NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: the same
+  guarantee for `GetVersionsAsync`.
+- **CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback**:
+  deterministic, HTTP-free: after a timeout a repeat request is canceled without invoking the
+  callback again and the scope's `ThrowIfTimedOut()` throws `OperationCanceledException`.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: concurrent calls with and without a
   callback do not see each other's options.
 - **CredentialDispatcher_TryGetLastKnownGoodCredentialsFromCache_HonorsCallbackAndLoggerRouting**: a

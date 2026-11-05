@@ -323,7 +323,8 @@ verified to dispose them). Versions are returned as NuGet-normalized strings and
   `InvalidOperationException` when no source supplies the package (message includes
   accumulated per-source diagnostics; `NuGetAuthenticationException` from the options overloads when
   a source returned 401/403), and `OperationCanceledException` when the token is
-  canceled or `AuthenticationTimeout` elapses (cancellation propagates unchanged).
+  canceled or `AuthenticationTimeout` elapses (cancellation propagates unchanged; a timeout takes
+  priority over any failure NuGet reported instead, via the scope's `ThrowIfTimedOut()` checks).
 - **Handled locally**: transient source failures are absorbed by the sibling units, which
   return an empty or diagnostic result so the next source is tried.
 
