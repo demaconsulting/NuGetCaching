@@ -8,7 +8,8 @@ and the integration pattern.
 The OTS items fall into two groups:
 
 - **Library dependencies**: NuGet (run time) and Polyfill (compile time) contribute to the
-  shipped library.
+  shipped library. ApiMark (build time) generates the API documentation packed into the
+  NuGet package under `api/`.
 - **Development-time tooling**: BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark,
   SonarMark, SysML2Tools, VersionMark, WeasyPrint, WireMock.Net, and xUnit support building,
   testing, documenting, and demonstrating compliance of the library. They are never loaded by

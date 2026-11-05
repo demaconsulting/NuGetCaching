@@ -31,6 +31,7 @@ The following topics are out of scope:
 
 The following OTS items are also covered:
 
+- **ApiMark** — API documentation generation tool
 - **BuildMark** — build-notes documentation tool
 - **FileAssert** — document assertion tool
 - **NuGet Client SDK** — NuGet.Protocol and NuGet.Configuration packages used at runtime

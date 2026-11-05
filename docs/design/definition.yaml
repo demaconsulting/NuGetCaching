@@ -15,6 +15,7 @@ input-files:
   - docs/design/ots.md
   - docs/design/ots/nuget.md
   - docs/design/ots/polyfill.md
+  - docs/design/ots/apimark.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md
   - docs/design/ots/pandoc.md

@@ -1,0 +1,23 @@
+---
+# ApiMark OTS requirements
+#
+# Requirements for the ApiMark API documentation generator used to produce
+# Markdown documentation from the library assembly.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: ApiMark Requirements
+        requirements:
+          - id: Caching-OTS-ApiMark
+            title: ApiMark shall generate API documentation from the library assembly.
+            justification: |
+              ApiMark generates Markdown API documentation from the NuGet Caching library
+              assembly and its XML documentation file. The generated documentation is
+              distributed in the api/ folder of the NuGet package, making all public types and
+              members discoverable by consumers including automated agents. FileAssert
+              validates that the NuGet package contains the expected documentation files,
+              proving ApiMark executed correctly and produced meaningful output.
+            tags: [ots]
+            tests:
+              - ApiMark_NuGetPackageContainsDocs

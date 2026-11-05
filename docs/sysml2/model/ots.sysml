@@ -15,6 +15,13 @@ package OtsDependencies {
         comment reqRef /* Requirements: docs/reqstream/ots/polyfill.yaml */
     }
 
+    part def ApiMark {
+        doc /* OTS: ApiMark MSBuild tool that generates API documentation packed into the NuGet package. */
+
+        comment verificationRef /* Verification: docs/verification/ots/apimark.md */
+        comment reqRef /* Requirements: docs/reqstream/ots/apimark.yaml */
+    }
+
     part def BuildMark {
         doc /* OTS: BuildMark tool that generates build notes. */
 

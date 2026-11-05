@@ -54,3 +54,4 @@ includes:
   - docs/reqstream/ots/weasyprint.yaml
   - docs/reqstream/ots/fileassert.yaml
   - docs/reqstream/ots/sysml2tools.yaml
+  - docs/reqstream/ots/apimark.yaml

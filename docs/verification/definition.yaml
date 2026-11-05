@@ -16,6 +16,7 @@ input-files:
   - docs/verification/nuget-caching/auth-failure-classifier.md
   - docs/verification/nuget-caching/credential-service-registrar.md
   - docs/verification/ots.md
+  - docs/verification/ots/apimark.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md
   - docs/verification/ots/nuget.md

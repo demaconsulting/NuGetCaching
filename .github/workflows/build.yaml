@@ -126,6 +126,10 @@ jobs:
         run: >
           dotnet tool restore
 
+      - name: Restore Dependencies
+        run: >
+          dotnet restore
+
       # === CAPTURE TOOL VERSIONS ===
       # This section captures the versions of all tools used in the build process.
       # Downstream projects: Add any additional tools to capture here.
@@ -140,7 +144,7 @@ jobs:
           JOB_ID="build-${OS_SHORT}"
           dotnet versionmark --capture --job-id "${JOB_ID}" \
             --output "artifacts/versionmark-${JOB_ID}.json" -- \
-            dotnet git dotnet-sonarscanner versionmark
+            dotnet git dotnet-sonarscanner versionmark apimark-msbuild
           echo "✓ Tool versions captured"
 
       # === CAPTURE OTS SELF-VALIDATION RESULTS ===
@@ -157,10 +161,6 @@ jobs:
       # === BUILD AND TEST ===
       # This section builds and tests the project.
       # Downstream projects: Add any additional build or test steps here.
-
-      - name: Restore Dependencies
-        run: >
-          dotnet restore
 
       - name: Start Sonar Scanner
         env:
@@ -209,6 +209,12 @@ jobs:
           --no-restore
           --configuration Release
           --property:PackageVersion=${{ inputs.version }}
+
+      - name: Assert NuGet Package with FileAssert
+        run: >
+          dotnet fileassert
+          --results artifacts/fileassert-api-docs-${{ matrix.os }}.trx
+          api-docs
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated artifacts for use by downstream jobs.

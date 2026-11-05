@@ -12,24 +12,23 @@
 DEMA Consulting library for caching NuGet packages on the local global packages cache and
 discovering the available versions of a package.
 
+![NuGetCaching architecture: your application calling NuGetCache, with nuget.config, NuGet feeds and the global packages folder][architecture]
+
 ## Features
 
-This library provides:
+- 📦 **Package Caching** - Ensure NuGet packages are in the global packages cache
+- 🔍 **Version Discovery** - List available package versions as normalized strings
+- ⚙️ **Config Aware** - Uses your NuGet sources and global packages folder, like `dotnet`
+- 🗺️ **Source Mapping** - Honors NuGet package source mapping
+- 🚨 **Clear Errors** - Reports authentication and protocol failures with actionable messages
+- 🔄 **Multi-Target** - Supports .NET Standard 2.0, .NET 8, 9, and 10
+- 🖥️ **Cross-Platform** - Runs on Windows, Linux, and macOS
+- ✅ **Continuous Compliance** - Requirements traceability and compliance evidence on every CI run
 
-- **NuGet Package Caching**: Ensure NuGet packages are available in the local global packages cache
-- **Version Discovery**: List the available versions of a package as normalized strings
-- **NuGet Configuration Aware**: Reads sources and global packages folder from the default NuGet
-  settings, mirroring `dotnet` CLI behavior
-- **Package Source Mapping**: Supports NuGet package source mapping configuration
-- **Multi-Platform Support**: Builds and runs on Windows, Linux, and macOS
-- **Multi-Runtime Support**: Targets .NET Standard 2.0, .NET 8, 9, and 10
-- **Documentation Generation**: Automated build notes, user guide, code quality reports,
-  requirements, justifications, and trace matrix
-- **Linting Enforcement**: markdownlint, cspell, and yamllint enforced on every CI run
-- **Continuous Compliance**: Compliance evidence generated automatically on every CI run, following
-  the [Continuous Compliance][link-continuous-compliance] methodology
-- **SonarCloud Integration**: Quality gate and security analysis on every build
-- **Requirements Traceability**: Requirements linked to passing tests with auto-generated trace matrix
+## API Documentation
+
+Detailed API documentation for all public types and members is distributed in the `api/` folder
+of the NuGet package.
 
 ## Installation
 
@@ -96,5 +95,5 @@ By contributing to this project, you agree that your contributions will be licen
 [link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-nuget]: https://www.nuget.org/packages/DemaConsulting.NuGet.Caching
-[link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance
+[architecture]: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/main/docs/images/architecture.png
 [link-contributing]: https://github.com/demaconsulting/NuGetCaching/blob/main/CONTRIBUTING.md

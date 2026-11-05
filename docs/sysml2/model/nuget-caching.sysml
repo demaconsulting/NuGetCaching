@@ -28,6 +28,7 @@ package NuGetCaching {
         part nuGet : NuGet;
         part polyfill : Polyfill;
 
+        part apiMark : ApiMark;
         part buildMark : BuildMark;
         part fileAssert : FileAssert;
         part pandoc : Pandoc;
