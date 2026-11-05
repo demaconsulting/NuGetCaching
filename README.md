@@ -12,7 +12,7 @@
 DEMA Consulting library for caching NuGet packages on the local global packages cache and
 discovering the available versions of a package.
 
-![NuGetCaching architecture: your application calling NuGetCache, with nuget.config, NuGet feeds and the global packages folder][architecture]
+![NuGetCaching architecture: your application calling NuGetCache with optional NuGetCacheOptions, plus nuget.config, NuGet feeds and the global packages folder][architecture]
 
 ## Features
 
