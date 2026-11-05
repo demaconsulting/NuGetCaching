@@ -51,7 +51,7 @@
     <!-- Run API documentation generation only for this framework in multi-targeted builds -->
     <ApiDocsTargetFramework>netstandard2.0</ApiDocsTargetFramework>
     <!-- Configuration-specific output so Debug and Release docs do not overwrite each other -->
-    <ApiMarkOutputDir>$(MSBuildProjectDirectory)\bin\$(Configuration)\apimark-docs</ApiMarkOutputDir>
+    <ApiMarkOutputDir>$(MSBuildProjectDirectory)/bin/$(Configuration)/apimark-docs</ApiMarkOutputDir>
     <!-- Pack generated API docs into the NuGet package under api/ -->
     <ApiMarkPackDocs>false</ApiMarkPackDocs>
     <ApiMarkPackDocs Condition="'$(TargetFramework)' == '$(ApiDocsTargetFramework)'">true</ApiMarkPackDocs>
