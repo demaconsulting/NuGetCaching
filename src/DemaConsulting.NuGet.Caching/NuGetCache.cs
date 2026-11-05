@@ -122,6 +122,10 @@ public static class NuGetCache
     ///     Thrown when <paramref name="packageId"/>, <paramref name="version"/>, or
     ///     <paramref name="options"/> is <see langword="null"/>.
     /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <see cref="NuGetCacheOptions.AuthenticationTimeout"/> is zero, negative (other
+    ///     than <see cref="Timeout.InfiniteTimeSpan"/>) or longer than <see cref="int.MaxValue"/> milliseconds.
+    /// </exception>
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="version"/> is not a valid NuGet version string.
     /// </exception>
@@ -288,6 +292,7 @@ public static class NuGetCache
         ArgumentNullException.ThrowIfNull(version);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(credentialRegistrar);
+        options?.Validate();
 
         // Make the per-call options visible to NuGet's process-wide credential service
         var logger = NuGetLoggerAdapter.Create(options?.Logger);
@@ -476,6 +481,10 @@ public static class NuGetCache
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="packageId"/> or <paramref name="options"/> is <see langword="null"/>.
     /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <see cref="NuGetCacheOptions.AuthenticationTimeout"/> is zero, negative (other
+    ///     than <see cref="Timeout.InfiniteTimeSpan"/>) or longer than <see cref="int.MaxValue"/> milliseconds.
+    /// </exception>
     /// <exception cref="NuGetAuthenticationException">
     ///     Thrown when no versions were found and a source rejected the request with HTTP 401 or 403.
     /// </exception>
@@ -608,6 +617,7 @@ public static class NuGetCache
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(credentialRegistrar);
+        options?.Validate();
 
         // Honor a pre-canceled token before any registration or source enumeration
         cancellationToken.ThrowIfCancellationRequested();

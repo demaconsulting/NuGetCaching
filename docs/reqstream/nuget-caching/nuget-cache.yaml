@@ -263,8 +263,12 @@ sections:
           The timeout abandons the wait and cancels the token supplied to the callback;
           it does not guarantee that an external credential-provider plugin process is
           terminated. The cancellation is guaranteed even when NuGet retries or wraps the
-          failed request, for both EnsureCachedAsync and GetVersionsAsync.
+          failed request, for both EnsureCachedAsync and GetVersionsAsync. A timeout that
+          is zero, negative (other than Timeout.InfiniteTimeSpan) or longer than
+          Int32.MaxValue milliseconds is rejected with ArgumentOutOfRangeException.
         tests:
+          - NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow
+          - NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException
           - NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
           - NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
           - CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback

@@ -196,7 +196,7 @@ internal sealed class CredentialDispatcher : ICredentialService
         Action<TimeSpan> onTimeout,
         CancellationToken cancellationToken)
     {
-        if (timeout == null)
+        if (timeout == null || timeout.Value == Timeout.InfiniteTimeSpan)
         {
             return await work(cancellationToken);
         }

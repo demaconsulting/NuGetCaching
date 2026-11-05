@@ -214,7 +214,10 @@ positional `default` token) can bind to these overloads; pass `CancellationToken
   same address within the call.
 - `AuthenticationTimeout` (`TimeSpan?`): maximum time for credential acquisition. When exceeded, the call
   throws `OperationCanceledException` (never `NuGetAuthenticationException`, even when NuGet retries or
-  wraps the failed request). This applies to both `EnsureCachedAsync` and `GetVersionsAsync`.
+  wraps the failed request). This applies to both `EnsureCachedAsync` and `GetVersionsAsync`. The value
+  must be greater than zero and at most `int.MaxValue` milliseconds (about 24.8 days), or
+  `Timeout.InfiniteTimeSpan` (same as null, no limit); any other value makes the call throw
+  `ArgumentOutOfRangeException` before any work starts.
 
 `NuGetCredential(userName, secret)` is a record whose `ToString()` shows `Secret = ***`.
 

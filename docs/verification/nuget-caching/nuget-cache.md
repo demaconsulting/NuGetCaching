@@ -482,6 +482,10 @@ process-wide credential service can be isolated and restored.
   test (`CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback`)
   cover the same guarantee.
   Covers `AuthenticationTimeout`.
+- **NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException** (zero, negative,
+  and over-`int.MaxValue`-ms timeouts, both overloads) and
+  **NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow** (null, infinite, 1 tick, max). Cover
+  `AuthenticationTimeout` validation.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
   while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.
 - **NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret**,
@@ -529,7 +533,9 @@ process-wide credential service can be isolated and restored.
   NuGetAuthenticationException_Properties_AreExposed,
   NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException
 - **`Caching-NuGetCache-AuthenticationTimeout`**:
-  NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
+  NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
+  NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow,
+  NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException
 - **`Caching-NuGetCache-OptionsIsolation`**:
   NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated
 - **`Caching-NuGetCache-Logging`**:

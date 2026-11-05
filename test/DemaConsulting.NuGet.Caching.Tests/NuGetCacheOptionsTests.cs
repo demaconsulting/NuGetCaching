@@ -41,6 +41,42 @@ public class NuGetCacheOptionsTests
     }
 
     /// <summary>
+    ///     Tests that valid <see cref="NuGetCacheOptions.AuthenticationTimeout"/> values are accepted.
+    /// </summary>
+    [Fact]
+    public void NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow()
+    {
+        new NuGetCacheOptions().Validate();
+        new NuGetCacheOptions { AuthenticationTimeout = Timeout.InfiniteTimeSpan }.Validate();
+        new NuGetCacheOptions { AuthenticationTimeout = TimeSpan.FromTicks(1) }.Validate();
+        new NuGetCacheOptions { AuthenticationTimeout = TimeSpan.FromMilliseconds(int.MaxValue) }.Validate();
+    }
+
+    /// <summary>
+    ///     Tests that zero, negative (non-infinite) and oversized timeouts are rejected by both options
+    ///     overloads before any work starts.
+    /// </summary>
+    /// <param name="milliseconds">The invalid timeout in milliseconds.</param>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-2.0)]
+    [InlineData(-1000.0)]
+    [InlineData(2147483648.0)]
+    public async Task NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException(double milliseconds)
+    {
+        var options = new NuGetCacheOptions { AuthenticationTimeout = TimeSpan.FromMilliseconds(milliseconds) };
+
+        var ensure = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await NuGetCache.EnsureCachedAsync("Any.Package", "1.0.0", null, CancellationToken.None, options));
+        var versions = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await NuGetCache.GetVersionsAsync("Any.Package", false, null, CancellationToken.None, options));
+
+        Assert.Equal(nameof(NuGetCacheOptions.AuthenticationTimeout), ensure.ParamName);
+        Assert.Equal(nameof(NuGetCacheOptions.AuthenticationTimeout), versions.ParamName);
+    }
+
+    /// <summary>
     ///     Tests that the secret is redacted from <c>ToString</c> and the user name is kept.
     /// </summary>
     [Fact]

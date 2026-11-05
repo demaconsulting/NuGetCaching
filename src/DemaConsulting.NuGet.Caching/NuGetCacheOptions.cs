@@ -88,11 +88,43 @@ public sealed class NuGetCacheOptions
     /// <value>The default is <see langword="null"/>, which means no limit.</value>
     /// <remarks>
     ///     When the limit is exceeded the call throws <see cref="OperationCanceledException"/> (never
-    ///     <see cref="NuGetAuthenticationException"/>, even if NuGet retries or wraps the failed request). The
+    ///     <see cref="NuGetAuthenticationException"/>, even if NuGet retries or wraps the failed request).
+    ///     The value must be greater than <see cref="TimeSpan.Zero"/> and at most
+    ///     <see cref="int.MaxValue"/> milliseconds (about 24.8 days), or <see cref="Timeout.InfiniteTimeSpan"/>
+    ///     (equivalent to <see langword="null"/>, no limit). Any other value makes the
+    ///     <see cref="NuGetCache"/> call throw <see cref="ArgumentOutOfRangeException"/> before any work
+    ///     starts. The
     ///     token passed to the callback is canceled, but a callback that ignores its token is
     ///     abandoned rather than interrupted. A credential-provider plugin process is owned by NuGet,
     ///     not by this library, and may stay alive after a timeout until NuGet reclaims it; an
     ///     interactive prompt it opened may therefore remain visible.
     /// </remarks>
     public TimeSpan? AuthenticationTimeout { get; set; }
+
+    /// <summary>
+    ///     Validates the option values.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <see cref="AuthenticationTimeout"/> is zero, negative (other than
+    ///     <see cref="Timeout.InfiniteTimeSpan"/>) or longer than <see cref="int.MaxValue"/> milliseconds.
+    /// </exception>
+    internal void Validate()
+    {
+        var timeout = AuthenticationTimeout;
+        if (timeout == null || timeout.Value == Timeout.InfiniteTimeSpan)
+        {
+            return;
+        }
+
+        if (timeout.Value <= TimeSpan.Zero || timeout.Value.TotalMilliseconds > int.MaxValue)
+        {
+            // The offending value is a property, not a parameter, so name it explicitly
+#pragma warning disable S3928
+            throw new ArgumentOutOfRangeException(
+                nameof(AuthenticationTimeout),
+                timeout.Value,
+                "AuthenticationTimeout must be greater than zero and at most Int32.MaxValue milliseconds, or Timeout.InfiniteTimeSpan.");
+#pragma warning restore S3928
+        }
+    }
 }

@@ -319,7 +319,10 @@ verified to dispose them). Versions are returned as NuGet-normalized strings and
 `EnsureCachedAsync`:
 
 - **Thrown to the caller**: `ArgumentNullException` (null `packageId`, `version`, `settings`,
-  `options` on the options overloads, or registrar), `ArgumentException` (invalid version string, propagated from `NuGetVersion.Parse`),
+  `options` on the options overloads, or registrar), `ArgumentOutOfRangeException` (an
+  `AuthenticationTimeout` that is zero, negative other than `Timeout.InfiniteTimeSpan`, or longer than
+  `int.MaxValue` milliseconds; checked by `NuGetCacheOptions.Validate()` before any I/O),
+  `ArgumentException` (invalid version string, propagated from `NuGetVersion.Parse`),
   `InvalidOperationException` when no source supplies the package (message includes
   accumulated per-source diagnostics; `NuGetAuthenticationException` from the options overloads when
   a source returned 401/403), and `OperationCanceledException` when the token is
