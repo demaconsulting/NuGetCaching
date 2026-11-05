@@ -11,27 +11,17 @@ sections:
         requirements:
           - id: Caching-OTS-Polyfill
             title: >-
-              Polyfill shall provide BCL API compatibility on netstandard2.0
-              targets where APIs are absent.
+              Polyfill shall provide Path.GetRelativePath on netstandard2.0 targets
+              where the API is absent.
             justification: |
               The Polyfill package is a source-generator-based compatibility library. The library
-              project targets netstandard2.0; on that target Polyfill injects compatible
-              implementations of BCL APIs that are absent on that framework. Currently relied-upon
-              APIs include:
-
-              1. Path.GetRelativePath — called inside PathHelpers.SafePathCombine (after
-                 null-argument validation) to verify the resolved combined path has not escaped
-                 the base directory. Every SafePathCombine test that supplies non-null arguments
-                 exercises this polyfill on net481 test builds.
-
-              2. ArgumentNullException.ThrowIfNull — enabled via <PolyArgumentExceptions>true</PolyArgumentExceptions>
-                 in the project file. PathHelpers.SafePathCombine calls this method to validate
-                 both parameters before any path logic runs. The two null-argument tests exercise
-                 this polyfill on net481 test builds.
-
-              On net5.0 and later both APIs are provided by the BCL and Polyfill is a no-op. The
-              net481 test-project target (Windows-only) consumes the netstandard2.0 library binary
-              and provides the primary evidence that both polyfilled APIs function correctly.
+              project targets netstandard2.0; on that target Polyfill injects a compatible
+              Path.GetRelativePath, which PathHelpers.SafePathCombine calls (after null-argument
+              validation) to verify the resolved combined path has not escaped the base
+              directory. Every SafePathCombine test that supplies non-null arguments exercises
+              this polyfill on net481 test builds. On net5.0 and later the BCL provides the API
+              and Polyfill is a no-op. The net481 test-project target (Windows-only) consumes the
+              netstandard2.0 library binary and provides the primary evidence.
             tags: [ots]
             tests:
               - PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
@@ -44,5 +34,18 @@ sections:
               - PathHelpers_SafePathCombine_SimpleFilename_CombinesCorrectly
               - PathHelpers_SafePathCombine_NestedPaths_CombinesCorrectly
               - PathHelpers_SafePathCombine_GuidBasedFilename_CombinesSuccessfully
+
+          - id: Caching-OTS-Polyfill-ThrowIfNull
+            title: >-
+              Polyfill shall provide ArgumentNullException.ThrowIfNull on netstandard2.0
+              targets where the API is absent.
+            justification: |
+              ArgumentNullException.ThrowIfNull is enabled via
+              <PolyArgumentExceptions>true</PolyArgumentExceptions> in the project file.
+              PathHelpers.SafePathCombine calls it to validate both parameters before any path
+              logic runs. The two null-argument tests exercise this polyfill on net481 test
+              builds; on net5.0 and later the BCL provides the API and Polyfill is a no-op.
+            tags: [ots]
+            tests:
               - PathHelpers_SafePathCombine_NullBasePath_ThrowsArgumentNullException
               - PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException

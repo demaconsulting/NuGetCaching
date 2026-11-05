@@ -41,7 +41,8 @@ internal static class PathHelpers
     /// <returns>The combined path.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="basePath"/> or <paramref name="relativePath"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    ///     Thrown when the resolved combined path escapes the base directory, or when a supplied path is invalid.
+    ///     Thrown when <paramref name="relativePath"/> is rooted (even if it would resolve inside the base
+    ///     directory), when the resolved combined path escapes the base directory, or when a supplied path is invalid.
     /// </exception>
     /// <exception cref="NotSupportedException">Thrown when a supplied path contains an unsupported format.</exception>
     /// <exception cref="PathTooLongException">Thrown when the combined or resolved path exceeds the system-defined maximum length.</exception>
@@ -70,6 +71,14 @@ internal static class PathHelpers
         // Validate inputs
         ArgumentNullException.ThrowIfNull(basePath);
         ArgumentNullException.ThrowIfNull(relativePath);
+
+        // Reject rooted relative paths outright: Path.Combine discards the base when the second
+        // argument is rooted, so even a rooted path that happens to resolve inside the base would
+        // bypass the caller's intent. The contract is that relativePath must be relative.
+        if (Path.IsPathRooted(relativePath))
+        {
+            throw new ArgumentException($"Invalid path component: {relativePath}", nameof(relativePath));
+        }
 
         // Combine the paths (preserves the caller's relative/absolute style)
         var combinedPath = Path.Combine(basePath, relativePath);

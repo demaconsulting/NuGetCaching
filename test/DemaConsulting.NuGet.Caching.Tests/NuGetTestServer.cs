@@ -138,6 +138,54 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Registers the NuGet v3 service index and a flat-container version list for a package
+    ///     advertising several versions. No .nupkg download endpoints are registered.
+    /// </summary>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="versions">The version strings to advertise, in the order given.</param>
+    internal void RegisterV3PackageVersions(string packageId, params string[] versions)
+    {
+        var id = packageId.ToLowerInvariant();
+        var versionList = string.Join(",", versions.Select(v => $"\"{v.ToLowerInvariant()}\""));
+
+        _server
+            .Given(Request.Create().WithPath("/index.json").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(BuildV3ServiceIndexJson())
+                .WithHeader("Content-Type", "application/json"));
+
+        _server
+            .Given(Request.Create().WithPath($"/v3-flatcontainer/{id}/index.json").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody($"{{\"versions\":[{versionList}]}}")
+                .WithHeader("Content-Type", "application/json"));
+    }
+
+    /// <summary>
+    ///     Registers only the v3 service index, with the package version list endpoint dropping
+    ///     the connection to simulate a network failure during version discovery.
+    /// </summary>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    internal void RegisterV3PackageVersionsNetworkFailure(string packageId)
+    {
+        var id = packageId.ToLowerInvariant();
+
+        _server
+            .Given(Request.Create().WithPath("/index.json").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(BuildV3ServiceIndexJson())
+                .WithHeader("Content-Type", "application/json"));
+
+        _server
+            .Given(Request.Create().WithPath($"/v3-flatcontainer/{id}/index.json").UsingGet())
+            .RespondWith(Response.Create()
+                .WithFault(FaultType.EMPTY_RESPONSE));
+    }
+
+    /// <summary>
     ///     Registers the NuGet v3 flat-container endpoints for a package, but requires HTTP Basic
     ///     Authentication with the supplied <paramref name="username"/> and <paramref name="password"/>
     ///     on every endpoint — including the service index, the version list, and the .nupkg download.
@@ -570,6 +618,47 @@ internal sealed class NuGetTestServer : IAsyncDisposable
                 <add key="test-source-primary" value="{primarySourceUrl}" />
                 <add key="test-source-secondary" value="{secondarySourceUrl}" />
               </packageSources>
+            </configuration>
+            """);
+
+        return Settings.LoadSpecificSettings(
+            Path.GetDirectoryName(configPath)!,
+            Path.GetFileName(configPath));
+    }
+
+    /// <summary>
+    ///     Creates an <see cref="ISettings"/> instance with two package sources and a
+    ///     <c>packageSourceMapping</c> that maps <paramref name="mappedPackageId"/> only to the
+    ///     secondary source (<c>test-source-secondary</c>).
+    /// </summary>
+    /// <param name="globalPackagesFolder">Absolute path to the global packages folder.</param>
+    /// <param name="primarySourceUrl">URL of the first package source (not mapped).</param>
+    /// <param name="secondarySourceUrl">URL of the second package source (mapped).</param>
+    /// <param name="mappedPackageId">The package ID pattern mapped to the secondary source.</param>
+    /// <returns>An <see cref="ISettings"/> instance loaded from the generated config file.</returns>
+    internal ISettings CreateSettingsWithSourceMapping(
+        string globalPackagesFolder,
+        string primarySourceUrl,
+        string secondarySourceUrl,
+        string mappedPackageId)
+    {
+        var configPath = Path.Combine(_tempConfigDir, $"nuget-{Guid.NewGuid():N}.config");
+        File.WriteAllText(configPath, $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <configuration>
+              <config>
+                <add key="globalPackagesFolder" value="{EscapeXmlAttribute(globalPackagesFolder)}" />
+              </config>
+              <packageSources>
+                <clear />
+                <add key="test-source-primary" value="{EscapeXmlAttribute(primarySourceUrl)}" />
+                <add key="test-source-secondary" value="{EscapeXmlAttribute(secondarySourceUrl)}" />
+              </packageSources>
+              <packageSourceMapping>
+                <packageSource key="test-source-secondary">
+                  <package pattern="{EscapeXmlAttribute(mappedPackageId)}" />
+                </packageSource>
+              </packageSourceMapping>
             </configuration>
             """);
 

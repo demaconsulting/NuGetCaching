@@ -48,6 +48,10 @@ sections:
           so they are not orphaned.
         children:
           - Caching-OTS-BuildMark
+          - Caching-OTS-BuildMark-GitIntegration
+          - Caching-OTS-BuildMark-IssueTracking
+          - Caching-OTS-BuildMark-KnownIssues
+          - Caching-OTS-BuildMark-RulesRouting
           - Caching-OTS-VersionMark
           - Caching-OTS-VersionMark-Lint
         tests:
@@ -93,7 +97,12 @@ sections:
           they are not orphaned.
         children:
           - Caching-OTS-ReviewMark
-          - Caching-OTS-ReviewMark-Operations
+          - Caching-OTS-ReviewMark-ReportGeneration
+          - Caching-OTS-ReviewMark-IndexScan
+          - Caching-OTS-ReviewMark-WorkingDirectory
+          - Caching-OTS-ReviewMark-Enforce
+          - Caching-OTS-ReviewMark-Elaborate
+          - Caching-OTS-ReviewMark-Lint
         tests:
           - ReviewMark_ReviewPlanGeneration
           - ReviewMark_ReviewReportGeneration
@@ -135,9 +144,13 @@ sections:
           orphaned.
         children:
           - Caching-OTS-ReqStream
+          - Caching-OTS-ReqStream-TraceMatrix
+          - Caching-OTS-ReqStream-ReportExport
+          - Caching-OTS-ReqStream-TagsFiltering
+          - Caching-OTS-ReqStream-EnforcementMode
+          - Caching-OTS-ReqStream-Lint
           - Caching-OTS-SysML2Tools-Lint
           - Caching-OTS-SysML2Tools-Render
-          - Caching-OTS-SysML2Tools
         tests:
           - ReqStream_RequirementsProcessing
           - ReqStream_TraceMatrix

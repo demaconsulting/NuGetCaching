@@ -76,6 +76,10 @@ public static class NuGetCache
     /// <exception cref="InvalidOperationException">
     ///     Thrown when the package cannot be found in any configured NuGet source.
     /// </exception>
+    /// <exception cref="OperationCanceledException">
+    ///     Thrown when <paramref name="cancellationToken"/> is canceled; cancellation propagates to the
+    ///     caller as <see cref="OperationCanceledException"/> and is never swallowed.
+    /// </exception>
     public static async Task<string> EnsureCachedAsync(
         string packageId,
         string version,
@@ -220,16 +224,8 @@ public static class NuGetCache
         // Get the core V3 providers needed to communicate with NuGet v3 and v2 feeds
         var providers = Repository.Provider.GetCoreV3();
 
-        // Load package source mapping; when enabled, only sources explicitly mapped to the
-        // package ID are permitted - this mirrors nuget.config <packageSourceMapping> behavior
-        var packageSourceMapping = PackageSourceMapping.GetPackageSourceMapping(settings);
-        var sourceProvider = new PackageSourceProvider(settings);
-        var enabledSources = sourceProvider.LoadPackageSources().Where(s => s.IsEnabled);
-
-        // Filter sources by package source mapping when it is configured
-        var allowedSources = packageSourceMapping.IsEnabled
-            ? enabledSources.Where(s => packageSourceMapping.GetConfiguredPackageSources(packageId).Contains(s.Name))
-            : enabledSources;
+        // Determine the enabled sources permitted for this package (honoring source mapping)
+        var allowedSources = GetAllowedSources(settings, packageId);
 
         // Accumulate per-source diagnostic messages so they can be included in the
         // final exception when all sources fail - giving callers actionable context
@@ -283,5 +279,212 @@ public static class NuGetCache
             : baseMessage;
 
         throw new InvalidOperationException(fullMessage);
+    }
+
+    /// <summary>
+    ///     Gets the versions of a NuGet package available from the configured remote sources.
+    /// </summary>
+    /// <remarks>
+    ///     Reads NuGet configuration from the default settings via <c>Settings.LoadDefaultSettings</c>,
+    ///     rooted at <paramref name="root"/> (or the current working directory when
+    ///     <paramref name="root"/> is <see langword="null"/>). Only remote (HTTP/HTTPS) sources are
+    ///     queried; local folder feeds, other non-HTTP sources, and the global packages folder are not
+    ///     consulted. Versions are merged across all
+    ///     permitted sources, de-duplicated, and returned as normalized strings in ascending
+    ///     semantic-version order. A package that no source carries yields an empty list.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
+    /// <param name="includePrerelease">
+    ///     When <see langword="true"/>, prerelease versions are included; otherwise only stable
+    ///     versions are returned.
+    /// </param>
+    /// <param name="root">
+    ///     The directory from which to begin discovering <c>nuget.config</c> files. When
+    ///     <see langword="null"/>, defaults to <see cref="Directory.GetCurrentDirectory"/>.
+    /// </param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>
+    ///     The normalized version strings (e.g. <c>1.0.0</c>, <c>2.1.0-beta.1</c>) in ascending
+    ///     order, or an empty list when the package is not found.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="OperationCanceledException">
+    ///     Thrown when <paramref name="cancellationToken"/> is canceled; cancellation propagates to the
+    ///     caller as <see cref="OperationCanceledException"/> and is never swallowed.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when no versions were found and at least one source was unreachable or failed.
+    /// </exception>
+    public static async Task<IReadOnlyList<string>> GetVersionsAsync(
+        string packageId,
+        bool includePrerelease = false,
+        string? root = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate before loading settings so a null package ID fails fast without I/O
+        ArgumentNullException.ThrowIfNull(packageId);
+
+        return await GetVersionsAsync(
+            packageId, includePrerelease, Settings.LoadDefaultSettings(root ?? Directory.GetCurrentDirectory()), cancellationToken);
+    }
+
+    /// <summary>
+    ///     Gets the versions of a NuGet package available from the sources in the provided
+    ///     NuGet <paramref name="settings"/> instance.
+    /// </summary>
+    /// <remarks>
+    ///     This overload exists to support testing with injected settings; it delegates to the
+    ///     overload accepting an <see cref="ICredentialServiceRegistrar"/> using
+    ///     <see cref="CredentialServiceRegistrar.DefaultCredentialRegistrar"/>.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="includePrerelease">Whether prerelease versions are included.</param>
+    /// <param name="settings">The NuGet settings used to resolve package sources and mapping.</param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>The normalized version strings in ascending order, or an empty list.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/> or <paramref name="settings"/> is
+    ///     <see langword="null"/>.
+    /// </exception>
+    internal static async Task<IReadOnlyList<string>> GetVersionsAsync(
+        string packageId,
+        bool includePrerelease,
+        ISettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetVersionsAsync(
+            packageId, includePrerelease, settings, CredentialServiceRegistrar.DefaultCredentialRegistrar, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Gets the versions of a NuGet package available from the sources in the provided
+    ///     NuGet <paramref name="settings"/> instance, using an explicit
+    ///     <paramref name="credentialRegistrar"/>.
+    /// </summary>
+    /// <remarks>
+    ///     All version-discovery logic lives here. <see cref="NuGetVersion"/> is used only
+    ///     internally for semantic ordering and de-duplication; the result is strings only.
+    ///     A source that fails is skipped so that one unreachable feed does not hide versions
+    ///     available from others. When no versions are found and at least one source failed,
+    ///     an <see cref="InvalidOperationException"/> carrying per-source diagnostics is thrown,
+    ///     consistent with <c>EnsureCachedAsync</c>. Cancellation is never swallowed.
+    /// </remarks>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="includePrerelease">Whether prerelease versions are included.</param>
+    /// <param name="settings">The NuGet settings used to resolve package sources and mapping.</param>
+    /// <param name="credentialRegistrar">The credential-service registrar to invoke first.</param>
+    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
+    /// <returns>
+    ///     The normalized version strings in ascending order, or an empty list when every queried
+    ///     source responds and none carries the package.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="packageId"/>, <paramref name="settings"/>, or
+    ///     <paramref name="credentialRegistrar"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when no versions were found and at least one source failed.
+    /// </exception>
+    internal static async Task<IReadOnlyList<string>> GetVersionsAsync(
+        string packageId,
+        bool includePrerelease,
+        ISettings settings,
+        ICredentialServiceRegistrar credentialRegistrar,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate input parameters before performing any I/O
+        ArgumentNullException.ThrowIfNull(packageId);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(credentialRegistrar);
+
+        // Register the credential service before contacting any source (see EnsureCachedAsync)
+        credentialRegistrar.EnsureRegistered();
+
+        var providers = Repository.Provider.GetCoreV3();
+        var allowedSources = GetAllowedSources(settings, packageId);
+
+        // Use a fresh cache context per call so version lists are never served stale
+        using var sourceCacheContext = new SourceCacheContext { NoCache = true };
+
+        // A sorted set de-duplicates by semantic equality and keeps ascending order
+        var versions = new SortedSet<NuGetVersion>();
+        var sourceErrors = new List<string>();
+
+        // Version discovery queries remote (HTTP/HTTPS) sources only; an explicit HTTP predicate is
+        // used (rather than !IsLocal) so non-local, non-HTTP sources are ignored, not queried
+        foreach (var packageSource in allowedSources.Where(s => s.IsHttp))
+        {
+            // Honor cancellation between sources
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var sourceRepository = new SourceRepository(packageSource, providers);
+
+            // Resolve the FindPackageByIdResource, applying v2 fallback as needed
+            var (_, resource, resourceError) = await PackageSourceResolver.ResolveAsync(
+                sourceRepository, providers, cancellationToken);
+
+            if (resource == null)
+            {
+                sourceErrors.Add(resourceError ?? $"{packageSource.Source}: Source is unreachable or unsupported.");
+                continue;
+            }
+
+            IEnumerable<NuGetVersion> sourceVersions;
+            try
+            {
+                sourceVersions = await resource.GetAllVersionsAsync(
+                    packageId, sourceCacheContext, NullLogger.Instance, cancellationToken);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or NuGetProtocolException)
+            {
+                // Record the failure and try the next source; reported only if nothing is found
+                sourceErrors.Add(
+                    AuthFailureClassifier.TryDescribeAuthFailure(ex, packageSource.Name, packageSource.Source, out var authMessage)
+                        ? authMessage
+                        : $"{packageSource.Source}: Error retrieving versions. ({ex.Message})");
+                continue;
+            }
+
+            foreach (var version in sourceVersions)
+            {
+                if (includePrerelease || !version.IsPrerelease)
+                {
+                    versions.Add(version);
+                }
+            }
+        }
+
+        // Mirror EnsureCachedAsync: failures matter only when no source supplied any version
+        if (versions.Count == 0 && sourceErrors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Unable to retrieve versions of package '{packageId}' from the configured NuGet sources."
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, sourceErrors.Select(e => $"  - {e}")));
+        }
+
+        return versions.Select(v => v.ToNormalizedString()).ToList();
+    }
+
+    /// <summary>
+    ///     Gets the enabled package sources permitted for a package, honoring package source mapping.
+    /// </summary>
+    /// <param name="settings">The NuGet settings to read sources and mapping from.</param>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <returns>The enabled sources the package may be obtained from.</returns>
+    private static IEnumerable<PackageSource> GetAllowedSources(ISettings settings, string packageId)
+    {
+        // Load package source mapping; when enabled, only sources explicitly mapped to the
+        // package ID are permitted - this mirrors nuget.config <packageSourceMapping> behavior
+        var packageSourceMapping = PackageSourceMapping.GetPackageSourceMapping(settings);
+        var sourceProvider = new PackageSourceProvider(settings);
+        var enabledSources = sourceProvider.LoadPackageSources().Where(s => s.IsEnabled);
+
+        // Filter sources by package source mapping when it is configured
+        return packageSourceMapping.IsEnabled
+            ? enabledSources.Where(s => packageSourceMapping.GetConfiguredPackageSources(packageId).Contains(s.Name))
+            : enabledSources;
     }
 }

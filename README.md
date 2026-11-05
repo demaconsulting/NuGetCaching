@@ -9,13 +9,15 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
-DEMA Consulting library for caching NuGet packages on the local global packages cache.
+DEMA Consulting library for caching NuGet packages on the local global packages cache and
+discovering the available versions of a package.
 
 ## Features
 
 This library provides:
 
 - **NuGet Package Caching**: Ensure NuGet packages are available in the local global packages cache
+- **Version Discovery**: List the available versions of a package as normalized strings
 - **NuGet Configuration Aware**: Reads sources and global packages folder from the default NuGet
   settings, mirroring `dotnet` CLI behavior
 - **Package Source Mapping**: Supports NuGet package source mapping configuration
@@ -45,6 +47,12 @@ using DemaConsulting.NuGet.Caching;
 // Ensure a specific NuGet package version is available in the local global packages cache
 string packagePath = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
 Console.WriteLine($"Package cached at: {packagePath}");
+
+// Discover available versions (normalized strings, ascending); stable versions only by default
+IReadOnlyList<string> versions = await NuGetCache.GetVersionsAsync("Newtonsoft.Json");
+Console.WriteLine(versions.Count > 0
+    ? $"Latest stable version: {versions[^1]}"
+    : "No stable versions found.");
 ```
 
 ## Documentation

@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using NuGet.Configuration;
 using NuGet.Protocol;
 using NuGet.Versioning;
 
@@ -192,7 +193,9 @@ public class NuGetCacheServerTests
                 Assert.NotNull(notFoundEx);
                 Assert.True(
                     server.LogEntries.Any(IsV2FallbackRequest),
-                    "Expected at least one v2 fallback request ('/', '/$metadata', '/FindPackagesById()', or '/Packages(...)').");
+                    "Expected at least one v2 fallback request ('/', '/$metadata', '/FindPackagesById()', or '/Packages(...)')."
+                    + $" Exception: {notFoundEx.Message}. Logged requests: "
+                    + string.Join(", ", server.LogEntries.Select(e => e.GetType().GetProperty("RequestMessage")?.GetValue(e)?.ToString())));
             }
         }
         finally
@@ -803,7 +806,7 @@ public class NuGetCacheServerTests
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
-    public async Task NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService()
+    public async Task NuGetCache_EnsureCachedAsync_FreshRealRegistrar_RegistersRealCredentialService()
     {
         var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var originalCredentialService = HttpHandlerResourceV3.CredentialService;
@@ -840,6 +843,83 @@ public class NuGetCacheServerTests
             // test ran - this test intentionally nulled it out, and leaving it null (or leaving a
             // test-only value behind) could cascade into unrelated test/production failures if this
             // test fails before reaching its assertion.
+            HttpHandlerResourceV3.CredentialService = originalCredentialService;
+
+            if (Directory.Exists(globalPackagesFolder))
+            {
+                Directory.Delete(globalPackagesFolder, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Tests that repeated <c>EnsureRegistered</c> calls on a single registrar instance perform
+    ///     registration exactly once, including under concurrent calls.
+    /// </summary>
+    /// <remarks>
+    ///     Uses the internal action-accepting constructor so registration can be counted without
+    ///     touching the NuGet SDK's process-wide state.
+    /// </remarks>
+    [Fact]
+    public async Task CredentialServiceRegistrar_EnsureRegistered_RepeatedCalls_RegistersExactlyOnce()
+    {
+        // Arrange - a registrar whose registration action counts its invocations
+        var registrationCount = 0;
+        var registrar = new CredentialServiceRegistrar(() => Interlocked.Increment(ref registrationCount));
+
+        // Act - sequential repeated calls followed by concurrent calls on the same instance
+        registrar.EnsureRegistered();
+        registrar.EnsureRegistered();
+        registrar.EnsureRegistered();
+        await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => Task.Run(registrar.EnsureRegistered)));
+
+        // Assert - the registration action ran exactly once
+        Assert.Equal(1, registrationCount);
+    }
+
+    /// <summary>
+    ///     Tests that the production <c>EnsureCachedAsync</c> path (the overload that supplies no
+    ///     registrar) leaves the NuGet SDK's default credential service registered.
+    /// </summary>
+    /// <remarks>
+    ///     This calls the production overload, which uses the shared, process-wide
+    ///     <c>CredentialServiceRegistrar.DefaultCredentialRegistrar</c>. That instance memoizes
+    ///     registration for the life of the process and has no reset hook, so the test cannot force a
+    ///     null-to-non-null transition without production-only test hooks; instead it asserts the
+    ///     observable end state (a non-null credential service) after the production call. The
+    ///     original value of the shared static <c>HttpHandlerResourceV3.CredentialService</c>
+    ///     property is captured before the call and always restored in a <c>finally</c> block, so
+    ///     this test leaves that process-wide state exactly as it found it. The assertion is
+    ///     meaningful because the default registrar is the only production path that registers
+    ///     the service, and assembly-wide parallelization is disabled so no other test can
+    ///     change the property concurrently.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService()
+    {
+        // Arrange - capture the process-wide credential service so it can be restored afterwards
+        var originalCredentialService = HttpHandlerResourceV3.CredentialService;
+        var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(globalPackagesFolder);
+            const string packageId = "TestPackage.DefaultRegistrarProductionPath";
+            const string version = "1.0.0";
+
+            await using var server = new NuGetTestServer();
+            server.RegisterV3Package(packageId, version, NuGetPackageBuilder.CreateMinimalPackage(packageId, version));
+            var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
+
+            // Act - production overload: no registrar is supplied, so the default one is used
+            await NuGetCache.EnsureCachedAsync(packageId, version, settings, CancellationToken.None);
+
+            // Assert - the real default credential service is registered
+            Assert.NotNull(HttpHandlerResourceV3.CredentialService);
+        }
+        finally
+        {
+            // Restore the process-wide credential service so no state leaks to other tests
             HttpHandlerResourceV3.CredentialService = originalCredentialService;
 
             if (Directory.Exists(globalPackagesFolder))
@@ -927,6 +1007,380 @@ public class NuGetCacheServerTests
                 Directory.Delete(repoRoot, recursive: true);
             }
         }
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync returns normalized versions in ascending semantic order.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_MultipleVersions_ReturnsAscendingNormalizedStrings()
+    {
+        // Arrange - unsorted versions including a non-normalized "1.0"; "1.10.0" > "1.2.0" semantically
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("TestPackage.Versions", "1.10.0", "1.2.0", "1.0");
+        var settings = server.CreateSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Versions", false, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "1.0.0", "1.2.0", "1.10.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync returns versions as normalized strings.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_NonNormalizedVersions_ReturnsNormalizedStrings()
+    {
+        // Arrange - the feed advertises non-normalized forms ("1.0" and a four-part "2.0.0.0")
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("TestPackage.Normalize", "1.0", "2.0.0.0");
+        var settings = server.CreateSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Normalize", false, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "1.0.0", "2.0.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync orders versions by semantic version rather than text.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_UnsortedVersions_ReturnsSemanticAscendingOrder()
+    {
+        // Arrange - "1.10.0" sorts before "1.2.0" textually but after it semantically
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("TestPackage.Order", "2.0.0", "1.10.0", "1.2.0", "1.9.0");
+        var settings = server.CreateSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Order", false, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "1.2.0", "1.9.0", "1.10.0", "2.0.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync excludes prerelease versions by default.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_PrereleaseExcludedByDefault()
+    {
+        // Arrange
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("TestPackage.Pre", "1.0.0-beta", "1.0.0");
+        var settings = server.CreateSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Pre", false, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "1.0.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync includes prerelease versions, ordered before their release.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_IncludePrerelease_ReturnsPrereleaseVersions()
+    {
+        // Arrange
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("TestPackage.Pre", "1.0.0", "1.0.0-beta");
+        var settings = server.CreateSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Pre", true, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "1.0.0-beta", "1.0.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync returns an empty list, without throwing, when the package is absent.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_PackageAbsent_ReturnsEmptyList()
+    {
+        // Arrange - the server carries only a different package
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("Other.Package", "1.0.0");
+        var settings = server.CreateSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Missing", false, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Empty(versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync merges and de-duplicates versions across multiple sources.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_VersionsInMultipleSources_MergedDeduplicated()
+    {
+        // Arrange - overlapping version sets on two servers
+        await using var primary = new NuGetTestServer();
+        await using var secondary = new NuGetTestServer();
+        primary.RegisterV3PackageVersions("TestPackage.Merge", "1.0.0", "2.0.0");
+        secondary.RegisterV3PackageVersions("TestPackage.Merge", "2.0.0", "1.5.0");
+        var settings = primary.CreateSettings(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), primary.IndexUrl, secondary.IndexUrl);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Merge", false, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "1.0.0", "1.5.0", "2.0.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync skips a source with a network failure and uses the next source.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_SourceUnreachable_ContinuesToNextSource()
+    {
+        // Arrange - the primary drops the connection on the version list request
+        await using var primary = new NuGetTestServer();
+        await using var secondary = new NuGetTestServer();
+        primary.RegisterV3PackageVersionsNetworkFailure("TestPackage.Failover");
+        secondary.RegisterV3PackageVersions("TestPackage.Failover", "3.0.0");
+        var settings = primary.CreateSettings(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), primary.IndexUrl, secondary.IndexUrl);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Failover", false, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "3.0.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync throws with diagnostics when no versions are found and a source failed.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_AllSourcesFail_ThrowsInvalidOperationException()
+    {
+        // Arrange - the only source drops the connection on the version list request
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersionsNetworkFailure("TestPackage.AllFail");
+        var settings = server.CreateSettings(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+
+        // Act
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => NuGetCache.GetVersionsAsync("TestPackage.AllFail", false, settings, CancellationToken.None));
+
+        // Assert - the message names the package and the failing source
+        Assert.Contains("TestPackage.AllFail", exception.Message);
+        Assert.Contains(server.IndexUrl, exception.Message);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync honors package source mapping and does not query unmapped sources.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_PackageSourceMapping_HonorsMapping()
+    {
+        // Arrange - both servers carry the package, but only the secondary is mapped to it
+        await using var primary = new NuGetTestServer();
+        await using var secondary = new NuGetTestServer();
+        primary.RegisterV3PackageVersions("TestPackage.Mapped", "1.0.0");
+        secondary.RegisterV3PackageVersions("TestPackage.Mapped", "2.0.0");
+        var settings = primary.CreateSettingsWithSourceMapping(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
+            primary.IndexUrl,
+            secondary.IndexUrl,
+            "TestPackage.Mapped");
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.Mapped", false, settings, CancellationToken.None);
+
+        // Assert - only the mapped source's version is returned and the unmapped source saw no requests
+        Assert.Equal(new[] { "2.0.0" }, versions);
+        Assert.Empty(primary.LogEntries);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync succeeds against an authenticated source with credentials configured.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_AuthenticatedSourceWithCredentials_ReturnsVersions()
+    {
+        // Arrange
+        const string packageId = "TestPackage.AuthVersions";
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageWithBasicAuth(
+            packageId, "1.0.0", NuGetPackageBuilder.CreateMinimalPackage(packageId, "1.0.0"), "test-user", "test-password");
+        var settings = server.CreateSettingsWithCredentials(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl, "test-user", "test-password");
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync(packageId, false, settings, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "1.0.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync invokes credential-service registration.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_AnySource_InvokesCredentialServiceRegistrar()
+    {
+        // Arrange
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("TestPackage.Registrar", "1.0.0");
+        var settings = server.CreateSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+        var registrar = new SpyCredentialServiceRegistrar();
+
+        // Act
+        await NuGetCache.GetVersionsAsync("TestPackage.Registrar", false, settings, registrar, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(1, registrar.EnsureRegisteredCallCount);
+    }
+
+    /// <summary>
+    ///     Tests that a version returned by GetVersionsAsync can be passed to EnsureCachedAsync.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_ReturnedVersionUsableByEnsureCachedAsync()
+    {
+        // Arrange
+        var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(globalPackagesFolder);
+            const string packageId = "TestPackage.RoundTrip";
+            await using var server = new NuGetTestServer();
+            server.RegisterV3Package(packageId, "1.0.0", NuGetPackageBuilder.CreateMinimalPackage(packageId, "1.0.0"));
+            var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
+
+            // Act
+            var versions = await NuGetCache.GetVersionsAsync(packageId, false, settings, CancellationToken.None);
+            var packagePath = await NuGetCache.EnsureCachedAsync(packageId, versions[^1], settings, CancellationToken.None);
+
+            // Assert
+            Assert.True(File.Exists(Path.Combine(packagePath, ".nupkg.metadata")));
+        }
+        finally
+        {
+            if (Directory.Exists(globalPackagesFolder))
+            {
+                Directory.Delete(globalPackagesFolder, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync ignores local folder feeds and returns only remote versions.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_LocalFolderSource_IsIgnored()
+    {
+        // Arrange - a local folder feed carries 9.9.9; the remote server carries 1.0.0
+        var localFeed = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(localFeed);
+        try
+        {
+            CreateLocalFeedPackage(localFeed);
+
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageVersions("TestPackage.Local", "1.0.0");
+            var settings = server.CreateSettings(
+                Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl, localFeed);
+
+            // Act
+            var versions = await NuGetCache.GetVersionsAsync("TestPackage.Local", false, settings, CancellationToken.None);
+
+            // Assert
+            Assert.Equal(new[] { "1.0.0" }, versions);
+        }
+        finally
+        {
+            Directory.Delete(localFeed, true);
+        }
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync ignores a source that is neither local nor HTTP/HTTPS
+    ///     (boundary of the explicit HTTP source predicate) and still returns remote versions.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_NonHttpNonLocalSource_IsIgnored()
+    {
+        // Arrange - a custom-scheme (ftp) source is non-local yet not HTTP; the remote server carries 1.0.0
+        const string nonHttpSource = "ftp://feed.invalid/packages";
+        var sourceUnderTest = new PackageSource(nonHttpSource);
+        Assert.False(sourceUnderTest.IsLocal);
+        Assert.False(sourceUnderTest.IsHttp);
+
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("TestPackage.NonHttp", "1.0.0");
+        var settings = server.CreateSettings(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl, nonHttpSource);
+
+        // Act
+        var versions = await NuGetCache.GetVersionsAsync("TestPackage.NonHttp", false, settings, CancellationToken.None);
+
+        // Assert - only the HTTP source contributes versions and the call does not fail on the ftp source
+        Assert.Equal(new[] { "1.0.0" }, versions);
+    }
+
+    /// <summary>
+    ///     Creates a minimal valid <c>TestPackage.Local</c> 9.9.9 package in a local folder feed.
+    /// </summary>
+    /// <param name="feedFolder">The local feed folder.</param>
+    private static void CreateLocalFeedPackage(string feedFolder)
+    {
+        using var archive = System.IO.Compression.ZipFile.Open(
+            Path.Combine(feedFolder, "TestPackage.Local.9.9.9.nupkg"),
+            System.IO.Compression.ZipArchiveMode.Create);
+        var entry = archive.CreateEntry("TestPackage.Local.nuspec");
+        using var writer = new StreamWriter(entry.Open());
+        writer.Write(
+            "<?xml version=\"1.0\"?><package xmlns=\"http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd\">" +
+            "<metadata><id>TestPackage.Local</id><version>9.9.9</version><authors>a</authors>" +
+            "<description>d</description></metadata></package>");
+    }
+
+    /// <summary>
+    ///     Tests that GetVersionsAsync propagates cancellation instead of skipping the source.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_CancelledToken_ThrowsOperationCanceledException()
+    {
+        // Arrange
+        await using var server = new NuGetTestServer();
+        server.RegisterV3PackageVersions("TestPackage.Cancel", "1.0.0");
+        var settings = server.CreateSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), server.IndexUrl);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act / Assert
+        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await NuGetCache.GetVersionsAsync("TestPackage.Cancel", false, settings, cts.Token));
     }
 
     /// <summary>

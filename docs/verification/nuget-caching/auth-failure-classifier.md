@@ -19,6 +19,17 @@ every detection branch: message-text matching, strongly typed status-code proper
 inner-exception chain walking, and non-matching inputs. Each test scenario names a specific test
 method that provides evidence for the unit requirement.
 
+### Test Environment
+
+No setup beyond the standard test runner: the tests are pure unit tests with no network, WireMock
+server, file system, or configuration dependency.
+
+### Acceptance Criteria
+
+All test scenarios below pass on every test target framework (net8.0, net9.0, and net10.0, plus
+net481 on Windows, which exercises the netstandard2.0 library binary): 401/403 inputs return `true`
+with an actionable message, and every non-matching input returns `false` with a `null` message.
+
 ### Test Scenarios
 
 #### AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage
@@ -29,7 +40,8 @@ method that provides evidence for the unit requirement.
 **Expected**: Returns `true` and a non-null message containing the source name, source URL, and
 `401`/`Unauthorized`.
 
-**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
+**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`,
+`Caching-AuthFailureClassifier-ActionableMessage`.
 
 #### AuthFailureClassifier_TryDescribeAuthFailure_403InMessage_ReturnsTrueWithActionableMessage
 
@@ -47,7 +59,7 @@ message ("Connection refused.") containing no status-code text.
 
 **Expected**: Returns `false` with a `null` message.
 
-**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
+**Requirement coverage**: `Caching-AuthFailureClassifier-NoFalsePositive`.
 
 #### AuthFailureClassifier_TryDescribeAuthFailure_UnrelatedNumberInMessage_ReturnsFalse
 
@@ -57,7 +69,7 @@ followed by the expected HTTP reason phrase.
 
 **Expected**: Returns `false` with a `null` message, confirming no false positive.
 
-**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
+**Requirement coverage**: `Caching-AuthFailureClassifier-NoFalsePositive`.
 
 #### AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInInnerException_ReturnsTrue
 
@@ -67,7 +79,7 @@ followed by the expected HTTP reason phrase.
 **Expected**: Returns `true`, confirming the exception chain is walked past the outer
 exception.
 
-**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
+**Requirement coverage**: `Caching-AuthFailureClassifier-DetectInInnerChain`.
 
 #### AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInDeeplyNestedInnerException_ReturnsTrue
 
@@ -77,7 +89,7 @@ innermost exception.
 **Expected**: Returns `true`, confirming the chain is walked through multiple levels of
 nesting.
 
-**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
+**Requirement coverage**: `Caching-AuthFailureClassifier-DetectInInnerChain`.
 
 #### AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInFullChain_ReturnsFalse
 
@@ -85,7 +97,7 @@ nesting.
 
 **Expected**: Returns `false` with a `null` message after walking the entire chain.
 
-**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
+**Requirement coverage**: `Caching-AuthFailureClassifier-NoFalsePositive`.
 
 #### AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithStatusCodeProperty_ReturnsTrue
 
@@ -115,7 +127,7 @@ i.e. HTTP 500), neither 401 nor 403.
 **Expected**: Returns `false` with a `null` message, confirming the strongly typed property
 check only reports a match for 401/403.
 
-**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
+**Requirement coverage**: `Caching-AuthFailureClassifier-NoFalsePositive`.
 
 #### AuthFailureClassifier_TryDescribeAuthFailure_MatchFound_MessageIncludesOriginalExceptionText
 
@@ -125,19 +137,23 @@ check only reports a match for 401/403.
 **Expected**: The returned message contains the original exception's message text verbatim, in
 addition to the summarized actionable framing.
 
-**Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
+**Requirement coverage**: `Caching-AuthFailureClassifier-ActionableMessage`.
 
 ### Requirements Coverage
 
 - **`Caching-AuthFailureClassifier-DetectUnauthorized`**:
   AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage,
   AuthFailureClassifier_TryDescribeAuthFailure_403InMessage_ReturnsTrueWithActionableMessage,
+  AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithStatusCodeProperty_ReturnsTrue,
+  AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithForbiddenStatusCodeProperty_ReturnsTrue
+- **`Caching-AuthFailureClassifier-DetectInInnerChain`**:
+  AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInInnerException_ReturnsTrue,
+  AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInDeeplyNestedInnerException_ReturnsTrue
+- **`Caching-AuthFailureClassifier-NoFalsePositive`**:
   AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInMessage_ReturnsFalse,
   AuthFailureClassifier_TryDescribeAuthFailure_UnrelatedNumberInMessage_ReturnsFalse,
-  AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInInnerException_ReturnsTrue,
-  AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInDeeplyNestedInnerException_ReturnsTrue,
   AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInFullChain_ReturnsFalse,
-  AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithStatusCodeProperty_ReturnsTrue,
-  AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithForbiddenStatusCodeProperty_ReturnsTrue,
-  AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithUnrelatedStatusCodeProperty_ReturnsFalse,
+  AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithUnrelatedStatusCodeProperty_ReturnsFalse
+- **`Caching-AuthFailureClassifier-ActionableMessage`**:
+  AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage,
   AuthFailureClassifier_TryDescribeAuthFailure_MatchFound_MessageIncludesOriginalExceptionText

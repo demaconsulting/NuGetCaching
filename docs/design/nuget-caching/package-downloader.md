@@ -2,7 +2,7 @@
 
 ![PackageDownloader Structure](NuGetCachingView.svg)
 
-### Overview
+### Purpose
 
 `PackageDownloader` is an internal static class that downloads a NuGet package using an
 already-resolved `FindPackageByIdResource` and installs it into the global packages folder, in
@@ -16,7 +16,11 @@ part of the public API surface. It owns download and installation concerns only;
 Authentication-failure diagnosis during download is delegated to `AuthFailureClassifier` so that
 logic is not duplicated between resolution and download.
 
-### Class Structure
+### Data Model
+
+The class holds no instance state. Its only data type is the immutable `TryDownloadResult`
+record struct below; the invariant is that `PackagePath` is non-null only when the package was
+installed successfully.
 
 #### TryDownloadResult Record Struct
 
@@ -101,7 +105,7 @@ path-computation logic are unchanged. The method was renamed from
 `TryDownloadFromResourceAsync` to `TryDownloadAsync` to read naturally as
 `PackageDownloader.TryDownloadAsync(...)` at the call site in `NuGetCache`.
 
-### Method Descriptions
+### Key Methods
 
 #### `TryDownloadAsync(...)`
 
@@ -153,3 +157,26 @@ unexpected traversal sequences in package identifiers or version strings sourced
 NuGet feeds.
 
 Satisfies requirement `Caching-PackageDownloader-PackagePathConvention`.
+
+### Error Handling
+
+- **Handled locally**: `NuGetProtocolException` and `HttpRequestException` raised while
+  copying the `.nupkg` are converted to a `TryDownloadResult` (actionable 401/403 diagnostic,
+  generic protocol-error message, or an empty result for transient network failures) so the
+  caller can continue to the next source.
+- **Propagated**: `OperationCanceledException` and any other exception, including those from
+  `GlobalPackagesFolderUtility.AddPackageAsync`, propagate to the caller.
+- **`GetPackagePath`**: propagates `ArgumentException` from `PathHelpers.SafePathCombine` when
+  an identifier or version would escape the global packages folder.
+
+### Dependencies
+
+- `AuthFailureClassifier` (authentication-failure diagnosis).
+- `PathHelpers` (safe path combination).
+- **NuGet** (OTS): `FindPackageByIdResource`, `GlobalPackagesFolderUtility`, `SourceRepository`,
+  `SourceCacheContext`, and `ClientPolicyContext`.
+
+### Callers
+
+- `NuGetCache`: `TryDownloadAsync` during source enumeration and `GetPackagePath` for the
+  cache-hit fast-path check.

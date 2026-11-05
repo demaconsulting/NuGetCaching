@@ -2,7 +2,7 @@
 
 ![PathHelpers Structure](NuGetCachingView.svg)
 
-### Overview
+### Purpose
 
 `PathHelpers` is an internal static utility class providing a safe path-combination method
 in the DemaConsulting NuGet Caching library. It protects callers against path-traversal
@@ -13,7 +13,12 @@ points, so this check guards against string-level traversal only.
 The class is marked `internal` because it is an implementation detail of the library and is
 not part of the public API surface.
 
-### Class Structure
+### Data Model
+
+`PathHelpers` is a static class with no fields, properties, or instance state; its only
+data is the method arguments and return value. The invariant it establishes is that a
+returned path, resolved to absolute form, is always contained within the supplied base
+directory.
 
 #### SafePathCombine Method
 
@@ -26,7 +31,9 @@ the base directory.
 
 **Validation steps:**
 
-1. Reject null inputs via `ArgumentNullException.ThrowIfNull`.
+1. Reject null inputs via `ArgumentNullException.ThrowIfNull`, then reject any rooted
+   `relativePath` (`Path.IsPathRooted`) with `ArgumentException`, even if it would resolve
+   inside the base directory.
 2. Combine the paths with `Path.Combine` to produce the candidate path (preserving the
    caller's relative/absolute style).
 3. Resolve both `basePath` and the candidate to absolute form with `Path.GetFullPath`.
@@ -88,7 +95,7 @@ explicit.
 `SafePathCombine` is a pure utility method that throws on invalid input; it does not
 interact with any context or output mechanism.
 
-### Method Descriptions
+### Key Methods
 
 #### `SafePathCombine(string basePath, string relativePath)`
 
@@ -98,14 +105,37 @@ The method:
 
 1. Validates that neither argument is null (`ArgumentNullException.ThrowIfNull`),
    throwing `ArgumentNullException` for a null argument.
-2. Calls `Path.Combine(basePath, relativePath)` to produce the combined path.
-3. Resolves both the base and combined paths to canonical forms using `Path.GetFullPath`.
-4. Uses `Path.GetRelativePath` to confirm the combined path remains under the base,
+2. Throws `ArgumentException` when `relativePath` is rooted (`Path.IsPathRooted`), including
+   a rooted path that would resolve inside the base directory.
+3. Calls `Path.Combine(basePath, relativePath)` to produce the combined path.
+4. Resolves both the base and combined paths to canonical forms using `Path.GetFullPath`.
+5. Uses `Path.GetRelativePath` to confirm the combined path remains under the base,
    throwing `ArgumentException` if it does not.
-5. Returns the combined path string.
+6. Returns the combined path string.
 
 The method propagates `NotSupportedException` from `Path.GetFullPath` when a supplied path
 contains an unsupported format, and propagates `PathTooLongException` from `Path.GetFullPath`
 or `Path.Combine` when the combined or resolved path exceeds the system-defined maximum length.
 
 Satisfies requirements `Caching-PathHelpers-Combine` and `Caching-PathHelpers-RejectTraversal`.
+
+### Error Handling
+
+- **`ArgumentNullException`**: thrown (not handled) when `basePath` or `relativePath` is null.
+- **`ArgumentException`**: thrown when `relativePath` is rooted or the combined path escapes the base directory.
+- **`NotSupportedException` / `PathTooLongException`**: propagated unchanged from the BCL path APIs.
+
+No exception is caught or suppressed locally; all failures are reported to the caller.
+
+### Dependencies
+
+- BCL `System.IO.Path` (`Combine`, `GetFullPath`, `GetRelativePath`).
+- **Polyfill** (OTS) supplies `Path.GetRelativePath` and `ArgumentNullException.ThrowIfNull` on
+  `netstandard2.0`; the null-argument validation in `SafePathCombine` relies on the polyfilled
+  `ThrowIfNull` there.
+- No other units or subsystems.
+
+### Callers
+
+- `PackageDownloader` (`GetPackagePath` path construction).
+- `NuGetCache` (sentinel-file path construction for the cache-hit check).

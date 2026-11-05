@@ -2,7 +2,7 @@
 
 ![AuthFailureClassifier Structure](NuGetCachingView.svg)
 
-### Overview
+### Purpose
 
 `AuthFailureClassifier` is an internal static class that classifies an exception raised while
 communicating with a NuGet source as an actionable HTTP 401 (Unauthorized) or 403 (Forbidden)
@@ -15,17 +15,22 @@ part of the public API surface. It is used by both `PackageSourceResolver` (whil
 `FindPackageByIdResource`) and `PackageDownloader` (while downloading the `.nupkg` bytes), so the
 detection logic is centralized in a single unit rather than duplicated across both call sites.
 
-### Class Structure
+### Data Model
+
+The class holds no instance state. Its only data member is the compiled, immutable regular
+expression below; all other data is the method arguments and results.
 
 #### HttpStatusCodePattern Field
 
 ```csharp
 private static readonly Regex HttpStatusCodePattern =
-    new(@"\b(401)\s*\(Unauthorized\)|\b(403)\s*\(Forbidden\)", RegexOptions.Compiled);
+    new(@"\b(401)\s*\(Unauthorized\)|\b(403)\s*\(Forbidden\)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 ```
 
 A compiled regular expression matching an HTTP status code embedded in a NuGet SDK exception
-message, e.g. `"Response status code does not indicate success: 401 (Unauthorized)."`.
+message, e.g. `"Response status code does not indicate success: 401 (Unauthorized)."`. The
+one-second match timeout bounds the cost of matching an arbitrarily long exception message, so
+a pathological message can never stall error classification.
 
 #### TryDescribeAuthFailure Method
 
@@ -97,7 +102,7 @@ required) so it can be called from the sibling `PackageSourceResolver` and `Pack
 units; `TryGetHttpStatusCode` remains `private`, as it is only ever called by
 `TryDescribeAuthFailure` within this class.
 
-### Method Descriptions
+### Key Methods
 
 #### `TryDescribeAuthFailure(Exception exception, string sourceName, string source, out string? message)`
 
@@ -114,7 +119,8 @@ message identifying the source and the authentication failure. The method:
    message text.
 3. Returns `true` with the built message.
 
-Satisfies requirement `Caching-AuthFailureClassifier-DetectUnauthorized`.
+Satisfies requirements `Caching-AuthFailureClassifier-NoFalsePositive` (no match, no message) and
+`Caching-AuthFailureClassifier-ActionableMessage` (message content).
 
 #### `TryGetHttpStatusCode(Exception? exception, out int statusCode)` (private)
 
@@ -128,4 +134,25 @@ each exception in the chain:
    in the chain; returns `false` with a status code of `0` if the chain is exhausted with no
    match.
 
-Satisfies requirement `Caching-AuthFailureClassifier-DetectUnauthorized`.
+Satisfies requirements `Caching-AuthFailureClassifier-DetectUnauthorized` (property and message
+detection), `Caching-AuthFailureClassifier-DetectInInnerChain` (chain walking), and
+`Caching-AuthFailureClassifier-NoFalsePositive` (non-matching inputs).
+
+### Error Handling
+
+The class never throws for its classification purpose: an exception that is not a 401/403 is
+reported as `false` with a `null` message, which callers treat as a non-actionable transient
+error. It performs no I/O, so there is nothing to catch. Argument validation is not performed
+beyond tolerating a `null` exception in the private chain walk; the callers always pass a
+caught exception.
+
+### Dependencies
+
+- BCL: `System.Exception`, `System.Net.Http.HttpRequestException`, `System.Text.RegularExpressions`.
+- **NuGet** (OTS): `NuGetProtocolException` exceptions inspected by message.
+- No other units or subsystems.
+
+### Callers
+
+- `PackageSourceResolver` (resolution-time failures).
+- `PackageDownloader` (download-time failures).

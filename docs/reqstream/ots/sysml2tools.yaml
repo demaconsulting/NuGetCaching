@@ -25,16 +25,3 @@ sections:
             tags: [ots]
             tests:
               - SysML2Tools_RenderSvgSelfTest
-
-          - id: Caching-OTS-SysML2Tools
-            title: SysML2Tools shall validate the SysML2 model and render its declared views to SVG diagrams.
-            justification: |
-              Composite requirement covering lint and render behaviors, ensuring the tool
-              provides both self-validation checks used by the build pipeline.
-            tags: [ots]
-            children:
-              - Caching-OTS-SysML2Tools-Lint
-              - Caching-OTS-SysML2Tools-Render
-            tests:
-              - SysML2Tools_LintSelfTest
-              - SysML2Tools_RenderSvgSelfTest

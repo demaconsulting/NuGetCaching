@@ -124,4 +124,49 @@ public class NuGetCachingTests
         _ = await Assert.ThrowsAsync<ArgumentNullException>(
             async () => await NuGetCache.EnsureCachedAsync(packageId, null!, cancellationToken: CancellationToken.None));
     }
+
+    /// <summary>
+    ///     Tests that the library discovers available package versions through its public API,
+    ///     using a repo-local <c>nuget.config</c> discovered from the supplied root.
+    /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Sys-VersionDiscovery: the system lists the available versions
+    ///     of a package as normalized, ascending strings.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCaching_GetVersionsAsync_WhenPackageHasVersions_ReturnsAscendingVersionStrings()
+    {
+        // Arrange: a local HTTP test feed advertising unsorted versions, and a repo-local nuget.config using only it
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageVersions("TestPackage.System", "2.0.0", "1.0.0", "1.5.0-beta");
+            await File.WriteAllTextAsync(Path.Combine(root, "nuget.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <packageSources>
+                    <clear />
+                    <add key="local" value="{server.IndexUrl}" />
+                  </packageSources>
+                </configuration>
+                """, TestContext.Current.CancellationToken);
+
+            // Act: invoke the public API
+            var versions = await NuGetCache.GetVersionsAsync(
+                "TestPackage.System", includePrerelease: true, root: root, cancellationToken: CancellationToken.None);
+
+            // Assert: normalized strings in ascending order
+            Assert.Equal(new[] { "1.0.0", "1.5.0-beta", "2.0.0" }, versions);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }

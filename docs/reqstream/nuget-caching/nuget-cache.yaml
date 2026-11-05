@@ -189,6 +189,144 @@ sections:
           error with no diagnostic detail.
         children:
           - Caching-AuthFailureClassifier-DetectUnauthorized
+          - Caching-AuthFailureClassifier-DetectInInnerChain
+          - Caching-AuthFailureClassifier-NoFalsePositive
+          - Caching-AuthFailureClassifier-ActionableMessage
           - Caching-PackageDownloader-AuthDiagnostic
         tests:
           - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
+
+      - id: Caching-NuGetCache-GetVersions
+        title: >-
+          The GetVersionsAsync method shall return the available versions of a package as
+          strings, exposing no NuGet types in its public signature.
+        justification: |
+          Callers need to discover which versions of a package exist before choosing one to
+          cache. Returning plain strings keeps NuGet types out of the public API, and each
+          returned string is directly usable with EnsureCachedAsync.
+        tests:
+          - NuGetCache_GetVersionsAsync_ReturnedVersionUsableByEnsureCachedAsync
+          - NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings
+
+      - id: Caching-NuGetCache-GetVersionsNormalization
+        title: >-
+          The GetVersionsAsync method shall return each version in its normalized
+          string form.
+        justification: |
+          Feeds may advertise non-normalized forms (for example "1.0"); returning the
+          normalized form gives callers one canonical spelling per version.
+        tests:
+          - NuGetCache_GetVersionsAsync_NonNormalizedVersions_ReturnsNormalizedStrings
+
+      - id: Caching-NuGetCache-GetVersionsOrdering
+        title: >-
+          The GetVersionsAsync method shall return versions sorted in ascending
+          semantic-version order.
+        justification: |
+          Callers select the latest or a range of versions from the result; a semantic
+          (not textual) ascending order makes the last element the newest release.
+        tests:
+          - NuGetCache_GetVersionsAsync_MultipleVersions_ReturnsAscendingNormalizedStrings
+          - NuGetCache_GetVersionsAsync_UnsortedVersions_ReturnsSemanticAscendingOrder
+
+      - id: Caching-NuGetCache-GetVersionsDeduplication
+        title: >-
+          The GetVersionsAsync method shall return each version once when the same
+          version is offered by more than one source.
+        justification: |
+          Mirrored or overlapping feeds advertise the same versions; callers must not see
+          duplicate entries.
+        tests:
+          - NuGetCache_GetVersionsAsync_VersionsInMultipleSources_MergedDeduplicated
+
+      - id: Caching-NuGetCache-GetVersionsSources
+        title: >-
+          The GetVersionsAsync method shall query only the enabled remote (HTTP/HTTPS)
+          package sources permitted for the package by package source mapping, excluding
+          local folder sources.
+        justification: |
+          Version discovery answers what a feed offers. Local folder feeds and the global
+          packages folder are not remote feeds, so they are excluded, while enabled-source
+          selection and package source mapping match EnsureCachedAsync to prevent drift.
+        children:
+          - Caching-PackageSourceResolver-Resolve
+          - Caching-OTS-NuGetProtocol
+          - Caching-OTS-NuGetConfiguration
+        tests:
+          - NuGetCache_GetVersionsAsync_PackageSourceMapping_HonorsMapping
+          - NuGetCache_GetVersionsAsync_LocalFolderSource_IsIgnored
+          - NuGetCache_GetVersionsAsync_NonHttpNonLocalSource_IsIgnored
+
+      - id: Caching-NuGetCache-GetVersionsAuth
+        title: >-
+          The GetVersionsAsync method shall register the NuGet credential service before
+          contacting any source and honor configured source credentials.
+        justification: |
+          Authenticated private feeds must be usable for version discovery exactly as they
+          are for package caching.
+        children:
+          - Caching-CredentialServiceRegistrar-RegisterOnce
+        tests:
+          - NuGetCache_GetVersionsAsync_AuthenticatedSourceWithCredentials_ReturnsVersions
+          - NuGetCache_GetVersionsAsync_AnySource_InvokesCredentialServiceRegistrar
+
+      - id: Caching-NuGetCache-GetVersionsSourceFailure
+        title: >-
+          The GetVersionsAsync method shall skip a source that fails and continue with
+          the remaining sources.
+        justification: |
+          One unreachable feed must not hide versions that other configured feeds provide.
+        tests:
+          - NuGetCache_GetVersionsAsync_SourceUnreachable_ContinuesToNextSource
+
+      - id: Caching-NuGetCache-GetVersionsAllSourcesFail
+        title: >-
+          The GetVersionsAsync method shall throw InvalidOperationException describing each
+          failed source when no versions are found and at least one source failed.
+        justification: |
+          Consistent with EnsureCachedAsync, bad or unreachable sources must be reported rather
+          than disguised as an empty result, which would mean the package does not exist.
+        tests:
+          - NuGetCache_GetVersionsAsync_AllSourcesFail_ThrowsInvalidOperationException
+
+      - id: Caching-NuGetCache-GetVersionsCancellation
+        title: >-
+          The GetVersionsAsync method shall honor the supplied cancellation token by
+          propagating OperationCanceledException rather than treating cancellation as a
+          skipped source.
+        justification: |
+          Callers must be able to abort discovery promptly; swallowing cancellation as a
+          source failure would return misleading partial results.
+        tests:
+          - NuGetCache_GetVersionsAsync_CancelledToken_ThrowsOperationCanceledException
+
+      - id: Caching-NuGetCache-GetVersionsPrerelease
+        title: >-
+          The GetVersionsAsync method shall exclude prerelease versions unless
+          includePrerelease is true.
+        justification: |
+          Most callers want only stable versions; prerelease versions are opt-in, matching
+          NuGet tooling conventions.
+        tests:
+          - NuGetCache_GetVersionsAsync_PrereleaseExcludedByDefault
+          - NuGetCache_GetVersionsAsync_IncludePrerelease_ReturnsPrereleaseVersions
+
+      - id: Caching-NuGetCache-GetVersionsNotFound
+        title: >-
+          The GetVersionsAsync method shall return an empty list, without throwing, when
+          no configured source carries the package.
+        justification: |
+          For version discovery, absence is an expected answer rather than an error, so
+          callers can test for emptiness instead of catching exceptions.
+        tests:
+          - NuGetCache_GetVersionsAsync_PackageAbsent_ReturnsEmptyList
+
+      - id: Caching-NuGetCache-GetVersionsNullArguments
+        title: >-
+          The GetVersionsAsync method shall throw ArgumentNullException when
+          packageId is null.
+        justification: |
+          Null validation gives callers a clear, actionable error before any I/O occurs.
+        tests:
+          - NuGetCache_GetVersionsAsync_NullPackageId_ThrowsArgumentNullException
+          - NuGetCache_GetVersionsAsync_NullInternalArguments_ThrowsArgumentNullException

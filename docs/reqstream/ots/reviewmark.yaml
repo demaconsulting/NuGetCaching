@@ -9,24 +9,62 @@ sections:
       - title: ReviewMark Requirements
         requirements:
           - id: Caching-OTS-ReviewMark
-            title: ReviewMark shall generate a review plan and review report from the review configuration.
+            title: ReviewMark shall generate a review plan from the review configuration.
             justification: |
               DemaConsulting.ReviewMark reads the .reviewmark.yaml configuration and the review
-              evidence store to produce a review plan and review report documenting file review
-              coverage and currency. It runs in the same CI pipeline that produces the TRX test
-              results, so a successful pipeline run is evidence that ReviewMark executed without error.
+              evidence store to produce a review plan documenting file review coverage. It runs
+              in the same CI pipeline that produces the TRX test results, so a successful
+              pipeline run is evidence that ReviewMark executed without error.
             tags: [ots]
             tests:
               - ReviewMark_ReviewPlanGeneration
+
+          - id: Caching-OTS-ReviewMark-ReportGeneration
+            title: ReviewMark shall generate a review report from the review configuration.
+            justification: |
+              The review report documents file review currency and is part of the compliance
+              record.
+            tags: [ots]
+            tests:
               - ReviewMark_ReviewReportGeneration
-          - id: Caching-OTS-ReviewMark-Operations
-            title: >-
-              ReviewMark shall support index scanning, working-directory override,
-              enforcement, elaboration, and linting operations.
+
+          - id: Caching-OTS-ReviewMark-IndexScan
+            title: ReviewMark shall scan the review evidence store to build its index.
+            justification: |
+              The index of review evidence is the input to plan, report, and enforcement.
             tags: [ots]
             tests:
               - ReviewMark_IndexScan
+
+          - id: Caching-OTS-ReviewMark-WorkingDirectory
+            title: ReviewMark shall support overriding the working directory.
+            justification: |
+              CI and local runs execute from different directories and must resolve the
+              configured file patterns consistently.
+            tags: [ots]
+            tests:
               - ReviewMark_WorkingDirectoryOverride
+
+          - id: Caching-OTS-ReviewMark-Enforce
+            title: ReviewMark shall fail when reviewable files lack current review evidence and enforcement is enabled.
+            justification: |
+              Enforcement makes missing or stale reviews a build-breaking condition.
+            tags: [ots]
+            tests:
               - ReviewMark_Enforce
+
+          - id: Caching-OTS-ReviewMark-Elaborate
+            title: ReviewMark shall elaborate the files covered by a review set.
+            justification: |
+              Elaboration lets reviewers see exactly which files a review set covers.
+            tags: [ots]
+            tests:
               - ReviewMark_Elaborate
+
+          - id: Caching-OTS-ReviewMark-Lint
+            title: ReviewMark shall lint the review configuration.
+            justification: |
+              Linting catches configuration errors before plans and reports are generated.
+            tags: [ots]
+            tests:
               - ReviewMark_Lint

@@ -119,6 +119,47 @@ public class NuGetCacheTests
     }
 
     /// <summary>
+    ///     Tests that the public <c>GetVersionsAsync</c> throws <see cref="ArgumentNullException"/>
+    ///     when <c>packageId</c> is <see langword="null"/>.
+    /// </summary>
+    [Fact]
+    public async Task NuGetCache_GetVersionsAsync_NullPackageId_ThrowsArgumentNullException()
+    {
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await NuGetCache.GetVersionsAsync(null!, cancellationToken: CancellationToken.None));
+    }
+
+    /// <summary>
+    ///     Tests that the internal <c>GetVersionsAsync</c> throws <see cref="ArgumentNullException"/>
+    ///     when <c>packageId</c>, <c>settings</c>, or the credential registrar is <see langword="null"/>.
+    /// </summary>
+    [Fact]
+    public async Task NuGetCache_GetVersionsAsync_NullInternalArguments_ThrowsArgumentNullException()
+    {
+        var settings = global::NuGet.Configuration.NullSettings.Instance;
+        var registrar = CredentialServiceRegistrar.DefaultCredentialRegistrar;
+
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await NuGetCache.GetVersionsAsync(null!, false, settings, registrar, CancellationToken.None));
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await NuGetCache.GetVersionsAsync("Some.Package", false, null!, registrar, CancellationToken.None));
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await NuGetCache.GetVersionsAsync("Some.Package", false, settings, null!, CancellationToken.None));
+    }
+
+    /// <summary>
+    ///     Tests that the public <c>GetVersionsAsync</c> signature exposes no NuGet types.
+    /// </summary>
+    [Fact]
+    public void NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings()
+    {
+        var method = typeof(NuGetCache).GetMethod("GetVersionsAsync")!;
+
+        Assert.Equal(typeof(Task<IReadOnlyList<string>>), method.ReturnType);
+        Assert.DoesNotContain(method.GetParameters(), p => p.ParameterType.Namespace?.StartsWith("NuGet", StringComparison.Ordinal) == true);
+    }
+
+    /// <summary>
     ///     Tests that <c>NuGetCache.EnsureCachedAsync</c> throws
     ///     <see cref="ArgumentException"/> when <c>version</c> is not a valid NuGet version string.
     /// </summary>

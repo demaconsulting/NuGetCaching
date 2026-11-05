@@ -36,3 +36,26 @@ sections:
         tests:
           - NuGetCaching_EnsureCachedAsync_WhenPackageIdIsNull_ThrowsArgumentNullException
           - NuGetCaching_EnsureCachedAsync_WhenVersionIsNull_ThrowsArgumentNullException
+
+      - id: Caching-Sys-VersionDiscovery
+        title: The system shall list the available versions of a NuGet package as strings.
+        tags:
+          - system
+        justification: |
+          Tools need to discover which versions of a package exist (for example to select the
+          latest) before caching one, without taking a dependency on NuGet types.
+        children:
+          - Caching-NuGetCache-GetVersions
+          - Caching-NuGetCache-GetVersionsNormalization
+          - Caching-NuGetCache-GetVersionsOrdering
+          - Caching-NuGetCache-GetVersionsDeduplication
+          - Caching-NuGetCache-GetVersionsSources
+          - Caching-NuGetCache-GetVersionsAuth
+          - Caching-NuGetCache-GetVersionsSourceFailure
+          - Caching-NuGetCache-GetVersionsAllSourcesFail
+          - Caching-NuGetCache-GetVersionsCancellation
+          - Caching-NuGetCache-GetVersionsPrerelease
+          - Caching-NuGetCache-GetVersionsNotFound
+          - Caching-NuGetCache-GetVersionsNullArguments
+        tests:
+          - NuGetCaching_GetVersionsAsync_WhenPackageHasVersions_ReturnsAscendingVersionStrings

@@ -1,6 +1,6 @@
 package NuGetCaching {
     part def NuGetCache {
-        doc /* Public package-caching orchestrator exposing EnsureCachedAsync. */
+        doc /* Public package-caching orchestrator exposing EnsureCachedAsync and GetVersionsAsync. */
 
         comment sourceRef /* Source: src/DemaConsulting.NuGet.Caching/NuGetCache.cs */
         comment testRef /* Test: test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheTests.cs */

@@ -8,13 +8,16 @@ The DemaConsulting NuGet Caching library is a .NET library that provides program
 NuGet package caching functionality. The system ensures specific NuGet package versions
 are available in the local global packages cache before use, enabling tools and automation
 workflows to depend on locally cached packages without requiring the .NET SDK restore
-workflow.
+workflow. It also provides version discovery: listing the available versions of a package
+from the configured remote sources as normalized strings, so callers can choose a version
+to cache without depending on NuGet types.
 
 ## System Architecture
 
 The system comprises six software units:
 
-- **NuGetCache**: The public API surface providing the `EnsureCachedAsync` method; a thin
+- **NuGetCache**: The public API surface providing the `EnsureCachedAsync` and
+  `GetVersionsAsync` methods; a thin
   orchestrator that validates input, checks the cache-hit fast path, registers the credential
   service, and enumerates configured sources, delegating resolution and download to the
   units below
@@ -56,6 +59,32 @@ The system uses the `Polyfill` library to provide `Path.GetRelativePath` on
 `netstandard2.0` targets, where the method is not available in the BCL.
 On .NET 5.0 and later, the BCL implementation is used directly.
 
+## Dependencies
+
+The system depends on the following OTS items in the shipped library:
+
+- **NuGet** (`NuGet.Protocol` and `NuGet.Configuration`): source communication, package
+  download and installation, settings, and package source mapping (a run-time dependency).
+- **Polyfill**: `Path.GetRelativePath` on `netstandard2.0` (a compile-time source generator whose
+  output is built into the library).
+
+The system also relies on build, documentation, test, and compliance tooling OTS items:
+BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, SysML2Tools,
+VersionMark, WeasyPrint, WireMock.Net, and xUnit. These are modeled as OTS dependencies of the
+system, consistent with the SysML2 model, but they are development-time dependencies only and are
+never loaded by the shipped library. The integration design for every OTS item is described in the
+*OTS Integration Design* document.
+
+The system uses no Shared Packages.
+
+## Risk Control Measures
+
+N/A - the system performs no safety-critical function and no software item is segregated for
+risk control (IEC 62304 §5.3.3). Security-relevant hardening is applied within the single
+library: all path operations on externally supplied package identifiers and versions go through
+`PathHelpers.SafePathCombine`, which rejects path traversal, and authentication failures are
+reported as actionable diagnostics rather than silently ignored.
+
 ## Data Flow
 
 1. Caller invokes `NuGetCache.EnsureCachedAsync(packageId, version)`
@@ -75,6 +104,22 @@ On .NET 5.0 and later, the BCL implementation is used directly.
 The returned path follows the NuGet global packages folder convention:
 `{globalPackagesFolder}/{packageId.lower}/{normalizedVersion.lower}`.
 
+### Version Discovery (`GetVersionsAsync`)
+
+1. Caller invokes `NuGetCache.GetVersionsAsync(packageId, includePrerelease)`
+2. The system validates `packageId` is not null, throwing `ArgumentNullException`
+3. The system loads NuGet configuration and registers the credential service via
+   `CredentialServiceRegistrar`
+4. Source selection: enabled sources filtered by package source mapping are chosen, then local
+   folder sources are excluded so that only remote sources are queried (the global packages
+   folder is not consulted)
+5. Enumeration: for each remote source, `PackageSourceResolver` resolves the
+   `FindPackageByIdResource`, and all versions the source advertises for the package are read
+6. Prerelease filtering: prerelease versions are discarded unless `includePrerelease` is true
+7. Sorting: versions are collected into a semantically ordered, de-duplicated set (ascending)
+8. The normalized version strings are returned as a read-only list of strings; the list is empty
+   when no source carries the package
+
 ## Error Handling
 
 The system communicates error states to callers through exceptions:
@@ -91,6 +136,19 @@ protocol versions — are handled gracefully by skipping the affected source and
 continuing to the next configured source. An exception is only raised after all
 sources have been exhausted without a successful download.
 
+`GetVersionsAsync` follows a parallel contract for the same failures:
+
+- **`ArgumentNullException`**: Thrown when `packageId` is `null`.
+- **Cancellation propagates**: `OperationCanceledException` is never treated as a skipped
+  source; it is thrown to the caller.
+- **Failing sources are skipped, then reported**: Network errors, NuGet protocol errors, and
+  authentication failures for a source cause that source to be skipped and enumeration continues
+  with the next source. Failures are only raised if no versions were found.
+- **`InvalidOperationException`**: Thrown, with per-source diagnostics, when no versions were
+  found and at least one source failed, consistent with `EnsureCachedAsync`.
+- **Empty list when not found**: If every queried source responds and none carries the package,
+  an empty list is returned rather than an exception.
+
 ## Design Constraints
 
 - The library targets .NET Standard 2.0 for maximum compatibility, plus .NET 8.0,
@@ -102,6 +160,7 @@ sources have been exhausted without a successful download.
   vulnerabilities when processing package identifiers and version strings from
   external NuGet feeds
 
-Satisfies requirements `Caching-Sys-PackageCaching`, `Caching-Sys-NullValidation`,
+Satisfies requirements `Caching-Sys-PackageCaching`, `Caching-Sys-VersionDiscovery`,
+`Caching-Sys-NullValidation`,
 `Caching-PLT-Windows`, `Caching-PLT-Linux`, `Caching-PLT-MacOS`, `Caching-PLT-Net8`,
 `Caching-PLT-Net9`, `Caching-PLT-Net10`, and `Caching-PLT-NetStd20`.

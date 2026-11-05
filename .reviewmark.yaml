@@ -76,6 +76,7 @@ reviews:
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching.md"
       - "docs/design/nuget-caching/**/*.md"
+      - "docs/design/ots.md"
       - "docs/verification/introduction.md"
       - "docs/verification/ots.md"
 
@@ -177,82 +178,96 @@ reviews:
     title: Review of NuGet Client SDK OTS verification evidence
     paths:
       - "docs/reqstream/ots/nuget.yaml"
+      - "docs/design/ots/nuget.md"
       - "docs/verification/ots/nuget.md"
 
   - id: OTS-Polyfill
     title: Review of Polyfill OTS verification evidence
     paths:
       - "docs/reqstream/ots/polyfill.yaml"
+      - "docs/design/ots/polyfill.md"
       - "docs/verification/ots/polyfill.md"
 
   - id: OTS-BuildMark
     title: Review of BuildMark OTS verification evidence
     paths:
       - "docs/reqstream/ots/buildmark.yaml"
+      - "docs/design/ots/buildmark.md"
       - "docs/verification/ots/buildmark.md"
 
   - id: OTS-FileAssert
     title: Review of FileAssert OTS verification evidence
     paths:
       - "docs/reqstream/ots/fileassert.yaml"
+      - "docs/design/ots/fileassert.md"
       - "docs/verification/ots/fileassert.md"
 
   - id: OTS-Pandoc
     title: Review of Pandoc OTS verification evidence
     paths:
       - "docs/reqstream/ots/pandoc.yaml"
+      - "docs/design/ots/pandoc.md"
       - "docs/verification/ots/pandoc.md"
 
   - id: OTS-ReqStream
     title: Review of ReqStream OTS verification evidence
     paths:
       - "docs/reqstream/ots/reqstream.yaml"
+      - "docs/design/ots/reqstream.md"
       - "docs/verification/ots/reqstream.md"
 
   - id: OTS-ReviewMark
     title: Review of ReviewMark OTS verification evidence
     paths:
       - "docs/reqstream/ots/reviewmark.yaml"
+      - "docs/design/ots/reviewmark.md"
       - "docs/verification/ots/reviewmark.md"
 
   - id: OTS-SarifMark
     title: Review of SarifMark OTS verification evidence
     paths:
       - "docs/reqstream/ots/sarifmark.yaml"
+      - "docs/design/ots/sarifmark.md"
       - "docs/verification/ots/sarifmark.md"
 
   - id: OTS-SonarMark
     title: Review of SonarMark OTS verification evidence
     paths:
       - "docs/reqstream/ots/sonarmark.yaml"
+      - "docs/design/ots/sonarmark.md"
       - "docs/verification/ots/sonarmark.md"
 
   - id: OTS-SysML2Tools
     title: Review that SysML2Tools Provides Required Functionality
     paths:
       - "docs/reqstream/ots/sysml2tools.yaml"
+      - "docs/design/ots/sysml2tools.md"
       - "docs/verification/ots/sysml2tools.md"
 
   - id: OTS-VersionMark
     title: Review of VersionMark OTS verification evidence
     paths:
       - "docs/reqstream/ots/versionmark.yaml"
+      - "docs/design/ots/versionmark.md"
       - "docs/verification/ots/versionmark.md"
 
   - id: OTS-WeasyPrint
     title: Review of WeasyPrint OTS verification evidence
     paths:
       - "docs/reqstream/ots/weasyprint.yaml"
+      - "docs/design/ots/weasyprint.md"
       - "docs/verification/ots/weasyprint.md"
 
   - id: OTS-WireMock
     title: Review of WireMock.Net OTS verification evidence
     paths:
       - "docs/reqstream/ots/wiremock.yaml"
+      - "docs/design/ots/wiremock.md"
       - "docs/verification/ots/wiremock.md"
 
   - id: OTS-xUnit
     title: Review of xUnit OTS verification evidence
     paths:
       - "docs/reqstream/ots/xunit.yaml"
+      - "docs/design/ots/xunit.md"
       - "docs/verification/ots/xunit.md"

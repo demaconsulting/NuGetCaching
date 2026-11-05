@@ -14,7 +14,8 @@ This document covers the following software items:
 
 Local items:
 
-- **NuGetCaching**: system and unit design for all local components.
+- **NuGetCaching**: system and unit design for all local components, covering package
+  caching and version discovery (listing available package versions).
 
 OTS items:
 
@@ -55,6 +56,24 @@ source code.
 
 - **src/** - source files and projects
   - **DemaConsulting.NuGet.Caching/** - NuGetCaching system source
+
+## Companion Artifact Structure
+
+In-house items have corresponding artifacts in parallel directory trees:
+
+- Requirements: `docs/reqstream/{system-name}.yaml`, `docs/reqstream/{system-name}/.../{item}.yaml`
+- Design: `docs/design/{system-name}.md`, `docs/design/{system-name}/.../{item}.md`
+- Verification: `docs/verification/{system-name}.md`, `docs/verification/{system-name}/.../{item}.md`
+- Source code: `src/{SystemName}/.../{Item}.cs` (PascalCase for C#)
+- Tests: `test/{SystemName}.Tests/.../{Item}Tests.cs` (PascalCase for C#)
+
+OTS items have parallel artifacts in:
+
+- Requirements: `docs/reqstream/ots/{ots-name}.yaml`
+- Design: `docs/design/ots.md`, `docs/design/ots/{ots-name}.md`
+- Verification: `docs/verification/ots/{ots-name}.md`
+
+Review-sets: defined in `.reviewmark.yaml`
 
 ## Audience
 
