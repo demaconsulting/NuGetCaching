@@ -146,7 +146,9 @@ public static class NuGetCache
         CancellationToken cancellationToken,
         NuGetCacheOptions options)
     {
+        // Validate options before loading settings so invalid options fail before any I/O
         ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
 
         return await EnsureCachedAsync(
             packageId,
@@ -503,7 +505,9 @@ public static class NuGetCache
         NuGetCacheOptions options)
     {
         ArgumentNullException.ThrowIfNull(packageId);
+        // Validate options before loading settings so invalid options fail before any I/O
         ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
 
         return await GetVersionsAsync(
             packageId,

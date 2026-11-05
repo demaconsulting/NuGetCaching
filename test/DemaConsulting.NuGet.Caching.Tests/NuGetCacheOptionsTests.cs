@@ -77,6 +77,37 @@ public class NuGetCacheOptionsTests
     }
 
     /// <summary>
+    ///     Tests that an invalid timeout is rejected before settings are loaded: the root contains a
+    ///     malformed <c>nuget.config</c> that would make settings loading throw a different exception.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task NuGetCache_InvalidAuthenticationTimeout_ValidatedBeforeSettingsLoad()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "nuget-cache-order-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "nuget.config"), "<configuration><broken", TestContext.Current.CancellationToken);
+            var bad = new NuGetCacheOptions { AuthenticationTimeout = TimeSpan.Zero };
+            var good = new NuGetCacheOptions();
+
+            // Precondition: settings loading really fails for this root with valid options
+            await Assert.ThrowsAnyAsync<Exception>(async () =>
+                await NuGetCache.GetVersionsAsync("Any.Package", false, root, CancellationToken.None, good));
+
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+                await NuGetCache.EnsureCachedAsync("Any.Package", "1.0.0", root, CancellationToken.None, bad));
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+                await NuGetCache.GetVersionsAsync("Any.Package", false, root, CancellationToken.None, bad));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
     ///     Tests that the secret is redacted from <c>ToString</c> and the user name is kept.
     /// </summary>
     [Fact]

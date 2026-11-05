@@ -269,6 +269,7 @@ sections:
         tests:
           - NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow
           - NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException
+          - NuGetCache_InvalidAuthenticationTimeout_ValidatedBeforeSettingsLoad
           - NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
           - NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
           - CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback

@@ -486,6 +486,10 @@ process-wide credential service can be isolated and restored.
   and over-`int.MaxValue`-ms timeouts, both overloads) and
   **NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow** (null, infinite, 1 tick, max). Cover
   `AuthenticationTimeout` validation.
+- **NuGetCache_InvalidAuthenticationTimeout_ValidatedBeforeSettingsLoad**: with a root holding a
+  malformed `nuget.config` (settings loading fails), an invalid timeout still throws
+  `ArgumentOutOfRangeException` from both options overloads, proving validation precedes settings
+  loading. Covers `AuthenticationTimeout` validation.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
   while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.
 - **NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret**,
@@ -535,7 +539,8 @@ process-wide credential service can be isolated and restored.
 - **`Caching-NuGetCache-AuthenticationTimeout`**:
   NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
   NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow,
-  NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException
+  NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException,
+  NuGetCache_InvalidAuthenticationTimeout_ValidatedBeforeSettingsLoad
 - **`Caching-NuGetCache-OptionsIsolation`**:
   NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated
 - **`Caching-NuGetCache-Logging`**:
