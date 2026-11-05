@@ -148,7 +148,8 @@ jobs:
               echo "Fingerprint mismatch for ${file}: ${actual}" >&2
               exit 1
             fi
-            openssl x509 -inform DER -in "/tmp/${file}" | sudo tee "/usr/local/share/ca-certificates/${file%.crt}.crt" > /dev/null
+            openssl x509 -inform DER -in "/tmp/${file}" \
+              | sudo tee "/usr/local/share/ca-certificates/${file%.crt}.crt" > /dev/null
           }
           install_root DigiCertAssuredIDRootCA.crt \
             3E9099B5015E8F486C00BCEA9D111EE721FABA355A89BCF1DF69561E3DC6325C
