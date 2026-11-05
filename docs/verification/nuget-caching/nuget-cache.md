@@ -526,7 +526,10 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   **NuGetCache_RequireSignedPackages_Off_AcceptsUnsignedPackage**, and
   **NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: an unsigned
   package is rejected on download and on cache hit when required, and accepted otherwise. Cover
-  `RequireSignedPackages`; the invalid-signature fixtures are a package with a corrupt signature entry.
+  `RequireSignedPackages`; the invalid-signature fixtures are a package with a corrupt signature entry, and
+  acceptance, trusted-signer matching and mismatch (download and cache hit) use a real signed nuget.org
+  package (Newtonsoft.Json 13.0.1) with offline revocation checking; see the signature scenarios in the
+  package-downloader verification design.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
   while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.
 - **NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret**,
@@ -646,7 +649,13 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   NuGetCache_RequireSignedPackages_Off_AcceptsUnsignedPackage,
   NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
   NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException,
-  NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit,
+  NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit
 - **`Caching-NuGetCache-NotFound`**:
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion,

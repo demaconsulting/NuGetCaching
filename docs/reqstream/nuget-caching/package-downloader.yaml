@@ -84,4 +84,10 @@ sections:
           - NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit
           - NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException
           - NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit
+          - NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds
+          - NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit
+          - NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit
           - NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit

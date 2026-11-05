@@ -179,6 +179,13 @@ trust/validity providers, plus the client `trustedSigners` allow-list provider o
 (no signers means any validly signed, trusted package is accepted), mirroring
 NuGet's own extraction-time providers. Throws `InvalidOperationException` when unsigned or invalid.
 
+Trust roots and revocation: the trust/validity provider builds certificate chains for the signing and
+timestamp certificates against the operating system trust store, so a signature is accepted only where the
+signer's root (for nuget.org packages, a DigiCert root) is trusted by the OS, and it checks revocation online
+by default. Setting the `NUGET_CERT_REVOCATION_MODE` environment variable to `offline` makes NuGet use only
+cached revocation data; an unknown revocation status is then reported as a warning, not an error. The
+library does not change these settings, so callers in restricted-network environments can choose the mode.
+
 #### `GetPackagePath(string globalPackagesFolder, string packageId, string version)`
 
 Computes the conventional on-disk path that NuGet uses for an installed package:

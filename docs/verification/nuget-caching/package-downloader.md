@@ -128,9 +128,27 @@ The signature tests live in `NuGetCacheSignatureTests` and exercise this unit th
   check also applies when only `nuget.config` requires signatures.
 - **NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException** and
   **NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit**: a package
-  with a corrupt signature entry is rejected on download (not installed) and on cache hit. A validly signed
-  fixture (acceptance, allow-list matching) is not available because test signing needs a trusted
-  code-signing certificate and NuGet's signing APIs are internal.
+  with a corrupt signature entry is rejected on download (not installed) and on cache hit.
+- **NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds**: a real, unmodified package from
+  nuget.org (Newtonsoft.Json 13.0.1, signed by its author and countersigned by the nuget.org repository;
+  stored in `TestData` with its provenance) is accepted with no trusted signers configured and fully
+  installed.
+- **NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds** and
+  **NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds**: the same package is accepted
+  when `nuget.config` lists its author certificate, or its repository certificate, as a trusted signer.
+- **NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException**: the
+  package is rejected and not installed when trusted signers are configured and none match.
+- **NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit** and
+  **NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit**: the
+  installed signed package passes the cache-hit check, and is rejected when the trusted signers do not match.
+
+The signed-fixture tests set `NUGET_CERT_REVOCATION_MODE=offline` (in a non-parallel test collection) so they
+never need network access for revocation checking; the fixture's certificates are expired, so acceptance
+rests on the signature timestamps. Before each test, a one-time preflight checks that the operating system
+trusts the DigiCert roots the fixture chains to (revocation and validity dates ignored). If it does not
+(for example a Linux distribution that has removed the legacy DigiCert Assured ID and High Assurance EV
+roots), the test is skipped with that reason rather than failing; this is an environment gap, not a
+product defect. There is no OS-based skip.
 
 **Requirement coverage**: `Caching-PackageDownloader-SignatureRequirement`.
 
@@ -152,4 +170,10 @@ The signature tests live in `NuGetCacheSignatureTests` and exercise this unit th
   NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
   NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
   NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException,
-  NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_RequireSignedPackages_SignedPackageDownload_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedAuthorSignerMatches_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedRepositorySignerMatches_Succeeds,
+  NuGetCache_RequireSignedPackages_TrustedSignerDoesNotMatch_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_AcceptedOnCacheHit,
+  NuGetCache_RequireSignedPackages_SignedPackageAlreadyInstalled_SignerMismatchRejectedOnCacheHit

@@ -51,6 +51,7 @@ _ReSharper*/
 
 # NuGet Packages
 *.nupkg
+!test/DemaConsulting.NuGet.Caching.Tests/TestData/*.nupkg
 *.snupkg
 **/packages/*
 
