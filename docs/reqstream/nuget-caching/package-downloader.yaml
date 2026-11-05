@@ -68,7 +68,10 @@ sections:
           When signatures are required, the package-download utility shall reject an
           unsigned or invalidly signed package with InvalidOperationException naming the
           package, version, and source, shall not install it, shall not try the next source
-          for it, and shall apply the same check to an already-installed package.
+          for it, and shall apply the same check to an already-installed package, whether
+          the requirement comes from the option or from nuget.config. A trustedSigners
+          allow-list shall apply only when signers are configured; with none configured a
+          validly signed package is accepted.
         justification: |
           A signature failure means the content is untrustworthy, not that the source lacks
           the package, so falling through to another source would hide the problem. The
@@ -79,3 +82,6 @@ sections:
           - NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException
           - NuGetCache_NuGetConfigRequireMode_UnsignedPackageDownload_ThrowsInvalidOperationException
           - NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit
+          - NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit
+          - NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit

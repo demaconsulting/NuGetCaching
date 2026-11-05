@@ -23,9 +23,10 @@ using NuGet.Configuration;
 namespace DemaConsulting.NuGet.Caching.Tests;
 
 /// <summary>
-///     Tests for <see cref="NuGetCacheOptions.RequireSignedPackages"/>. Only unsigned packages can be
-///     produced by the test infrastructure, so the tests cover rejection of unsigned packages and the
-///     unchanged behavior when the option is off.
+///     Tests for <see cref="NuGetCacheOptions.RequireSignedPackages"/>. The test infrastructure produces
+///     unsigned packages, and invalidly signed ones by adding a corrupt signature entry. A validly signed
+///     fixture is not available: signing needs a trusted code-signing certificate and NuGet's signing
+///     APIs are internal, so positive acceptance of signed packages is not covered here.
 /// </summary>
 public class NuGetCacheSignatureTests
 {
@@ -160,6 +161,141 @@ public class NuGetCacheSignatureTests
         {
             Directory.Delete(folder, recursive: true);
         }
+    }
+
+    /// <summary>
+    ///     Tests that a package carrying a corrupt signature entry is rejected on a fresh download with an
+    ///     <see cref="InvalidOperationException"/> and is not left installed.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException()
+    {
+        var folder = CreateTempFolder();
+        try
+        {
+            await using var server = new NuGetTestServer();
+            server.RegisterV3Package("Invalid.Signed", "1.0.0", AddCorruptSignature(NuGetPackageBuilder.CreateMinimalPackage("Invalid.Signed", "1.0.0")));
+            var settings = server.CreateSettings(folder, server.IndexUrl);
+            var options = new NuGetCacheOptions { RequireSignedPackages = true };
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "Invalid.Signed", "1.0.0", settings, options, CredentialServiceRegistrar.DefaultCredentialRegistrar, CancellationToken.None));
+
+            Assert.Contains("Invalid.Signed", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("signature", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Empty(NuGetCache.GetCachedVersionsCore("Invalid.Signed", settings));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Tests that an installed package whose stored file carries a corrupt signature is rejected on the
+    ///     cache-hit path when signatures are required.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit()
+    {
+        var folder = CreateTempFolder();
+        try
+        {
+            await using var server = new NuGetTestServer();
+            var bytes = NuGetPackageBuilder.CreateMinimalPackage("Invalid.Cached", "1.0.0");
+            server.RegisterV3Package("Invalid.Cached", "1.0.0", bytes);
+            var settings = server.CreateSettings(folder, server.IndexUrl);
+            var registrar = CredentialServiceRegistrar.DefaultCredentialRegistrar;
+
+            var installed = await NuGetCache.EnsureCachedAsync("Invalid.Cached", "1.0.0", settings, null, registrar, CancellationToken.None);
+            await File.WriteAllBytesAsync(
+                Path.Combine(installed, "invalid.cached.1.0.0.nupkg"),
+                AddCorruptSignature(bytes),
+                TestContext.Current.CancellationToken);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "Invalid.Cached", "1.0.0", settings, new NuGetCacheOptions { RequireSignedPackages = true }, registrar, CancellationToken.None));
+
+            Assert.Contains("Invalid.Cached", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("signature", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Tests that <c>signatureValidationMode=require</c> in nuget.config is enforced on the cache-hit
+    ///     path for an already-installed unsigned package even when the option is not set.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit()
+    {
+        var folder = CreateTempFolder();
+        try
+        {
+            await using var server = new NuGetTestServer();
+            server.RegisterV3Package("Unsigned.ConfigCached", "1.0.0", NuGetPackageBuilder.CreateMinimalPackage("Unsigned.ConfigCached", "1.0.0"));
+            var openSettings = server.CreateSettings(folder, server.IndexUrl);
+            var registrar = CredentialServiceRegistrar.DefaultCredentialRegistrar;
+            var installed = await NuGetCache.EnsureCachedAsync("Unsigned.ConfigCached", "1.0.0", openSettings, null, registrar, CancellationToken.None);
+
+            var gpf = Path.GetFullPath(Path.Combine(installed, "..", ".."));
+            var configFolder = Path.Combine(folder, "strict");
+            Directory.CreateDirectory(configFolder);
+            await File.WriteAllTextAsync(Path.Combine(configFolder, "nuget.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <config>
+                    <add key="globalPackagesFolder" value="{gpf}" />
+                    <add key="signatureValidationMode" value="require" />
+                  </config>
+                  <packageSources>
+                    <clear />
+                    <add key="test-source" value="{server.IndexUrl}" />
+                  </packageSources>
+                </configuration>
+                """, TestContext.Current.CancellationToken);
+            var strictSettings = Settings.LoadSpecificSettings(configFolder, "nuget.config");
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "Unsigned.ConfigCached", "1.0.0", strictSettings, new NuGetCacheOptions(), registrar, CancellationToken.None));
+
+            Assert.Contains("Unsigned.ConfigCached", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Adds a corrupt <c>.signature.p7s</c> entry to a package so it reads as signed but cannot verify.
+    /// </summary>
+    /// <param name="package">The unsigned package bytes.</param>
+    /// <returns>The package bytes with a corrupt signature entry.</returns>
+    private static byte[] AddCorruptSignature(byte[] package)
+    {
+        using var stream = new MemoryStream();
+        stream.Write(package, 0, package.Length);
+        using (var archive = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Update, leaveOpen: true))
+        {
+            using var entryStream = archive.CreateEntry(".signature.p7s").Open();
+            var garbage = new byte[] { 0x30, 0x03, 0x01, 0x02, 0x03 };
+            entryStream.Write(garbage, 0, garbage.Length);
+        }
+
+        return stream.ToArray();
     }
 
     /// <summary>

@@ -512,3 +512,5 @@ sections:
           - NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException
           - NuGetCache_RequireSignedPackages_Off_AcceptsUnsignedPackage
           - NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit
+          - NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException
+          - NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit

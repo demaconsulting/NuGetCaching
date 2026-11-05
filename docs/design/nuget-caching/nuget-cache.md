@@ -188,11 +188,17 @@ pass through to the real settings. NuGet's own install-time verification is a si
 macOS unless `DOTNET_NUGET_SIGNATURE_VERIFICATION=true` is set (`CanVerifySignedPackages` returns false), so
 the library never relies on it alone: whenever the effective policy is `require` - from the option or from
 `signatureValidationMode=require` in `nuget.config` - `PackageDownloader` verifies the package explicitly
-(must be signed; integrity, `trustedSigners` allow-list, trust and validity) before installing it, on every
-platform. A failure, including a `SignatureException` from NuGet, surfaces as `InvalidOperationException`
+(must be signed; integrity, the `trustedSigners` allow-list only when signers are configured, trust and
+validity) before installing it, on every
+platform. With no `trustedSigners` configured, any validly signed package with a trusted signature is
+accepted; the allow-list is never applied as an empty set. When the explicit check passes with no signers
+configured, the install itself uses an accept-mode policy so NuGet's own Windows check cannot reject it for
+the missing allow-list. A failure, including a `SignatureException` from NuGet, surfaces as `InvalidOperationException`
 naming the package, version and source (it is not treated as "not in this source"). On the cache-hit fast
-path, `PackageDownloader.VerifyCachedPackageSignedAsync` applies the same explicit verification to the
-installed package. A call without the option follows the `nuget.config` setting as before.
+path, `NuGetCache` builds the policy only when a requirement applies - the option or
+`signatureValidationMode=require` read from `nuget.config` - so ordinary hits create no policy context, and
+`PackageDownloader.VerifyCachedPackageSignedAsync` then applies the same explicit verification (including the
+same allow-list rule) to the installed package. A call without the option follows the `nuget.config` setting as before.
 
 #### Testability via Injected Settings
 

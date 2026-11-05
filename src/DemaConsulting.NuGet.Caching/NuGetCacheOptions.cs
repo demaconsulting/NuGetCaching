@@ -100,7 +100,9 @@ public sealed class NuGetCacheOptions
     ///     <see cref="InvalidOperationException"/> (the inner exception carries NuGet's signature error)
     ///     instead of being installed; a package already in the global packages folder is verified from its
     ///     stored package file, which costs some local I/O. A signature failure is never skipped to the next
-    ///     source. Trusted-signer configuration in <c>nuget.config</c> applies. NuGet's own verification is
+    ///     source. When <c>trustedSigners</c> are configured in <c>nuget.config</c>, the signer must match one of
+    ///     them (on download and on cache hits alike); when none are configured, any validly signed package
+    ///     whose signature is trusted is accepted. NuGet's own verification is
     ///     skipped on Linux and macOS unless <c>DOTNET_NUGET_SIGNATURE_VERIFICATION</c> is <c>true</c>, so the library
     ///     verifies the signature explicitly on every platform and never silently accepts an unsigned package.
     /// </remarks>
@@ -185,7 +187,7 @@ public sealed class NuGetCacheOptions
             }
 
             var trimmed = entry.Trim();
-            if ((trimmed.Contains("://", StringComparison.Ordinal) || trimmed.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            if ((trimmed.IndexOf("://", StringComparison.Ordinal) >= 0 || trimmed.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
                 && !(Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
                     && (uri.Scheme is "http" or "https" or "file")))
             {

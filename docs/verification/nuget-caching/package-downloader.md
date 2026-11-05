@@ -124,6 +124,13 @@ The signature tests live in `NuGetCacheSignatureTests` and exercise this unit th
   rejection when `signatureValidationMode=require` comes from `nuget.config` and the option is not set.
 - **NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: an unsigned
   package already installed is rejected on the cache-hit path.
+- **NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: the cache-hit
+  check also applies when only `nuget.config` requires signatures.
+- **NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException** and
+  **NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit**: a package
+  with a corrupt signature entry is rejected on download (not installed) and on cache hit. A validly signed
+  fixture (acceptance, allow-list matching) is not available because test signing needs a trusted
+  code-signing certificate and NuGet's signing APIs are internal.
 
 **Requirement coverage**: `Caching-PackageDownloader-SignatureRequirement`.
 
@@ -142,4 +149,7 @@ The signature tests live in `NuGetCacheSignatureTests` and exercise this unit th
 - **`Caching-PackageDownloader-SignatureRequirement`**:
   NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException,
   NuGetCache_NuGetConfigRequireMode_UnsignedPackageDownload_ThrowsInvalidOperationException,
-  NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit
+  NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_NuGetConfigRequireMode_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit

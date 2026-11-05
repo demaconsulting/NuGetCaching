@@ -241,9 +241,11 @@ and an empty list is returned when nothing is installed. Throws `ArgumentNullExc
   unsigned or invalidly signed package is rejected with `InvalidOperationException` and not installed, and
   an already-installed package is verified on the cache-hit path. Verification is performed explicitly by
   the library on every platform (NuGet's own check is skipped on Linux and macOS unless
-  `DOTNET_NUGET_SIGNATURE_VERIFICATION=true`), checks integrity, signature validity, and the `trustedSigners`
-  allow-list from `nuget.config`, so unsigned packages are never silently accepted. The same explicit check
-  applies when `nuget.config` sets `signatureValidationMode=require`. When false, the `nuget.config` signature
+  `DOTNET_NUGET_SIGNATURE_VERIFICATION=true`), checks integrity and signature validity, and, when
+  `trustedSigners` are configured in `nuget.config`, that the signer matches one of them (with no
+  `trustedSigners` configured, any validly signed package with a trusted signature is accepted), so unsigned
+  packages are never silently accepted. The same explicit check applies, on download and on already-installed
+  packages, when `nuget.config` sets `signatureValidationMode=require`. When false, the `nuget.config` signature
   validation mode applies as before.
 - `Interactive` (bool, default false): allows credential providers to show prompts or dialogs.
 - `Logger` (`Microsoft.Extensions.Logging.ILogger?`): receives NuGet SDK messages. Secrets are never logged.

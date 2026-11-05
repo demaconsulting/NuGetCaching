@@ -526,7 +526,7 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   **NuGetCache_RequireSignedPackages_Off_AcceptsUnsignedPackage**, and
   **NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit**: an unsigned
   package is rejected on download and on cache hit when required, and accepted otherwise. Cover
-  `RequireSignedPackages`.
+  `RequireSignedPackages`; the invalid-signature fixtures are a package with a corrupt signature entry.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
   while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.
 - **NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret**,
@@ -644,7 +644,9 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
 - **`Caching-NuGetCache-RequireSignedPackages`**:
   NuGetCache_RequireSignedPackages_UnsignedPackageDownload_ThrowsInvalidOperationException,
   NuGetCache_RequireSignedPackages_Off_AcceptsUnsignedPackage,
-  NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit
+  NuGetCache_RequireSignedPackages_UnsignedPackageAlreadyInstalled_RejectedOnCacheHit,
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageDownload_ThrowsInvalidOperationException,
+  NuGetCache_RequireSignedPackages_InvalidlySignedPackageAlreadyInstalled_RejectedOnCacheHit
 - **`Caching-NuGetCache-NotFound`**:
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion,

@@ -408,24 +408,26 @@ public static class NuGetCache
         // {globalPackagesFolder}/{packageId.lower}/{normalizedVersion.lower}/
         var packagePath = PackageDownloader.GetPackagePath(globalPackagesFolder, packageId, nugetVersion.ToNormalizedString());
 
-        // Build the client policy context used for package signing validation; the policy is only
-        // needed on the hot path when signatures are required
-        var clientPolicyContext = PackageDownloader.CreateClientPolicy(settings, requireSigned, nugetLogger);
-
         // Return immediately when the package is fully installed - the common hot path.
         // Checking for the .nupkg.metadata file (written by NuGet as the last extraction step)
         // rather than the directory avoids a race condition where concurrent callers see the
         // directory before extraction is complete and return a partially-populated path.
         if (File.Exists(PathHelpers.SafePathCombine(packagePath, ".nupkg.metadata")))
         {
-            if (requireSigned)
+            // The signature requirement is the per-call option or signatureValidationMode=require in
+            // nuget.config; only when it applies is the policy context built, so ordinary hits stay fast
+            if (requireSigned || SettingsUtility.GetSignatureValidationMode(settings) == SignatureValidationMode.Require)
             {
+                var cachedPolicy = PackageDownloader.CreateClientPolicy(settings, requireSigned, nugetLogger);
                 await PackageDownloader.VerifyCachedPackageSignedAsync(
-                    packagePath, packageId, nugetVersion, clientPolicyContext, cancellationToken);
+                    packagePath, packageId, nugetVersion, cachedPolicy, cancellationToken);
             }
 
             return packagePath;
         }
+
+        // Build the client policy context used for package signing validation on download
+        var clientPolicyContext = PackageDownloader.CreateClientPolicy(settings, requireSigned, nugetLogger);
 
         // Create a shared source cache context for all download attempts in this call
         using var sourceCacheContext = new SourceCacheContext();
@@ -882,7 +884,7 @@ public static class NuGetCache
         }
 
         string location;
-        if (entry.Contains("://", StringComparison.Ordinal) || entry.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        if (entry.IndexOf("://", StringComparison.Ordinal) >= 0 || entry.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
         {
             if (!Uri.TryCreate(entry, UriKind.Absolute, out var uri))
             {

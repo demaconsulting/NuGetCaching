@@ -167,14 +167,16 @@ to the inner settings. Mutating members throw `NotSupportedException`.
 
 #### `VerifyCachedPackageSignedAsync(...)`
 
-Used on the cache-hit path when `RequireSignedPackages` is set. Opens the installed `.nupkg` and applies
+Used on the cache-hit path when the effective policy requires signatures (the option, or
+`signatureValidationMode=require` in `nuget.config`). Opens the installed `.nupkg` and applies
 `VerifySignedAsync`; throws `InvalidOperationException` when the file is missing, unsigned or invalid.
 
 #### `VerifySignedAsync(...)`
 
 Platform-independent explicit check shared by the download and cache-hit paths. Requires
-`PackageArchiveReader.IsSignedAsync` to be true, then runs a `PackageSignatureVerifier` with integrity, client
-`trustedSigners` allow-list (non-empty required in `require` mode) and trust/validity providers, mirroring
+`PackageArchiveReader.IsSignedAsync` to be true, then runs a `PackageSignatureVerifier` with integrity and
+trust/validity providers, plus the client `trustedSigners` allow-list provider only when signers are configured
+(no signers means any validly signed, trusted package is accepted), mirroring
 NuGet's own extraction-time providers. Throws `InvalidOperationException` when unsigned or invalid.
 
 #### `GetPackagePath(string globalPackagesFolder, string packageId, string version)`
