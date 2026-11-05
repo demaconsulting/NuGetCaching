@@ -7,7 +7,9 @@ System Requirements document.
 ## Required Functionality
 
 The NuGetCaching system shall provide a .NET library for programmatic NuGet package caching,
-shall list the available versions of a NuGet package as strings (version discovery), and
+shall list the available versions of a NuGet package as strings (version discovery),
+shall accept per-call options for credentials, logging, and authentication timeout without
+changing the behavior of calls that supply none, and
 shall reject null arguments with a clear, actionable error.
 
 ## Verification Approach
@@ -77,11 +79,26 @@ whose `nuget.config` points at a local test HTTP feed advertising unsorted versi
 
 **Requirement coverage**: `Caching-Sys-VersionDiscovery`.
 
+### NuGetCaching_EnsureCachedAsync_WhenOptionsSupplyCredentialCallback_CachesFromAuthenticatedSource
+
+**Scenario**: The public `EnsureCachedAsync` options overload is called with a `NuGetCacheOptions`
+whose `CredentialCallback` returns a user name and password. The `root` holds a `nuget.config`
+naming a local `NuGetTestServer` feed that answers HTTP 401 until it sees the matching Basic
+credentials, and a temporary `globalPackagesFolder`.
+
+**Expected**: The package is installed (its `.nupkg.metadata` file exists in the returned folder)
+and the credential callback was invoked, proving per-call options are honored by the public API.
+
+**Requirement coverage**: `Caching-Sys-CacheOptions`.
+
 ## Requirements Coverage
 
 - **`Caching-Sys-PackageCaching`**:
   NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder,
   NuGetCaching_EnsureCachedAsync_WhenPackageNotFound_ThrowsInvalidOperationException
+- **`Caching-Sys-CacheOptions`**:
+  NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder,
+  NuGetCaching_EnsureCachedAsync_WhenOptionsSupplyCredentialCallback_CachesFromAuthenticatedSource
 - **`Caching-Sys-NullValidation`**:
   NuGetCaching_EnsureCachedAsync_WhenPackageIdIsNull_ThrowsArgumentNullException,
   NuGetCaching_EnsureCachedAsync_WhenVersionIsNull_ThrowsArgumentNullException

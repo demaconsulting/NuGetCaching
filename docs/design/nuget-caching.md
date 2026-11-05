@@ -30,7 +30,8 @@ The system comprises six software units:
   communicating with a source as an actionable HTTP 401/403 authentication failure or a
   non-actionable transient error
 - **CredentialServiceRegistrar**: An internal class registering the NuGet SDK's default
-  credential service once per process
+  credential service once per process, wrapped in a dispatching service that applies per-call
+  `NuGetCacheOptions` (credential callback, interactive mode, authentication timeout)
 
 ## External Interfaces
 

@@ -102,7 +102,12 @@ reviews:
       - "docs/design/nuget-caching/nuget-cache.md"
       - "docs/verification/nuget-caching/nuget-cache.md"
       - "src/DemaConsulting.NuGet.Caching/NuGetCache.cs"
+      - "src/DemaConsulting.NuGet.Caching/NuGetCacheOptions.cs"
+      - "src/DemaConsulting.NuGet.Caching/NuGetCredential.cs"
+      - "src/DemaConsulting.NuGet.Caching/NuGetAuthenticationException.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheOptionsTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCredentialTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheServerTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetTestServer.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetPackageBuilder.cs"
@@ -171,7 +176,10 @@ reviews:
       - "docs/design/nuget-caching/credential-service-registrar.md"
       - "docs/verification/nuget-caching/credential-service-registrar.md"
       - "src/DemaConsulting.NuGet.Caching/CredentialServiceRegistrar.cs"
+      - "src/DemaConsulting.NuGet.Caching/CredentialDispatcher.cs"
+      - "src/DemaConsulting.NuGet.Caching/NuGetLoggerAdapter.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheServerTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/CredentialDispatcherTests.cs"
 
   # OTS Items
   - id: OTS-NuGet

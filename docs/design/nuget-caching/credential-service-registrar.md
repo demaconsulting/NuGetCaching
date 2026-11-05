@@ -117,6 +117,68 @@ restore pipeline. Subsequent calls on the same instance are a cheap, thread-safe
 Satisfies requirements `Caching-CredentialServiceRegistrar-RegisterOnce` and
 `Caching-CredentialServiceRegistrar-DefaultWiredToRealFlow`.
 
+#### Dispatching Credential Service
+
+After the default service is created, the registrar wraps it in an internal `CredentialDispatcher`
+and assigns that as the process-wide `HttpHandlerResourceV3.CredentialService`, exactly once. If a
+host application has already registered a credential service, the registrar leaves it in place
+(first writer wins) and per-call options cannot apply (`NuGetCache` logs a warning). Our own
+registrations are serialized with a lock, and `HttpHandlerResourceV3.CredentialService` is re-read
+immediately before the final assignment so a host service that appeared meanwhile is not overwritten.
+The SDK property has no atomic compare-and-set, so a host write landing between that last read and the
+assignment remains possible: the residual window is tiny but nonzero. A host service written during
+`SetupDefaultCredentialService` itself cannot be distinguished from the default it installs; hosts should
+register their service before the first call.
+
+The dispatcher reads an `AsyncLocal` call context set by `CredentialDispatcher.BeginScope` from the
+options overloads of `NuGetCache`:
+
+- **No scope** (1.5.0 calls): delegates to the original non-interactive default service, so
+  behavior is exactly as before.
+- **Scope with a callback**: for non-proxy requests the last-known-good credential cache is bypassed
+  (so credentials cached by another call cannot take precedence over the callback) and the callback is
+  consulted first. A non-null
+  `NuGetCredential` becomes the response; null falls through to the providers. A per-call set of
+  (URI, request type) pairs is the loop guard: a second request for a pair already answered returns
+  null, because the NuGet SDK asks again only after the previous credential was rejected.
+- **Scope with a logger, non-interactive**: a lazily created non-interactive `CredentialService` whose
+  plugin logger forwards to the ambient call's logger, so provider diagnostics reach the caller. Without
+  a logger the original default service is used unchanged.
+- **Interactive** (or any scope that needs providers): a lazily created `CredentialService` built from
+  the secure plugin credential providers (dialogs allowed) and the default network credentials provider.
+- **Timeout**: acquisition runs under a linked cancellation token with `CancelAfter(AuthenticationTimeout)`
+  and is raced against the timeout, so a callback that ignores its token is abandoned and the call fails
+  with `OperationCanceledException`. The work is started via `Task.Run`, so a callback that blocks
+  synchronously before returning its task cannot defeat the timeout; abandoned work cannot be interrupted
+  and may keep running (holding a thread) after the timeout. Plugin processes are owned by NuGet's
+  `PluginManager` and may outlive the timeout; disposal was not verified and is documented as a
+  limitation.
+- **Timed-out flag**: when the timeout elapses the dispatcher records it on the call's context (shared by
+  reference across the call's async flow) and refuses any later credential exchange for that call with
+  `OperationCanceledException`, without invoking the callback again. NuGet's HTTP pipeline may retry or
+  wrap the timeout failure (and a retried challenge would otherwise look like a rejected credential), so
+  `BeginScope` returns a `Scope` whose `ThrowIfTimedOut()` lets `NuGetCache` raise
+  `OperationCanceledException` after each resolve, download, or version query and before building any
+  failure. The timeout therefore always takes priority over swallowed or classified failures. The flag is
+  set only when the caller's own token was not canceled.
+`NuGetLoggerAdapter` adapts a `Microsoft.Extensions.Logging.ILogger` to the NuGet logger so SDK
+messages reach the caller's logger.
+
+Limitations (stated honestly rather than hidden):
+
+- The scope is an `AsyncLocal`, so it follows the call's async flow only. Work that suppresses
+  execution-context flow sees no scope and gets 1.5.0 behavior. The scope is restored when the
+  disposable returned by `BeginScope` is disposed, so concurrent calls with different options stay isolated.
+- The credential-request loop guard is per call and keyed by (URI, request type); it prevents
+  repeated prompts but cannot tell a rejected credential from a legitimate second request.
+- After a timeout the abandoned callback or plugin may keep running; the library does not
+  terminate plugin processes and has not verified that NuGet's `PluginManager` disposes them
+  promptly. Callers should treat a timeout as a failed call, not as proof that cleanup completed.
+- When a host already registered its own credential service, per-call options are not applied.
+
+Satisfies requirements `Caching-CredentialServiceRegistrar-DispatchPerCall`,
+`Caching-CredentialServiceRegistrar-CallbackFirst`, and `Caching-CredentialServiceRegistrar-LoopGuard`.
+
 ### Error Handling
 
 The class performs no local error handling. Because registration is memoized with
@@ -126,8 +188,9 @@ on the same instance rethrow it rather than retrying.
 
 ### Dependencies
 
-- **NuGet** (OTS): `DefaultCredentialServiceUtility.SetupDefaultCredentialService` and
-  `NullLogger` from the NuGet client SDK.
+- **NuGet** (OTS): `DefaultCredentialServiceUtility.SetupDefaultCredentialService`, `CredentialService`,
+  plugin credential providers, and `NullLogger` from the NuGet client SDK.
+- `Microsoft.Extensions.Logging.Abstractions` (logger adapter), treated as part of the NuGet OTS item.
 - BCL: `System.Lazy<T>`, `System.Threading.LazyThreadSafetyMode`.
 - No other units or subsystems.
 

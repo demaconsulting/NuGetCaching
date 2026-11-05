@@ -53,7 +53,14 @@ internal static class PackageDownloader
     ///     or <see langword="null"/> when the source was reachable but simply did not carry
     ///     the requested package, or when the failure is transient and non-actionable.
     /// </param>
-    internal readonly record struct TryDownloadResult(string? PackagePath, string? ErrorMessage);
+    internal readonly record struct TryDownloadResult(string? PackagePath, string? ErrorMessage)
+    {
+        /// <summary>
+        ///     Gets the source that rejected the request with HTTP 401/403, or <see langword="null"/>
+        ///     when the failure (if any) was not an authentication failure.
+        /// </summary>
+        internal AuthFailureInfo? AuthFailure { get; init; }
+    }
 
     /// <summary>
     ///     Downloads and installs a NuGet package using an already-resolved
@@ -67,6 +74,7 @@ internal static class PackageDownloader
     /// <param name="clientPolicyContext">The client signing policy context from NuGet settings.</param>
     /// <param name="cacheContext">Shared <see cref="SourceCacheContext"/> for HTTP caching.</param>
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <param name="logger">Optional NuGet logger; when <see langword="null"/>, NuGet messages are discarded.</param>
     /// <returns>
     ///     A <see cref="TryDownloadResult"/> with the installed package path on success, an empty
     ///     result when the package is absent from this source or a transient error occurs, or an
@@ -80,8 +88,10 @@ internal static class PackageDownloader
         string globalPackagesFolder,
         ClientPolicyContext clientPolicyContext,
         SourceCacheContext cacheContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ILogger? logger = null)
     {
+        logger ??= NullLogger.Instance;
         var identity = new PackageIdentity(packageId, version);
         var source = sourceRepository.PackageSource.Source;
         var sourceName = sourceRepository.PackageSource.Name;
@@ -97,7 +107,7 @@ internal static class PackageDownloader
                 version,
                 packageStream,
                 cacheContext,
-                NullLogger.Instance,
+                logger,
                 cancellationToken);
         }
         catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
@@ -105,7 +115,7 @@ internal static class PackageDownloader
             // An authentication failure (401/403) is actionable during download too - the source
             // exists and the package identity is valid, but the request was rejected for lack of
             // (or incorrect) credentials. Surface this rather than treating it as "package absent".
-            return new TryDownloadResult(null, authMessage);
+            return new TryDownloadResult(null, authMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) };
         }
         catch (NuGetProtocolException ex)
         {
@@ -118,7 +128,7 @@ internal static class PackageDownloader
         {
             // Same as above, but surfaced as a raw HttpRequestException rather than a NuGet
             // protocol exception (observed for direct v3 flat-container content downloads)
-            return new TryDownloadResult(null, authMessage);
+            return new TryDownloadResult(null, authMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) };
         }
         catch (HttpRequestException)
         {
@@ -142,7 +152,7 @@ internal static class PackageDownloader
             globalPackagesFolder,
             Guid.Empty,
             clientPolicyContext,
-            NullLogger.Instance,
+            logger,
             cancellationToken);
 
         // Return the conventional package path that NuGet uses on disk

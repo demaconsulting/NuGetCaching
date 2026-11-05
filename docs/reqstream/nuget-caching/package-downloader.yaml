@@ -37,6 +37,18 @@ sections:
         tests:
           - PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsActionableErrorMessage
 
+      - id: Caching-PackageDownloader-AuthFailureInfo
+        title: >-
+          The package-download utility shall report a structured authentication
+          failure (source name and URL) alongside the diagnostic message when the
+          source rejects a download request with HTTP 401 or 403.
+        justification: |
+          NuGetCache needs the failing source's identity in a machine-readable form to
+          raise NuGetAuthenticationException and to decide whether credentials can be
+          requested, without parsing the diagnostic text.
+        tests:
+          - PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsAuthFailureInfo
+
       - id: Caching-PackageDownloader-PackagePathConvention
         title: >-
           The package-download utility shall compute the conventional on-disk

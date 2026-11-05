@@ -24,6 +24,13 @@ using System.Text.RegularExpressions;
 namespace DemaConsulting.NuGet.Caching;
 
 /// <summary>
+///     Identifies the package source that rejected a request with HTTP 401 or 403.
+/// </summary>
+/// <param name="SourceName">The configured name of the package source.</param>
+/// <param name="SourceUrl">The URL of the endpoint that rejected the request.</param>
+internal sealed record AuthFailureInfo(string SourceName, string SourceUrl);
+
+/// <summary>
 ///     Classifies exceptions raised while communicating with a NuGet source as an actionable HTTP
 ///     401 (Unauthorized) or 403 (Forbidden) authentication failure, or as a non-actionable
 ///     transient error.

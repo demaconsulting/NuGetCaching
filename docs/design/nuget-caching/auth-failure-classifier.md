@@ -17,8 +17,22 @@ detection logic is centralized in a single unit rather than duplicated across bo
 
 ### Data Model
 
-The class holds no instance state. Its only data member is the compiled, immutable regular
-expression below; all other data is the method arguments and results.
+The class holds no instance state. Its data members are the compiled, immutable regular
+expression below and the `AuthFailureInfo` result record; all other data is the method
+arguments and results.
+
+#### AuthFailureInfo Record
+
+```csharp
+internal sealed record AuthFailureInfo(string SourceName, string SourceUrl);
+```
+
+A structured, machine-readable description of a detected authentication failure: the configured
+source name and the URL of the endpoint that rejected the request. `PackageSourceResolver` and
+`PackageDownloader` attach it to their results (as `AuthFailure`) beside the human-readable
+diagnostic message, so `NuGetCache` can raise `NuGetAuthenticationException` and decide whether
+credentials can be requested without parsing message text. The classifier itself only defines
+the record; callers construct it when `TryDescribeAuthFailure` returns `true`.
 
 #### HttpStatusCodePattern Field
 

@@ -153,7 +153,11 @@ public class NuGetCacheTests
     [Fact]
     public void NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings()
     {
-        var method = typeof(NuGetCache).GetMethod("GetVersionsAsync")!;
+        // Select the 1.5.0 overload by its parameter types: with the options overload added in 1.6.0,
+        // a lookup by name alone is ambiguous
+        var method = typeof(NuGetCache).GetMethod(
+            "GetVersionsAsync",
+            [typeof(string), typeof(bool), typeof(string), typeof(CancellationToken)])!;
 
         Assert.Equal(typeof(Task<IReadOnlyList<string>>), method.ReturnType);
         Assert.DoesNotContain(method.GetParameters(), p => p.ParameterType.Namespace?.StartsWith("NuGet", StringComparison.Ordinal) == true);

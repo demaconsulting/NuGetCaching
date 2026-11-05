@@ -21,6 +21,7 @@ discovering the available versions of a package.
 - ⚙️ **Config Aware** - Uses your NuGet sources and global packages folder, like `dotnet`
 - 🗺️ **Source Mapping** - Honors NuGet package source mapping
 - 🚨 **Clear Errors** - Reports authentication and protocol failures with actionable messages
+- 🔐 **Credential Options** - Credential callback, interactive mode, logger, and authentication timeout
 - 🔄 **Multi-Target** - Supports .NET Standard 2.0, .NET 8, 9, and 10
 - 🖥️ **Cross-Platform** - Runs on Windows, Linux, and macOS
 - ✅ **Continuous Compliance** - Requirements traceability and compliance evidence on every CI run
@@ -52,7 +53,20 @@ IReadOnlyList<string> versions = await NuGetCache.GetVersionsAsync("Newtonsoft.J
 Console.WriteLine(versions.Count > 0
     ? $"Latest stable version: {versions[^1]}"
     : "No stable versions found.");
+
+// Authenticate against a private feed with a credential callback (new in 1.6.0)
+var options = new NuGetCacheOptions
+{
+    CredentialCallback = (uri, ct) => Task.FromResult<NuGetCredential?>(
+        new NuGetCredential("user", Environment.GetEnvironmentVariable("FEED_TOKEN")!)),
+    AuthenticationTimeout = TimeSpan.FromSeconds(30),
+};
+string privatePath = await NuGetCache.EnsureCachedAsync(
+    "Private.Package", "1.0.0", null, CancellationToken.None, options);
 ```
+
+See the user guide for `NuGetCacheOptions`, logging, `NuGetAuthenticationException`, and limitations.
+Versions are NuGet-normalized strings and may carry `+metadata` or four parts.
 
 ## Documentation
 

@@ -90,8 +90,30 @@ namespace DemaConsulting.NuGet.Caching;
 ///         <see cref="ArgumentException"/>, and a canceled token throws <see cref="OperationCanceledException"/>.
 ///     </para>
 ///     <para>
+///         Credentials, logging, and timeouts: pass a <see cref="NuGetCacheOptions"/> to the overloads
+///         <see cref="NuGetCache.EnsureCachedAsync(string, string, string?, CancellationToken, NuGetCacheOptions)"/> and
+///         <see cref="NuGetCache.GetVersionsAsync(string, bool, string?, CancellationToken, NuGetCacheOptions)"/>
+///         (the cancellation token is required and the options come last).
+///         <see cref="NuGetCacheOptions.CredentialCallback"/> supplies a <see cref="NuGetCredential"/> when a source
+///         answers HTTP 401 or 403 (it is consulted before any credential provider; returning null falls through to the
+///         providers, and a rejected credential is not requested again for the same address),
+///         <see cref="NuGetCacheOptions.Interactive"/> allows credential providers to prompt,
+///         <see cref="NuGetCacheOptions.Logger"/> receives NuGet messages, and
+///         <see cref="NuGetCacheOptions.AuthenticationTimeout"/> bounds credential acquisition (the call then throws
+///         <see cref="OperationCanceledException"/>, never <see cref="NuGetAuthenticationException"/>, even when NuGet
+///         retries or wraps the failed request). These overloads throw <see cref="NuGetAuthenticationException"/>,
+///         a subclass of <see cref="InvalidOperationException"/>, when a source rejected the request with 401 or 403.
+///         The existing overloads behave exactly as in version 1.5.0. Caveats: the NuGet credential service is
+///         process-wide, so options apply only when this library registered it (a host application's own
+///         registration wins, and a warning is logged), and the timeout abandons the wait but does not guarantee
+///         that an external credential-provider process is terminated.
+///     </para>
+///     <para>
+///         Versions: returned strings are NuGet-normalized and may carry <c>+metadata</c> or four parts.
+///     </para>
+///     <para>
 ///         Thread safety: all members of <see cref="NuGetCache"/> are stateless and safe to call
-///         concurrently.
+///         concurrently, including with different options.
 ///     </para>
 /// </remarks>
 internal static class NamespaceDoc

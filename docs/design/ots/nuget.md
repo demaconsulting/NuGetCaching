@@ -15,6 +15,11 @@ and package download and installation. It is the only run-time OTS dependency of
 - Global-packages folder utilities to install packages.
 - `NuGetVersion` for internal version parsing and ordering (never exposed publicly).
 - `NuGet.Credentials` for credential providers.
+- `Microsoft.Extensions.Logging.Abstractions` (a separate package, covered here because it is
+  consumed alongside the SDK): the `ILogger` accepted in `NuGetCacheOptions.Logger`, adapted by
+  `NuGetLoggerAdapter` to the NuGet `ILogger`. It is the one third-party type that appears in the
+  public API (as `NuGetCacheOptions.Logger`); requirement `Caching-OTS-LoggingAbstractions`
+  covers it.
 
 ### Integration Pattern
 

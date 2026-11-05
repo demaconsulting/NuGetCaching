@@ -184,6 +184,71 @@ else
 }
 ```
 
+##### Overloads with NuGetCacheOptions
+
+```csharp
+public static Task<string> EnsureCachedAsync(
+    string packageId, string version, string? root,
+    CancellationToken cancellationToken, NuGetCacheOptions options)
+
+public static Task<IReadOnlyList<string>> GetVersionsAsync(
+    string packageId, bool includePrerelease, string? root,
+    CancellationToken cancellationToken, NuGetCacheOptions options)
+```
+
+Added in 1.6.0. Existing overloads are unchanged, and calls without options behave exactly as in 1.5.0.
+The cancellation token is required and `options` comes last, so that no 1.5.0 call shape (including a
+positional `default` token) can bind to these overloads; pass `CancellationToken.None` if you have no token.
+`options` is required (`ArgumentNullException` when null). When a source rejects a request with 401 or
+403 and the operation fails, these overloads throw `NuGetAuthenticationException` (derived from
+`InvalidOperationException`, with `Source` and `Uri`); the 1.5.0 overloads still throw a plain
+`InvalidOperationException`.
+
+##### NuGetCacheOptions
+
+- `Interactive` (bool, default false): allows credential providers to show prompts or dialogs.
+- `Logger` (`Microsoft.Extensions.Logging.ILogger?`): receives NuGet SDK messages. Secrets are never logged.
+- `CredentialCallback` (`Func<Uri, CancellationToken, Task<NuGetCredential?>>?`): called when a source
+  needs credentials, before any credential provider. Return a `NuGetCredential` to use it, or null to
+  fall through to the providers. If a credential is rejected, the callback is not asked again for the
+  same address within the call.
+- `AuthenticationTimeout` (`TimeSpan?`): maximum time for credential acquisition. When exceeded, the call
+  throws `OperationCanceledException` (never `NuGetAuthenticationException`, even when NuGet retries or
+  wraps the failed request). This applies to both `EnsureCachedAsync` and `GetVersionsAsync`. The value
+  must be greater than zero and at most `int.MaxValue` milliseconds (about 24.8 days), or
+  `Timeout.InfiniteTimeSpan` (same as null, no limit); any other value makes the call throw
+  `ArgumentOutOfRangeException` before any work starts.
+
+`NuGetCredential(userName, secret)` is a record whose `ToString()` shows `Secret = ***`.
+
+```csharp
+var options = new NuGetCacheOptions
+{
+    CredentialCallback = (uri, ct) =>
+        Task.FromResult<NuGetCredential?>(new NuGetCredential("user", Environment.GetEnvironmentVariable("FEED_TOKEN")!)),
+    AuthenticationTimeout = TimeSpan.FromSeconds(30),
+};
+
+try
+{
+    string path = await NuGetCache.EnsureCachedAsync(
+        "Private.Package", "1.0.0", null, CancellationToken.None, options);
+}
+catch (NuGetAuthenticationException ex)
+{
+    Console.WriteLine($"Authentication failed for {ex.Source} ({ex.Uri})");
+}
+```
+
+**Limitations:**
+
+- The NuGet credential service is process-wide. If your application registered its own before the first
+  call, it is kept, the options cannot apply (`Interactive`, `CredentialCallback`, and
+  `AuthenticationTimeout` are ignored), and a warning is logged when a logger is supplied.
+- `AuthenticationTimeout` abandons the wait and cancels the token given to your callback. It does not
+  guarantee that an external credential-provider plugin process is terminated.
+- Versions are NuGet-normalized strings and may carry `+metadata` or four parts.
+
 # Examples
 
 ## Example 1: Ensure a Package is Cached

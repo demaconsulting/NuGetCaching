@@ -878,6 +878,66 @@ public class NuGetCacheServerTests
     }
 
     /// <summary>
+    ///     Tests that registration never overwrites a host service that appears between the default
+    ///     service setup and the final assignment, and installs the dispatcher otherwise.
+    /// </summary>
+    [Fact]
+    public void CredentialServiceRegistrar_Register_HostServiceAppearsBeforeAssignment_IsNotOverwritten()
+    {
+        var original = HttpHandlerResourceV3.CredentialService;
+        try
+        {
+            var defaultLazy = new Lazy<global::NuGet.Configuration.ICredentialService>(() => new StubCredentialService());
+            var hostOwned = new Lazy<global::NuGet.Configuration.ICredentialService>(() => new StubCredentialService());
+
+            // Host service shows up on the re-check read immediately before assignment
+            Lazy<global::NuGet.Configuration.ICredentialService>? store = null;
+            var reads = 0;
+            var assigned = false;
+            CredentialServiceRegistrar.Register(
+                () => ++reads >= 3 ? hostOwned : store,
+                v => assigned = true,
+                () => store = defaultLazy);
+            Assert.False(assigned);
+
+            // No interference: the wrapper is assigned
+            store = null;
+            Lazy<global::NuGet.Configuration.ICredentialService>? result = null;
+            CredentialServiceRegistrar.Register(() => store, v => result = v, () => store = defaultLazy);
+            Assert.NotNull(result);
+            Assert.NotSame(defaultLazy, result);
+        }
+        finally
+        {
+            HttpHandlerResourceV3.CredentialService = original;
+        }
+    }
+
+    /// <summary>
+    ///     A minimal credential service used only as a placeholder in registration tests.
+    /// </summary>
+    private sealed class StubCredentialService : global::NuGet.Configuration.ICredentialService
+    {
+        /// <inheritdoc />
+        public bool HandlesDefaultCredentials => true;
+
+        /// <inheritdoc />
+        public Task<System.Net.ICredentials?> GetCredentialsAsync(
+            Uri uri,
+            System.Net.IWebProxy? proxy,
+            global::NuGet.Configuration.CredentialRequestType type,
+            string message,
+            CancellationToken cancellationToken) => Task.FromResult<System.Net.ICredentials?>(null);
+
+        /// <inheritdoc />
+        public bool TryGetLastKnownGoodCredentialsFromCache(Uri uri, bool isProxy, out System.Net.ICredentials? credentials)
+        {
+            credentials = null;
+            return false;
+        }
+    }
+
+    /// <summary>
     ///     Tests that the production <c>EnsureCachedAsync</c> path (the overload that supplies no
     ///     registrar) leaves the NuGet SDK's default credential service registered.
     /// </summary>

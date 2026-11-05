@@ -33,3 +33,17 @@ sections:
             tags: [ots]
             tests:
               - NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
+
+          - id: Caching-OTS-LoggingAbstractions
+            title: >-
+              Microsoft.Extensions.Logging.Abstractions shall provide the ILogger contract through
+              which callers receive diagnostic messages from the library.
+            justification: |
+              Microsoft.Extensions.Logging.Abstractions is a direct runtime dependency that
+              supplies the ILogger type accepted by NuGetCacheOptions.Logger and the log levels
+              used to translate NuGet SDK messages. A passing test that supplies a logger and
+              observes the forwarded messages confirms the abstraction works as the library
+              relies on it.
+            tags: [ots]
+            tests:
+              - NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret

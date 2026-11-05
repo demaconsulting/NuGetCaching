@@ -9,13 +9,15 @@ document: `docs/reqstream/ots/nuget.yaml`.
 NuGet.Protocol communicates with NuGet v2 and v3 package sources, streams package content, and
 installs packages into the global packages folder. NuGet.Configuration reads the NuGet settings
 hierarchy (machine-wide, user, and project-level), resolves the global packages folder path,
-enumerates package sources, and reads package source mapping rules.
+enumerates package sources, and reads package source mapping rules. Microsoft.Extensions.Logging.Abstractions
+supplies the `ILogger` contract through which the library reports diagnostic messages to callers.
 
 ### Verification Approach
 
-Both NuGet Client SDK components are verified by self-validation evidence from the CI pipeline.
-Each scenario names a specific test method that exercises the NuGet SDK through the library's
-public API. A passing pipeline run for all scenarios constitutes evidence that both requirements
+The NuGet Client SDK components and Microsoft.Extensions.Logging.Abstractions are verified by
+self-validation evidence from the CI pipeline.
+Each scenario names a specific test method that exercises the OTS item through the library's
+public API. A passing pipeline run for all scenarios constitutes evidence that all requirements
 are satisfied.
 
 ### Test Scenarios
@@ -43,7 +45,20 @@ index, fetch the version list, download the `.nupkg`, and install the package.
 
 **Requirement coverage**: `Caching-OTS-NuGetProtocol`, `Caching-OTS-NuGetConfiguration`.
 
+#### NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret
+
+**Scenario**: `EnsureCachedAsync` is called with a `NuGetCacheOptions` whose `Logger` is a
+capturing `Microsoft.Extensions.Logging.ILogger`, against a local authenticated feed with a
+credential callback.
+
+**Expected**: The logger receives messages through the `ILogger` contract supplied by
+`Microsoft.Extensions.Logging.Abstractions`, and none of them contains the secret.
+
+**Requirement coverage**: `Caching-OTS-LoggingAbstractions`.
+
 ### Requirements Coverage
+
+- **`Caching-OTS-LoggingAbstractions`**: NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret
 
 - **`Caching-OTS-NuGetProtocol`**: NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder,
   NuGetCache_EnsureCachedAsync_V3PackageRegistered_ReturnsExistingPackagePath
