@@ -150,8 +150,9 @@ options overloads of `NuGetCache`:
   and is raced against the timeout, so a callback that ignores its token is abandoned and the call fails
   with `OperationCanceledException`. The work is started via `Task.Run`, so a callback that blocks
   synchronously before returning its task cannot defeat the timeout; abandoned work cannot be interrupted
-  and may keep running (holding a thread) after the timeout. Plugin processes are owned by NuGet's `PluginManager` and may
-  outlive the timeout; disposal was not verified and is documented as a limitation.
+  and may keep running (holding a thread) after the timeout. Plugin processes are owned by NuGet's
+  `PluginManager` and may outlive the timeout; disposal was not verified and is documented as a
+  limitation.
 - **Timed-out flag**: when the timeout elapses the dispatcher records it on the call's context (shared by
   reference across the call's async flow) and refuses any later credential exchange for that call with
   `OperationCanceledException`, without invoking the callback again. NuGet's HTTP pipeline may retry or
