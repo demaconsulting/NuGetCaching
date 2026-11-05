@@ -54,7 +54,7 @@
     <ApiMarkOutputDir>$(MSBuildProjectDirectory)/bin/$(Configuration)/apimark-docs</ApiMarkOutputDir>
     <!-- Pack generated API docs into the NuGet package under api/ -->
     <ApiMarkPackDocs>false</ApiMarkPackDocs>
-    <ApiMarkPackDocs Condition="'$(TargetFramework)' == '$(ApiDocsTargetFramework)'">true</ApiMarkPackDocs>
+    <ApiMarkPackDocs Condition="'$(TargetFramework)' == '$(ApiDocsTargetFramework)' Or '$(TargetFramework)' == ''">true</ApiMarkPackDocs>
     <!-- Disable for non-primary framework to avoid duplicate generation in multi-targeted builds -->
     <DisableApiMark Condition="'$(TargetFramework)' != '$(ApiDocsTargetFramework)'">true</DisableApiMark>
   </PropertyGroup>

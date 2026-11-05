@@ -20,7 +20,7 @@ discovering the available versions of a package.
 - 🔍 **Version Discovery** - List available package versions as normalized strings
 - ⚙️ **Config Aware** - Uses your NuGet sources and global packages folder, like `dotnet`
 - 🗺️ **Source Mapping** - Honors NuGet package source mapping
-- 🚨 **Clear Errors** - Failures list each source's error when none can answer
+- 🚨 **Clear Errors** - Reports authentication and protocol failures with actionable messages
 - 🔄 **Multi-Target** - Supports .NET Standard 2.0, .NET 8, 9, and 10
 - 🖥️ **Cross-Platform** - Runs on Windows, Linux, and macOS
 - ✅ **Continuous Compliance** - Requirements traceability and compliance evidence on every CI run

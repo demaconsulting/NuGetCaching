@@ -126,6 +126,10 @@ jobs:
         run: >
           dotnet tool restore
 
+      - name: Restore Dependencies
+        run: >
+          dotnet restore
+
       # === CAPTURE TOOL VERSIONS ===
       # This section captures the versions of all tools used in the build process.
       # Downstream projects: Add any additional tools to capture here.
@@ -157,10 +161,6 @@ jobs:
       # === BUILD AND TEST ===
       # This section builds and tests the project.
       # Downstream projects: Add any additional build or test steps here.
-
-      - name: Restore Dependencies
-        run: >
-          dotnet restore
 
       - name: Start Sonar Scanner
         env:
