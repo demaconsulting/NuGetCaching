@@ -188,6 +188,13 @@ reviews:
       - "docs/design/ots/polyfill.md"
       - "docs/verification/ots/polyfill.md"
 
+  - id: OTS-ApiMark
+    title: Review of ApiMark OTS verification evidence
+    paths:
+      - "docs/reqstream/ots/apimark.yaml"
+      - "docs/design/ots/apimark.md"
+      - "docs/verification/ots/apimark.md"
+
   - id: OTS-BuildMark
     title: Review of BuildMark OTS verification evidence
     paths:

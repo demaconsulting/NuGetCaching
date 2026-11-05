@@ -28,6 +28,11 @@ tools:
     command: dotnet tool list
     regex: '(?i)dotnet-sonarscanner\s+(?<version>\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)'
 
+  # ApiMark.MSBuild (DemaConsulting.ApiMark.MSBuild from project package references)
+  apimark-msbuild:
+    command: dotnet list src/DemaConsulting.NuGet.Caching/DemaConsulting.NuGet.Caching.csproj package
+    regex: '(?i)DemaConsulting\.ApiMark\.MSBuild\s+(?<version>\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)'
+
   # Pandoc (DemaConsulting.PandocTool from dotnet tool list)
   pandoc:
     command: dotnet tool list

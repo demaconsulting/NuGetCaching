@@ -118,19 +118,21 @@ sections:
           - quality
         justification: |
           Documentation generation outcomes (Pandoc HTML rendering, WeasyPrint PDF rendering,
-          and FileAssert package validation) are consumed by maintainers browsing documentation,
-          not by library callers at runtime. This requirement roots those OTS requirements so
-          they are not orphaned.
+          FileAssert package validation, and ApiMark API documentation) are consumed by maintainers
+          and NuGet package consumers browsing documentation, not by library callers at runtime.
+          This requirement roots those OTS requirements so they are not orphaned.
         children:
           - Caching-OTS-Pandoc
           - Caching-OTS-WeasyPrint
           - Caching-OTS-FileAssert
+          - Caching-OTS-ApiMark
         tests:
           - Pandoc_BuildNotesHtml
           - Pandoc_DesignHtml
           - WeasyPrint_BuildNotesPdf
           - FileAssert_VersionDisplay
           - FileAssert_File
+          - ApiMark_NuGetPackageContainsDocs
 
       - id: Caching-Quality-RequirementsTraceability
         title: The repository shall maintain and enforce requirements and architecture traceability.

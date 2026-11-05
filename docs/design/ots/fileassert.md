@@ -7,7 +7,8 @@ pipeline fails when expected documents are missing or malformed.
 
 ### Features Used
 
-- File existence and content assertions against generated HTML and PDF documents.
+- File existence and content assertions against generated HTML and PDF documents and NuGet
+  package contents.
 - Self-validation producing TRX results.
 
 ### Integration Pattern

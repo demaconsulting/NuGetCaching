@@ -28,6 +28,7 @@ words:
   - pandoc
   - reqstream
   - reviewmark
+  - apimark
   - sarifmark
   - Sarif
   - sonarmark

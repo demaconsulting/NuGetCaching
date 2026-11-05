@@ -140,7 +140,7 @@ jobs:
           JOB_ID="build-${OS_SHORT}"
           dotnet versionmark --capture --job-id "${JOB_ID}" \
             --output "artifacts/versionmark-${JOB_ID}.json" -- \
-            dotnet git dotnet-sonarscanner versionmark
+            dotnet git dotnet-sonarscanner versionmark apimark-msbuild
           echo "✓ Tool versions captured"
 
       # === CAPTURE OTS SELF-VALIDATION RESULTS ===
@@ -209,6 +209,12 @@ jobs:
           --no-restore
           --configuration Release
           --property:PackageVersion=${{ inputs.version }}
+
+      - name: Assert NuGet Package with FileAssert
+        run: >
+          dotnet fileassert
+          --results artifacts/fileassert-api-docs-${{ matrix.os }}.trx
+          api-docs
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated artifacts for use by downstream jobs.

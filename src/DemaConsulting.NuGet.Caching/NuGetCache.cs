@@ -49,10 +49,11 @@ public static class NuGetCache
     ///     <paramref name="root"/> is <see langword="null"/>). Rooting the settings lookup this way
     ///     mirrors the behavior of the <c>dotnet</c> CLI and Visual Studio package restore, which
     ///     both discover a project/repo-local <c>nuget.config</c> by walking up from an ambient
-    ///     working directory - passing a literal <see langword="null"/> root (as earlier versions of
-    ///     this method did) skips that walk entirely and silently loses any repo-local package
-    ///     sources. All caching logic is delegated to the internal overload that accepts an explicit
-    ///     <see cref="ISettings"/> instance.
+    ///     working directory, so repo-local package sources are honored. When the package version is
+    ///     already installed in the global packages folder it is returned immediately without any
+    ///     network access. The version is normalized (for example <c>1.0</c> becomes <c>1.0.0</c>), and
+    ///     the returned folder follows the NuGet layout
+    ///     <c>{globalPackagesFolder}/{lowercase id}/{normalized version}</c>.
     /// </remarks>
     /// <param name="packageId">The NuGet package identifier (e.g. <c>Newtonsoft.Json</c>).</param>
     /// <param name="version">The exact version string (e.g. <c>13.0.3</c>).</param>

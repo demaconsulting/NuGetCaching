@@ -6,8 +6,8 @@ This document is the user guide for DemaConsulting NuGet Caching, a library for 
 NuGet packages are available in the local global packages cache and for discovering the
 versions of a package that are available from the configured NuGet sources.
 
-![NuGetCaching architecture: your application, the NuGetCache entry point, its units, and the NuGet
-configuration, feeds and global packages folder](architecture.svg)
+![NuGetCaching architecture: your application calling NuGetCache, with nuget.config, NuGet feeds and the global
+packages folder](architecture.svg)
 
 ## Scope
 
