@@ -61,7 +61,8 @@ var options = new NuGetCacheOptions
         new NuGetCredential("user", Environment.GetEnvironmentVariable("FEED_TOKEN")!)),
     AuthenticationTimeout = TimeSpan.FromSeconds(30),
 };
-string privatePath = await NuGetCache.EnsureCachedAsync("Private.Package", "1.0.0", null, options);
+string privatePath = await NuGetCache.EnsureCachedAsync(
+    "Private.Package", "1.0.0", null, CancellationToken.None, options);
 ```
 
 See the user guide for `NuGetCacheOptions`, logging, `NuGetAuthenticationException`, and limitations.

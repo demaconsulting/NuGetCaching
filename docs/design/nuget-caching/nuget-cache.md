@@ -281,11 +281,12 @@ Satisfies requirements `Caching-NuGetCache-GetVersions`, `Caching-NuGetCache-Get
 
 ### Options Overloads
 
-Two additional public overloads, `EnsureCachedAsync(packageId, version, root, NuGetCacheOptions options,
-CancellationToken = default)` and `GetVersionsAsync(packageId, includePrerelease, root,
-NuGetCacheOptions options, CancellationToken = default)`, accept a required
-`NuGetCacheOptions`. The options parameter is required and precedes the optional token so
-that every 1.5.0 call form still binds to the 1.5.0 overload; this keeps the change source- and
+Two additional public overloads, `EnsureCachedAsync(packageId, version, root, CancellationToken
+cancellationToken, NuGetCacheOptions options)` and `GetVersionsAsync(packageId, includePrerelease, root,
+CancellationToken cancellationToken, NuGetCacheOptions options)`, accept a required
+`NuGetCacheOptions`. Both the token and the options are required and the options come last, so
+no 1.5.0 call form (including a positional `default` token, which would otherwise be ambiguous
+between `CancellationToken` and `NuGetCacheOptions`) can bind to them; this keeps the change source- and
 binary-compatible. Internal overloads taking `ISettings`, `NuGetCacheOptions?`, and an
 `ICredentialServiceRegistrar` are the shared implementation; the 1.5.0 internal overloads
 delegate to them with `null` options.
@@ -301,8 +302,10 @@ When the options overloads run, `NuGetCache`:
    (`AuthFailureInfo`: source name and URL) and, if the operation fails, throws
    `NuGetAuthenticationException` (derived from `InvalidOperationException`) instead of a plain
    `InvalidOperationException`. The 1.5.0 overloads keep throwing the plain type.
-4. Logs a warning when options cannot apply because a host application had already registered
-   its own credential service (the host's service wins).
+4. Logs a warning when `Interactive`, `CredentialCallback`, or `AuthenticationTimeout` was supplied
+   but a host application had already registered its own credential service (the host's service wins).
+5. Records an authentication failure against the effective repository (which may be the v2 fallback)
+   so `NuGetAuthenticationException.Uri` identifies the endpoint that rejected the request.
 
 Limitations: the credential service is process-wide, so a host-registered service bypasses the
 callback, timeout, and interactive mode. `AuthenticationTimeout` cancels the wait and the token

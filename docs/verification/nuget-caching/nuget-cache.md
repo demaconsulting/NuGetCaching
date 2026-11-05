@@ -457,9 +457,12 @@ process-wide credential service can be isolated and restored.
   non-interactive mode, no logger, no callback, and no timeout. Covers `OptionsOverloads`.
 - **NuGetCache_OptionsOverloads_NullArguments_Throw**: both public options overloads throw
   `ArgumentNullException` for a null `options`. Covers `OptionsOverloads`.
-- **NuGetCache_Version150CallForms_BindToVersion150Overloads**: a call with the 1.5.0 argument
-  shapes, including a `default` token, compiles against and runs the 1.5.0 overload. Covers
-  `OptionsOverloads`.
+- **NuGetCache_Version150CallForms_BindToVersion150Overloads**: calls with the 1.5.0 argument
+  shapes, including a positional `default` token on both `GetVersionsAsync` and `EnsureCachedAsync`,
+  compile unambiguously against and run the 1.5.0 overloads. Covers `OptionsOverloads`.
+- **NuGetCache_OptionsOverloads_Signature_HasRequiredTokenThenOptionsLast**: reflection check that the
+  public options overloads are `(..., CancellationToken, NuGetCacheOptions)` with no optional
+  parameters. Covers `OptionsOverloads`.
 - **NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source** and
   **NuGetCache_GetVersionsAsync_CallbackSuppliesCredentials_ReturnsVersions**: the callback
   returns basic credentials after the 401 and the operation succeeds. Covers `CredentialCallback`.

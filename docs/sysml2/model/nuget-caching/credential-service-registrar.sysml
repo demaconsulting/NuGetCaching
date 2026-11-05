@@ -9,6 +9,7 @@ package NuGetCaching {
         comment verificationRef /* Verification: docs/verification/nuget-caching/credential-service-registrar.md */
         comment reqRef /* Requirements: docs/reqstream/nuget-caching/credential-service-registrar.yaml */
 
-        // Tests: test/DemaConsulting.NuGet.Caching.Tests/CredentialDispatcherTests.cs and NuGetCacheServerTests.cs.
+        comment testRef /* Test: test/DemaConsulting.NuGet.Caching.Tests/CredentialDispatcherTests.cs */
+        comment testRef /* Test: test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheServerTests.cs */
     }
 }

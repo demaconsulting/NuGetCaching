@@ -110,8 +110,11 @@ public static class NuGetCache
     ///     The directory from which to begin discovering <c>nuget.config</c> files, or
     ///     <see langword="null"/> for the current working directory.
     /// </param>
+    /// <param name="cancellationToken">
+    ///     The cancellation token for the async operation. Required (and ordered before
+    ///     <paramref name="options"/>) so that no existing call shape can bind to this overload.
+    /// </param>
     /// <param name="options">The per-call options. Must not be <see langword="null"/>.</param>
-    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
     /// <returns>
     ///     The absolute path to the cached package folder inside the global packages folder.
     /// </returns>
@@ -136,8 +139,8 @@ public static class NuGetCache
         string packageId,
         string version,
         string? root,
-        NuGetCacheOptions options,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken,
+        NuGetCacheOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -457,8 +460,11 @@ public static class NuGetCache
     ///     The directory from which to begin discovering <c>nuget.config</c> files, or
     ///     <see langword="null"/> for the current working directory.
     /// </param>
+    /// <param name="cancellationToken">
+    ///     The cancellation token for the async operation. Required (and ordered before
+    ///     <paramref name="options"/>) so that no existing call shape can bind to this overload.
+    /// </param>
     /// <param name="options">The per-call options. Must not be <see langword="null"/>.</param>
-    /// <param name="cancellationToken">Optional cancellation token for the async operation.</param>
     /// <returns>
     ///     The normalized version strings in ascending order, or an empty list when the package is not found.
     /// </returns>
@@ -479,8 +485,8 @@ public static class NuGetCache
         string packageId,
         bool includePrerelease,
         string? root,
-        NuGetCacheOptions options,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken,
+        NuGetCacheOptions options)
     {
         ArgumentNullException.ThrowIfNull(packageId);
         ArgumentNullException.ThrowIfNull(options);
@@ -651,9 +657,10 @@ public static class NuGetCache
             catch (Exception ex) when (ex is HttpRequestException or NuGetProtocolException)
             {
                 // Record the failure and try the next source; reported only if nothing is found
-                if (AuthFailureClassifier.TryDescribeAuthFailure(ex, packageSource.Name, packageSource.Source, out var authMessage))
+                var effectiveSource = resolution.Repository.PackageSource;
+                if (AuthFailureClassifier.TryDescribeAuthFailure(ex, effectiveSource.Name, effectiveSource.Source, out var authMessage))
                 {
-                    authFailure ??= new AuthFailureInfo(packageSource.Name, packageSource.Source);
+                    authFailure ??= new AuthFailureInfo(effectiveSource.Name, effectiveSource.Source);
                     sourceErrors.Add(authMessage);
                 }
                 else
@@ -717,12 +724,12 @@ public static class NuGetCache
     private static void WarnWhenOptionsCannotApply(NuGetCacheOptions? options, NuGetLoggerAdapter? logger)
     {
         if (logger != null
-            && options is { Interactive: true } or { CredentialCallback: not null }
+            && options is { Interactive: true } or { CredentialCallback: not null } or { AuthenticationTimeout: not null }
             && !CredentialServiceRegistrar.IsDispatcherActive)
         {
             logger.LogWarning(
                 "A different NuGet credential service is already registered in this process; " +
-                "the Interactive and CredentialCallback options are not applied.");
+                "the Interactive, CredentialCallback and AuthenticationTimeout options are not applied.");
         }
     }
 

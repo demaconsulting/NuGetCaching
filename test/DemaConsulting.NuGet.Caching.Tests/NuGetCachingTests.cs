@@ -220,7 +220,7 @@ public class NuGetCachingTests
 
             // Act: invoke the public options overload
             var path = await NuGetCache.EnsureCachedAsync(
-                "TestPackage.SystemOptions", "1.0.0", root, options, CancellationToken.None);
+                "TestPackage.SystemOptions", "1.0.0", root, CancellationToken.None, options);
 
             // Assert: the package was cached and the callback supplied the credentials
             Assert.True(File.Exists(Path.Combine(path, ".nupkg.metadata")));

@@ -326,6 +326,104 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
+    ///     Tests that a configured callback makes the dispatcher bypass the last-known-good credential
+    ///     cache for non-proxy requests, that proxy requests and callback-less calls still use it, and
+    ///     that a call with a logger is routed to a logger-aware service rather than the default one.
+    /// </summary>
+    [Fact]
+    public void CredentialDispatcher_TryGetLastKnownGoodCredentialsFromCache_HonorsCallbackAndLoggerRouting()
+    {
+        var uri = new Uri("https://example.test/index.json");
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+
+        // No ambient scope: the default service answers (1.5.0 behavior)
+        Assert.True(dispatcher.TryGetLastKnownGoodCredentialsFromCache(uri, false, out _));
+
+        // Options without a callback or logger: the default service answers
+        using (CredentialDispatcher.BeginScope(new NuGetCacheOptions(), null))
+        {
+            Assert.True(dispatcher.TryGetLastKnownGoodCredentialsFromCache(uri, false, out _));
+        }
+
+        // A callback bypasses the cache for non-proxy requests only
+        var withCallback = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) => Task.FromResult<NuGetCredential?>(null),
+        };
+        using (CredentialDispatcher.BeginScope(withCallback, null))
+        {
+            Assert.False(dispatcher.TryGetLastKnownGoodCredentialsFromCache(uri, false, out var credentials));
+            Assert.Null(credentials);
+            Assert.True(dispatcher.TryGetLastKnownGoodCredentialsFromCache(uri, true, out _));
+        }
+
+        // A logger selects the logger-aware service, which holds no cached credentials
+        using (CredentialDispatcher.BeginScope(
+            new NuGetCacheOptions { Logger = new CapturingLogger() },
+            NuGetLoggerAdapter.Create(new CapturingLogger())))
+        {
+            Assert.False(dispatcher.TryGetLastKnownGoodCredentialsFromCache(uri, false, out _));
+        }
+    }
+
+    /// <summary>
+    ///     Tests that a call supplying only an authentication timeout (plus a logger) logs the
+    ///     host-owned-credential-service warning, mentioning the timeout.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_HostOwnedServiceWithTimeoutOnly_LogsWarningMentioningTimeout()
+    {
+        var original = HttpHandlerResourceV3.CredentialService;
+        try
+        {
+            // Arrange - a host application already registered its own credential service
+            HttpHandlerResourceV3.CredentialService = new Lazy<global::NuGet.Configuration.ICredentialService>(() => new CachedHitService());
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageVersions("Host.Owned", "1.0.0");
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+            var logger = new CapturingLogger();
+            var options = new NuGetCacheOptions { Logger = logger, AuthenticationTimeout = TimeSpan.FromSeconds(30) };
+
+            // Act
+            await NuGetCache.GetVersionsAsync(
+                "Host.Owned", false, settings, options, new CredentialServiceRegistrar(() => { }), CancellationToken.None);
+
+            // Assert
+            Assert.Contains(logger.Messages, m => m.Contains("AuthenticationTimeout", StringComparison.Ordinal));
+        }
+        finally
+        {
+            HttpHandlerResourceV3.CredentialService = original;
+        }
+    }
+
+    /// <summary>
+    ///     A credential service whose last-known-good cache always reports a hit.
+    /// </summary>
+    private sealed class CachedHitService : global::NuGet.Configuration.ICredentialService
+    {
+        /// <inheritdoc />
+        public bool HandlesDefaultCredentials => true;
+
+        /// <inheritdoc />
+        public Task<System.Net.ICredentials?> GetCredentialsAsync(
+            Uri uri,
+            System.Net.IWebProxy? proxy,
+            global::NuGet.Configuration.CredentialRequestType type,
+            string message,
+            CancellationToken cancellationToken) => Task.FromResult<System.Net.ICredentials?>(null);
+
+        /// <inheritdoc />
+        public bool TryGetLastKnownGoodCredentialsFromCache(Uri uri, bool isProxy, out System.Net.ICredentials? credentials)
+        {
+            credentials = new System.Net.NetworkCredential("cached", "cached");
+            return true;
+        }
+    }
+
+    /// <summary>
     ///     Runs <paramref name="test"/> with a freshly registered dispatching credential service,
     ///     restoring the process-wide credential service afterward.
     /// </summary>

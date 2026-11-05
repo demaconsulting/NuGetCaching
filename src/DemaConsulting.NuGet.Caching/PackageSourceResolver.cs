@@ -126,11 +126,10 @@ internal static class PackageSourceResolver
                 // Same as above, but the NuGet SDK wrapped the 401/403 as a protocol exception
                 // (e.g. while loading the v3 service index) rather than a raw HttpRequestException.
                 // Use the failing candidate's own URL for the same reason as above.
-                if (protocolErrorMessage == null)
-                {
-                    protocolErrorMessage = authMessage;
-                    protocolAuthFailure = new AuthFailureInfo(sourceName, candidate.PackageSource.Source);
-                }
+                // The authentication metadata is recorded independently of whichever diagnostic
+                // message was captured first, so a later 401/403 is never lost.
+                protocolErrorMessage ??= authMessage;
+                protocolAuthFailure ??= new AuthFailureInfo(sourceName, candidate.PackageSource.Source);
             }
             catch (NuGetProtocolException ex)
             {

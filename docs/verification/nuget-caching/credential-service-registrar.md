@@ -107,6 +107,11 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   surfaces as `OperationCanceledException` even when the callback ignores its token.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: concurrent calls with and without a
   callback do not see each other's options.
+- **CredentialDispatcher_TryGetLastKnownGoodCredentialsFromCache_HonorsCallbackAndLoggerRouting**: a
+  configured callback bypasses the last-known-good cache for non-proxy requests, and a call with a
+  logger is routed to the logger-aware non-interactive service.
+- **NuGetCache_GetVersionsAsync_HostOwnedServiceWithTimeoutOnly_LogsWarningMentioningTimeout**: with a
+  host-owned credential service, a timeout-only call logs the warning naming `AuthenticationTimeout`.
 
 ### Requirements Coverage
 

@@ -104,17 +104,18 @@ public class NuGetCacheOptionsTests
     {
         string? noRoot = null;
         await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.EnsureCachedAsync("Package", "1.0.0", noRoot, null!, TestContext.Current.CancellationToken));
+            async () => await NuGetCache.EnsureCachedAsync("Package", "1.0.0", noRoot, TestContext.Current.CancellationToken, null!));
         await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.GetVersionsAsync("Package", false, noRoot, null!, TestContext.Current.CancellationToken));
+            async () => await NuGetCache.GetVersionsAsync("Package", false, noRoot, TestContext.Current.CancellationToken, null!));
         await Assert.ThrowsAsync<ArgumentNullException>(
-            async () => await NuGetCache.GetVersionsAsync(null!, false, noRoot, new NuGetCacheOptions(), TestContext.Current.CancellationToken));
+            async () => await NuGetCache.GetVersionsAsync(null!, false, noRoot, TestContext.Current.CancellationToken, new NuGetCacheOptions()));
     }
 
     /// <summary>
-    ///     Tests that call forms valid in 1.5.0, including a <c>default</c> token, still bind to the
-    ///     1.5.0 overload (a source-compatibility check): the call succeeds against a root whose
-    ///     <c>nuget.config</c> clears all sources, instead of failing for missing options.
+    ///     Tests that call forms valid in 1.5.0, including a positional <c>default</c> token, still bind
+    ///     to the 1.5.0 overloads (a source-compatibility check): the calls compile unambiguously and
+    ///     behave as in 1.5.0 against a root whose <c>nuget.config</c> clears all sources, instead of
+    ///     failing for missing options.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
@@ -132,6 +133,10 @@ public class NuGetCacheOptionsTests
 
 #pragma warning disable xUnit1051 // the default token is the point of this call-form test
             var versions = await NuGetCache.GetVersionsAsync("Package", false, root, default);
+
+            // The 1.5.0 overload reports a missing package as exactly InvalidOperationException
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await NuGetCache.EnsureCachedAsync("Not.Cached." + Guid.NewGuid().ToString("N"), "1.0.0", root, default));
 #pragma warning restore xUnit1051
 
             Assert.Empty(versions);
@@ -143,6 +148,24 @@ public class NuGetCacheOptionsTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    /// <summary>
+    ///     Tests that the public options overloads take a required token followed by the options, last.
+    /// </summary>
+    [Fact]
+    public void NuGetCache_OptionsOverloads_Signature_HasRequiredTokenThenOptionsLast()
+    {
+        var ensure = typeof(NuGetCache).GetMethod(
+            "EnsureCachedAsync",
+            [typeof(string), typeof(string), typeof(string), typeof(CancellationToken), typeof(NuGetCacheOptions)])!;
+        var versions = typeof(NuGetCache).GetMethod(
+            "GetVersionsAsync",
+            [typeof(string), typeof(bool), typeof(string), typeof(CancellationToken), typeof(NuGetCacheOptions)])!;
+
+        Assert.NotNull(ensure);
+        Assert.NotNull(versions);
+        Assert.All([ensure, versions], method => Assert.All(method.GetParameters(), p => Assert.False(p.HasDefaultValue)));
     }
 
     /// <summary>

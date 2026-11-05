@@ -91,10 +91,11 @@ namespace DemaConsulting.NuGet.Caching;
 ///     </para>
 ///     <para>
 ///         Credentials, logging, and timeouts: pass a <see cref="NuGetCacheOptions"/> to the overloads
-///         <see cref="NuGetCache.EnsureCachedAsync(string, string, string?, NuGetCacheOptions, CancellationToken)"/> and
-///         <see cref="NuGetCache.GetVersionsAsync(string, bool, string?, NuGetCacheOptions, CancellationToken)"/>.
+///         <see cref="NuGetCache.EnsureCachedAsync(string, string, string?, CancellationToken, NuGetCacheOptions)"/> and
+///         <see cref="NuGetCache.GetVersionsAsync(string, bool, string?, CancellationToken, NuGetCacheOptions)"/>
+///         (the cancellation token is required and the options come last).
 ///         <see cref="NuGetCacheOptions.CredentialCallback"/> supplies a <see cref="NuGetCredential"/> when a source
-///         answers HTTP 401 (it is consulted before any credential provider; returning null falls through to the
+///         answers HTTP 401 or 403 (it is consulted before any credential provider; returning null falls through to the
 ///         providers, and a rejected credential is not requested again for the same address),
 ///         <see cref="NuGetCacheOptions.Interactive"/> allows credential providers to prompt,
 ///         <see cref="NuGetCacheOptions.Logger"/> receives NuGet messages, and

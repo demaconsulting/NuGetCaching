@@ -53,6 +53,10 @@ internal sealed class CredentialDispatcher : ICredentialService
         CreateInteractiveService,
         LazyThreadSafetyMode.ExecutionAndPublication);
 
+    private static readonly Lazy<ICredentialService> NonInteractiveLoggedService = new(
+        () => CreateProviderService(interactive: false),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
     private readonly ICredentialService _defaultService;
 
     /// <summary>
@@ -115,8 +119,32 @@ internal sealed class CredentialDispatcher : ICredentialService
         out ICredentials? credentials)
     {
         var context = Ambient.Value;
-        var service = context is { Options.Interactive: true } ? InteractiveService.Value : _defaultService;
-        return service.TryGetLastKnownGoodCredentialsFromCache(uri, isProxy, out credentials);
+        if (context == null)
+        {
+            return _defaultService.TryGetLastKnownGoodCredentialsFromCache(uri, isProxy, out credentials);
+        }
+
+        // A configured callback must be consulted before any cached credential (which may have been
+        // populated by a different call), so the cache is bypassed for non-proxy requests
+        if (!isProxy && context.Options.CredentialCallback != null)
+        {
+            credentials = null;
+            return false;
+        }
+
+        return SelectService(context).TryGetLastKnownGoodCredentialsFromCache(uri, isProxy, out credentials);
+    }
+
+    private ICredentialService SelectService(CallContext context)
+    {
+        if (context.Options.Interactive)
+        {
+            return InteractiveService.Value;
+        }
+
+        // Only a call with a logger needs the logger-aware service; otherwise the 1.5.0 default
+        // service (with a null logger) is used unchanged
+        return context.Logger != null ? NonInteractiveLoggedService.Value : _defaultService;
     }
 
     private async Task<ICredentials?> AcquireAsync(
@@ -149,7 +177,7 @@ internal sealed class CredentialDispatcher : ICredentialService
             context.Answered.TryRemove((uri.AbsoluteUri, type), out _);
         }
 
-        var service = context.Options.Interactive ? InteractiveService.Value : _defaultService;
+        var service = SelectService(context);
         return await service.GetCredentialsAsync(uri, proxy, type, message, cancellationToken);
     }
 
@@ -185,20 +213,22 @@ internal sealed class CredentialDispatcher : ICredentialService
             linked.Token);
     }
 
-    private static ICredentialService CreateInteractiveService()
+    private static ICredentialService CreateInteractiveService() => CreateProviderService(interactive: true);
+
+    private static ICredentialService CreateProviderService(bool interactive)
     {
-        // Mirrors DefaultCredentialServiceUtility.SetupDefaultCredentialService with
-        // nonInteractive: false; the logger forwards to whichever call is currently ambient
+        // Mirrors DefaultCredentialServiceUtility.SetupDefaultCredentialService; the logger forwards
+        // to whichever call is currently ambient
         var providers = new AsyncLazy<IEnumerable<ICredentialProvider>>(async () =>
         {
             var list = new List<ICredentialProvider>();
             var builder = new SecurePluginCredentialProviderBuilder(
-                PluginManager.Instance, canShowDialog: true, new AmbientNuGetLogger());
+                PluginManager.Instance, canShowDialog: interactive, new AmbientNuGetLogger());
             list.AddRange(await builder.BuildAllAsync());
             list.Add(new DefaultNetworkCredentialsCredentialProvider());
             return list;
         });
-        return new CredentialService(providers, nonInteractive: false, handlesDefaultCredentials: true);
+        return new CredentialService(providers, nonInteractive: !interactive, handlesDefaultCredentials: true);
     }
 
     private sealed record CallContext(NuGetCacheOptions Options, NuGetLoggerAdapter? Logger)

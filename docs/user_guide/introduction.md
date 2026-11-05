@@ -189,14 +189,16 @@ else
 ```csharp
 public static Task<string> EnsureCachedAsync(
     string packageId, string version, string? root,
-    NuGetCacheOptions options, CancellationToken cancellationToken = default)
+    CancellationToken cancellationToken, NuGetCacheOptions options)
 
 public static Task<IReadOnlyList<string>> GetVersionsAsync(
     string packageId, bool includePrerelease, string? root,
-    NuGetCacheOptions options, CancellationToken cancellationToken = default)
+    CancellationToken cancellationToken, NuGetCacheOptions options)
 ```
 
 Added in 1.6.0. Existing overloads are unchanged, and calls without options behave exactly as in 1.5.0.
+The cancellation token is required and `options` comes last, so that no 1.5.0 call shape (including a
+positional `default` token) can bind to these overloads; pass `CancellationToken.None` if you have no token.
 `options` is required (`ArgumentNullException` when null). When a source rejects a request with 401 or
 403 and the operation fails, these overloads throw `NuGetAuthenticationException` (derived from
 `InvalidOperationException`, with `Source` and `Uri`); the 1.5.0 overloads still throw a plain
@@ -225,7 +227,8 @@ var options = new NuGetCacheOptions
 
 try
 {
-    string path = await NuGetCache.EnsureCachedAsync("Private.Package", "1.0.0", null, options);
+    string path = await NuGetCache.EnsureCachedAsync(
+        "Private.Package", "1.0.0", null, CancellationToken.None, options);
 }
 catch (NuGetAuthenticationException ex)
 {
@@ -236,7 +239,8 @@ catch (NuGetAuthenticationException ex)
 **Limitations:**
 
 - The NuGet credential service is process-wide. If your application registered its own before the first
-  call, it is kept, the options cannot apply, and a warning is logged.
+  call, it is kept, the options cannot apply (`Interactive`, `CredentialCallback`, and
+  `AuthenticationTimeout` are ignored), and a warning is logged when a logger is supplied.
 - `AuthenticationTimeout` abandons the wait and cancels the token given to your callback. It does not
   guarantee that an external credential-provider plugin process is terminated.
 - Versions are NuGet-normalized strings and may carry `+metadata` or four parts.

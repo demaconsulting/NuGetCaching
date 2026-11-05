@@ -129,10 +129,15 @@ options overloads of `NuGetCache`:
 
 - **No scope** (1.5.0 calls): delegates to the original non-interactive default service, so
   behavior is exactly as before.
-- **Scope with a callback**: for non-proxy requests the callback is consulted first. A non-null
+- **Scope with a callback**: for non-proxy requests the last-known-good credential cache is bypassed
+  (so credentials cached by another call cannot take precedence over the callback) and the callback is
+  consulted first. A non-null
   `NuGetCredential` becomes the response; null falls through to the providers. A per-call set of
   (URI, request type) pairs is the loop guard: a second request for a pair already answered returns
   null, because the NuGet SDK asks again only after the previous credential was rejected.
+- **Scope with a logger, non-interactive**: a lazily created non-interactive `CredentialService` whose
+  plugin logger forwards to the ambient call's logger, so provider diagnostics reach the caller. Without
+  a logger the original default service is used unchanged.
 - **Interactive** (or any scope that needs providers): a lazily created `CredentialService` built from
   the secure plugin credential providers (dialogs allowed) and the default network credentials provider.
 - **Timeout**: acquisition runs under a linked cancellation token with `CancelAfter(AuthenticationTimeout)`
