@@ -6,7 +6,8 @@ System Requirements document.
 
 ## Required Functionality
 
-The NuGetCaching system shall provide a .NET library for programmatic NuGet package caching and
+The NuGetCaching system shall provide a .NET library for programmatic NuGet package caching,
+shall list the available versions of a NuGet package as strings (version discovery), and
 shall reject null arguments with a clear, actionable error.
 
 ## Verification Approach
@@ -14,6 +15,20 @@ shall reject null arguments with a clear, actionable error.
 System requirements are verified through integration-level tests that exercise the library through
 its public API against real NuGet infrastructure. Each test scenario names a specific test method
 that provides evidence for one or more system requirements.
+
+## Test Environment
+
+The standard xUnit test runner on Windows, Linux, or macOS with each supported target framework
+runtime installed. Tests run against either the live public NuGet feed (requires internet access)
+or a local `NuGetTestServer` (WireMock) on a random loopback port with a `nuget.config` supplied
+through the `root` argument, and use disposable temporary folders for the global packages cache.
+
+## Acceptance Criteria
+
+The system tests pass when every test scenario below succeeds on all supported target frameworks
+and platforms: known packages are cached and their folder returned, unknown packages and null
+arguments raise the documented exceptions, and version discovery returns the advertised versions
+as ascending normalized strings.
 
 ## Test Scenarios
 
@@ -53,6 +68,15 @@ the package.
 
 **Requirement coverage**: `Caching-Sys-NullValidation`.
 
+### NuGetCaching_GetVersionsAsync_WhenPackageHasVersions_ReturnsAscendingVersionStrings
+
+**Scenario**: The public `GetVersionsAsync` is called with `includePrerelease: true` and a `root`
+whose `nuget.config` points at a local test HTTP feed advertising unsorted versions.
+
+**Expected**: Returns normalized version strings in ascending semantic order.
+
+**Requirement coverage**: `Caching-Sys-VersionDiscovery`.
+
 ## Requirements Coverage
 
 - **`Caching-Sys-PackageCaching`**:
@@ -61,3 +85,5 @@ the package.
 - **`Caching-Sys-NullValidation`**:
   NuGetCaching_EnsureCachedAsync_WhenPackageIdIsNull_ThrowsArgumentNullException,
   NuGetCaching_EnsureCachedAsync_WhenVersionIsNull_ThrowsArgumentNullException
+- **`Caching-Sys-VersionDiscovery`**:
+  NuGetCaching_GetVersionsAsync_WhenPackageHasVersions_ReturnsAscendingVersionStrings

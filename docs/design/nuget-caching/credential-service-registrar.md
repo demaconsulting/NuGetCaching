@@ -2,7 +2,7 @@
 
 ![CredentialServiceRegistrar Structure](NuGetCachingView.svg)
 
-### Overview
+### Purpose
 
 `CredentialServiceRegistrar` (together with the `ICredentialServiceRegistrar` interface it
 implements) registers the NuGet SDK's default credential service once per process, in the
@@ -15,7 +15,12 @@ The interface is marked `internal` because it exists purely as a testability sea
 `CredentialServiceRegistrar` class is likewise `internal` because it is an implementation detail
 of the library and is not part of the public API surface.
 
-### Class Structure
+### Data Model
+
+The state of each `CredentialServiceRegistrar` instance is a single memoized registration
+(`Lazy<bool>` created with `LazyThreadSafetyMode.ExecutionAndPublication`); the invariant is
+that the registration action runs at most once per instance. `DefaultCredentialRegistrar` is
+the one shared, process-wide instance.
 
 #### ICredentialServiceRegistrar Interface
 
@@ -37,6 +42,9 @@ internal sealed class CredentialServiceRegistrar : ICredentialServiceRegistrar
 {
     internal static readonly ICredentialServiceRegistrar DefaultCredentialRegistrar = new CredentialServiceRegistrar();
 
+    internal CredentialServiceRegistrar();
+    internal CredentialServiceRegistrar(Action registration);
+
     public void EnsureRegistered();
 }
 ```
@@ -44,7 +52,10 @@ internal sealed class CredentialServiceRegistrar : ICredentialServiceRegistrar
 Default `ICredentialServiceRegistrar` implementation that registers the NuGet SDK's default
 credential service via `DefaultCredentialServiceUtility.SetupDefaultCredentialService`, memoized
 per instance so repeated calls on the same instance are cheap. `DefaultCredentialRegistrar` is
-the single, process-wide instance shared by every real (non-test) `EnsureCachedAsync` call.
+the single, process-wide instance shared by every real (non-test) `EnsureCachedAsync` call. The
+no-argument constructor registers the real credential service; the action-accepting
+constructor memoizes a caller-supplied registration action instead, so tests can count
+registrations (proving exactly-once behavior) without touching the NuGet SDK's static state.
 
 ### Design Decisions
 
@@ -93,7 +104,7 @@ were promoted from nested members of `NuGetCache` to top-level types in this sib
 free-standing static field into a static member of the `CredentialServiceRegistrar` class itself,
 so `NuGetCache` now references `CredentialServiceRegistrar.DefaultCredentialRegistrar`.
 
-### Method Descriptions
+### Key Methods
 
 #### `EnsureRegistered()`
 
@@ -105,3 +116,23 @@ restore pipeline. Subsequent calls on the same instance are a cheap, thread-safe
 
 Satisfies requirements `Caching-CredentialServiceRegistrar-RegisterOnce` and
 `Caching-CredentialServiceRegistrar-DefaultWiredToRealFlow`.
+
+### Error Handling
+
+The class performs no local error handling. Because registration is memoized with
+`Lazy<bool>` (`ExecutionAndPublication`), an exception thrown by the registration action
+propagates to the caller of `EnsureRegistered` and is cached for that instance, so later calls
+on the same instance rethrow it rather than retrying.
+
+### Dependencies
+
+- **NuGet** (OTS): `DefaultCredentialServiceUtility.SetupDefaultCredentialService` and
+  `NullLogger` from the NuGet client SDK.
+- BCL: `System.Lazy<T>`, `System.Threading.LazyThreadSafetyMode`.
+- No other units or subsystems.
+
+### Callers
+
+- `NuGetCache`, from both `EnsureCachedAsync` and `GetVersionsAsync`, via the injected
+  `ICredentialServiceRegistrar` (the shared `DefaultCredentialRegistrar` in production, a spy
+  double in tests).

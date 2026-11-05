@@ -105,6 +105,23 @@ public class PathHelpersTests
     }
 
     /// <summary>
+    ///     Test that SafePathCombine rejects a rooted relative path even when it resolves inside the base.
+    /// </summary>
+    [Fact]
+    public void PathHelpers_SafePathCombine_RootedPathInsideBase_ThrowsArgumentException()
+    {
+        // Arrange - a rooted (absolute) path that lies inside the base directory
+        var basePath = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "base"));
+        var rootedInsideBase = Path.Combine(basePath, "file.txt");
+        Assert.True(Path.IsPathRooted(rootedInsideBase));
+
+        // Act & Assert - the documented contract requires a relative path, so it is rejected
+        var exception = Assert.Throws<ArgumentException>(() =>
+            PathHelpers.SafePathCombine(basePath, rootedInsideBase));
+        Assert.Contains("Invalid path component", exception.Message);
+    }
+
+    /// <summary>
     ///     Test that SafePathCombine accepts a filename that starts with ".." but is not a traversal sequence.
     /// </summary>
     [Fact]

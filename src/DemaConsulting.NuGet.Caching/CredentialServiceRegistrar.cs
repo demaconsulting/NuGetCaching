@@ -70,16 +70,43 @@ internal sealed class CredentialServiceRegistrar : ICredentialServiceRegistrar
     /// </summary>
     internal static readonly ICredentialServiceRegistrar DefaultCredentialRegistrar = new CredentialServiceRegistrar();
 
-    private readonly Lazy<bool> _registered = new(
-        () =>
-        {
-            // nonInteractive: true - this is a library used in build tooling, not an
-            // interactive CLI, so credential providers must not attempt to show a UI prompt
-            DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
-            return true;
-        },
-        LazyThreadSafetyMode.ExecutionAndPublication);
+    private readonly Lazy<bool> _registered;
+
+    /// <summary>
+    ///     Initializes a new instance that registers the NuGet SDK's real default credential service.
+    /// </summary>
+    internal CredentialServiceRegistrar()
+        : this(RegisterDefaultCredentialService)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance that performs the supplied registration action at most once.
+    /// </summary>
+    /// <remarks>
+    ///     This overload exists so tests can count how many times registration actually runs
+    ///     without observing or resetting the NuGet SDK's process-wide static state.
+    /// </remarks>
+    /// <param name="registration">The registration action to memoize.</param>
+    internal CredentialServiceRegistrar(Action registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        _registered = new Lazy<bool>(
+            () =>
+            {
+                registration();
+                return true;
+            },
+            LazyThreadSafetyMode.ExecutionAndPublication);
+    }
 
     /// <inheritdoc />
     public void EnsureRegistered() => _ = _registered.Value;
+
+    private static void RegisterDefaultCredentialService()
+    {
+        // nonInteractive: true - this is a library used in build tooling, not an
+        // interactive CLI, so credential providers must not attempt to show a UI prompt
+        DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
+    }
 }

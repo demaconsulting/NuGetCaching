@@ -19,6 +19,17 @@ using a local `NuGetTestServer` (WireMock) to simulate NuGet v3 and v2 feed scen
 making real network calls. Each test scenario names a specific test method that provides evidence
 for one or more unit requirements.
 
+### Test Environment
+
+A local `NuGetTestServer` (WireMock) listening on a random loopback port to simulate v3 and v2
+feeds; no internet access, credentials, or machine-level NuGet configuration is required.
+
+### Acceptance Criteria
+
+All test scenarios below pass on every supported target framework: healthy feeds resolve a
+resource, `/index.json` protocol failures fall back to v2, non-index URLs get no fallback, and
+diagnostic messages appear only for actionable failures.
+
 ### Test Scenarios
 
 #### PackageSourceResolver_ResolveAsync_HealthyV3Index_ReturnsResourceForOriginalRepository

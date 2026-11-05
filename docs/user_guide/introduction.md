@@ -3,15 +3,22 @@
 ## Purpose
 
 This document is the user guide for DemaConsulting NuGet Caching, a library for ensuring
-NuGet packages are available in the local global packages cache.
+NuGet packages are available in the local global packages cache and for discovering the
+versions of a package that are available from the configured NuGet sources.
 
 ## Scope
 
 This user guide covers:
 
 - Installation of the library
-- Basic usage and examples
+- Basic usage and examples, including package caching and version discovery
 - API reference
+
+## References
+
+- [REF-1] Continuous Compliance Methodology, DEMA Consulting,
+  <https://github.com/demaconsulting/ContinuousCompliance>
+- [REF-2] NuGet Documentation, Microsoft, <https://learn.microsoft.com/nuget/>
 
 # Continuous Compliance
 
@@ -66,7 +73,7 @@ mapping is fully supported.
 ### NuGetCache
 
 The `NuGetCache` static class provides methods for ensuring NuGet packages are available in
-the local global packages cache.
+the local global packages cache and for discovering the versions of a package that exist.
 
 #### Methods
 
@@ -108,11 +115,70 @@ The absolute path to the cached package folder inside the global packages folder
 - `InvalidOperationException`: Thrown when the package cannot be found in any configured
   NuGet source.
 
+- `OperationCanceledException`: Thrown when `cancellationToken` is canceled; cancellation
+  propagates to the caller as `OperationCanceledException`.
+
 **Example:**
 
 ```csharp
 string path = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", "13.0.3");
 // path = "/home/user/.nuget/packages/newtonsoft.json/13.0.3"
+```
+
+##### GetVersionsAsync
+
+```csharp
+public static async Task<IReadOnlyList<string>> GetVersionsAsync(
+    string packageId,
+    bool includePrerelease = false,
+    string? root = null,
+    CancellationToken cancellationToken = default)
+```
+
+Gets the versions of a NuGet package available from the configured remote (HTTP/HTTPS)
+sources. Local folder sources, other non-HTTP sources, and the local global packages folder are not consulted.
+
+**Parameters:**
+
+- `packageId` (string): The NuGet package identifier. Must not be null.
+
+- `includePrerelease` (bool): When true, prerelease versions are included. Defaults to false.
+
+- `root` (string?): The directory from which to begin discovering `nuget.config` files, as for
+  `EnsureCachedAsync`. When null, defaults to the current working directory.
+
+- `cancellationToken` (CancellationToken): Optional cancellation token for the async operation.
+
+**Returns:**
+
+Normalized version strings (e.g. `1.0.0`), de-duplicated across sources and sorted in ascending
+semantic-version order. An empty list is returned when every queried source responds and none
+carries the package. If no versions are found and at least one source was unreachable or
+rejected the request, an `InvalidOperationException` describing each failed source is thrown.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `packageId` is null.
+
+- `OperationCanceledException`: Thrown when `cancellationToken` is canceled; cancellation
+  propagates to the caller as `OperationCanceledException`.
+
+- `InvalidOperationException`: Thrown when no versions were found and at least one source was
+  unreachable or rejected the request. The message describes each failed source.
+
+**Example:**
+
+```csharp
+IReadOnlyList<string> versions = await NuGetCache.GetVersionsAsync("Newtonsoft.Json");
+if (versions.Count > 0)
+{
+    string latest = versions[^1];
+    string path = await NuGetCache.EnsureCachedAsync("Newtonsoft.Json", latest);
+}
+else
+{
+    Console.WriteLine("No versions found.");
+}
 ```
 
 # Examples

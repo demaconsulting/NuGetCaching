@@ -22,6 +22,18 @@ source-enumeration flow, which is covered by `NuGetCacheServerTests`. A pure uni
 WireMock) additionally verifies the `GetPackagePath` path convention directly. Each test
 scenario names a specific test method that provides evidence for one or more unit requirements.
 
+### Test Environment
+
+A local `NuGetTestServer` (WireMock) listening on a random loopback port, and a disposable
+temporary global packages folder per test; no internet access is required. The `GetPackagePath`
+test is a pure unit test with no environment needs.
+
+### Acceptance Criteria
+
+All test scenarios below pass on every supported target framework: a package that is available is
+installed and its conventional path returned, absent and failing sources produce the documented
+empty or diagnostic results, and the package-path convention matches the NuGet layout.
+
 ### Test Scenarios
 
 #### PackageDownloader_TryDownloadAsync_PackageAvailable_ReturnsInstalledPackagePath

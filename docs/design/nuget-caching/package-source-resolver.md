@@ -2,7 +2,7 @@
 
 ![PackageSourceResolver Structure](NuGetCachingView.svg)
 
-### Overview
+### Purpose
 
 `PackageSourceResolver` is an internal static class that resolves the `FindPackageByIdResource`
 for a configured NuGet package source, in the DemaConsulting NuGet Caching library. It owns the
@@ -16,7 +16,11 @@ resolved, `PackageDownloader` uses it to download and install the package. Authe
 diagnosis is delegated to `AuthFailureClassifier` so that logic is not duplicated between
 resolution and download.
 
-### Class Structure
+### Data Model
+
+The class holds no instance state. Its only data type is the immutable `PackageSourceResolution`
+record struct below; the invariant is that `Resource` is non-null only when resolution succeeded,
+and `ErrorMessage` is set only for actionable source-level failures.
 
 #### PackageSourceResolution Record Struct
 
@@ -127,7 +131,7 @@ resolution algorithm, exception handling, and candidate-construction logic are u
 method was renamed from `GetFindPackageByIdResourceAsync` to `ResolveAsync` to read naturally as
 `PackageSourceResolver.ResolveAsync(...)` at the call site in `NuGetCache`.
 
-### Method Descriptions
+### Key Methods
 
 #### `ResolveAsync(...)`
 
@@ -187,3 +191,21 @@ configured with a v3-style URL.
 
 Satisfies requirements `Caching-PackageSourceResolver-FallbackOnProtocolError` and
 `Caching-PackageSourceResolver-NoFallbackForNonIndexUrl`.
+
+### Error Handling
+
+- **Handled locally**: `HttpRequestException` and `NuGetProtocolException` raised while
+  resolving a candidate are converted into a `PackageSourceResolution` carrying either an
+  actionable 401/403 diagnostic, a generic protocol-error message, or no message (transient
+  network failure); resolution then falls through to the next candidate where applicable.
+- **Propagated**: `OperationCanceledException` and all other exceptions propagate to the caller.
+
+### Dependencies
+
+- `AuthFailureClassifier` (authentication-failure diagnosis).
+- **NuGet** (OTS): `SourceRepository`, `FindPackageByIdResource`, `INuGetResourceProvider`,
+  and `NuGetProtocolException`.
+
+### Callers
+
+- `NuGetCache`, from both `EnsureCachedAsync` and `GetVersionsAsync`.

@@ -41,7 +41,7 @@ in the release artifacts.
 
 **Expected**: Exits 0 and correctly reads version tags and commit history.
 
-**Requirement coverage**: `Caching-OTS-BuildMark`.
+**Requirement coverage**: `Caching-OTS-BuildMark-GitIntegration`.
 
 #### BuildMark_IssueTracking
 
@@ -49,7 +49,7 @@ in the release artifacts.
 
 **Expected**: Exits 0 and correctly fetches and processes mock issues and pull requests.
 
-**Requirement coverage**: `Caching-OTS-BuildMark`.
+**Requirement coverage**: `Caching-OTS-BuildMark-IssueTracking`.
 
 #### BuildMark_KnownIssuesReporting
 
@@ -57,7 +57,7 @@ in the release artifacts.
 
 **Expected**: Exits 0 and correctly includes known issues.
 
-**Requirement coverage**: `Caching-OTS-BuildMark`.
+**Requirement coverage**: `Caching-OTS-BuildMark-KnownIssues`.
 
 #### BuildMark_RulesRouting
 
@@ -66,9 +66,12 @@ type rules.
 
 **Expected**: Exits 0 and correctly routes items to the expected sections.
 
-**Requirement coverage**: `Caching-OTS-BuildMark`.
+**Requirement coverage**: `Caching-OTS-BuildMark-RulesRouting`.
 
 ### Requirements Coverage
 
-- **`Caching-OTS-BuildMark`**: BuildMark_MarkdownReportGeneration, BuildMark_GitIntegration,
-  BuildMark_IssueTracking, BuildMark_KnownIssuesReporting, BuildMark_RulesRouting
+- **`Caching-OTS-BuildMark`**: BuildMark_MarkdownReportGeneration
+- **`Caching-OTS-BuildMark-GitIntegration`**: BuildMark_GitIntegration
+- **`Caching-OTS-BuildMark-IssueTracking`**: BuildMark_IssueTracking
+- **`Caching-OTS-BuildMark-KnownIssues`**: BuildMark_KnownIssuesReporting
+- **`Caching-OTS-BuildMark-RulesRouting`**: BuildMark_RulesRouting

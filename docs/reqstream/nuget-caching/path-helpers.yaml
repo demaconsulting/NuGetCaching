@@ -30,16 +30,20 @@ sections:
           - PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException
         children:
           - Caching-OTS-Polyfill
+          - Caching-OTS-Polyfill-ThrowIfNull
 
       - id: Caching-PathHelpers-RejectTraversal
         title: >-
           The path-combination utility shall reject any combination that would
-          escape the base directory, throwing ArgumentException.
+          escape the base directory, and any rooted relative path, throwing
+          ArgumentException.
         justification: |
           Prevents path-traversal vulnerabilities when constructing file paths from
           user-supplied or external inputs, which could otherwise allow access to
-          files outside the intended cache directory.
+          files outside the intended cache directory. A rooted path is rejected even
+          when it resolves inside the base so the relative-path contract is uniform.
         tests:
           - PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException
           - PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException
           - PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException
+          - PathHelpers_SafePathCombine_RootedPathInsideBase_ThrowsArgumentException

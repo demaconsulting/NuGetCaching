@@ -28,6 +28,22 @@ diagnostics, download error handling, status-code detection) is documented in th
 verification documents. Each test scenario below names a specific test method that provides
 evidence for one or more `NuGetCache`-level requirements.
 
+### Test Environment
+
+- **Live integration tests**: internet access to the public NuGet feed and the default NuGet
+  configuration of the host.
+- **Controlled integration tests**: a local `NuGetTestServer` (WireMock) on a random loopback
+  port, an injected `ISettings` pointing at it, and a disposable temporary global packages folder
+  per test; for `GetVersionsAsync`, a `root` directory containing a `nuget.config` that points at
+  the local feed. No internet access is required.
+
+### Acceptance Criteria
+
+All test scenarios below pass on every supported target framework: `EnsureCachedAsync` returns the
+cached package folder or fails with the documented exception, and `GetVersionsAsync` returns
+normalized, ascending, de-duplicated version strings (empty when not found), honors the prerelease
+flag, skips failing sources, and propagates cancellation.
+
 ### Test Scenarios
 
 #### NuGetCache_EnsureCachedAsync_ValidPackageId_ReturnsPackageFolder
@@ -264,6 +280,172 @@ spy-based test above (which proves invocation but never touches the real NuGet S
 
 **Requirement coverage**: `Caching-NuGetCache-HonorCredentials`.
 
+#### NuGetCache_GetVersionsAsync_MultipleVersions_ReturnsAscendingNormalizedStrings
+
+**Scenario**: A v3 feed advertises `1.10.0`, `1.2.0`, and `1.0` (unsorted, one non-normalized).
+
+**Expected**: Returns `1.0.0`, `1.2.0`, `1.10.0` - semantic (not lexical) order, normalized.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsOrdering`.
+
+#### NuGetCache_GetVersionsAsync_NonNormalizedVersions_ReturnsNormalizedStrings
+
+**Scenario**: A v3 feed advertises the non-normalized forms `1.0` and `2.0.0.0`.
+
+**Expected**: Returns `1.0.0` and `2.0.0`.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsNormalization`.
+
+#### NuGetCache_GetVersionsAsync_UnsortedVersions_ReturnsSemanticAscendingOrder
+
+**Scenario**: A v3 feed advertises `2.0.0`, `1.10.0`, `1.2.0`, and `1.9.0` (unsorted).
+
+**Expected**: Returns `1.2.0`, `1.9.0`, `1.10.0`, `2.0.0` - semantic (not lexical) order.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsOrdering`.
+
+#### NuGetCache_GetVersionsAsync_PrereleaseExcludedByDefault
+
+**Scenario**: The feed advertises `1.0.0-beta` and `1.0.0`; `includePrerelease` is false.
+
+**Expected**: Returns only `1.0.0`.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsPrerelease`.
+
+#### NuGetCache_GetVersionsAsync_IncludePrerelease_ReturnsPrereleaseVersions
+
+**Scenario**: The same versions with `includePrerelease` true.
+
+**Expected**: Returns `1.0.0-beta` then `1.0.0`.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsPrerelease`.
+
+#### NuGetCache_GetVersionsAsync_PackageAbsent_ReturnsEmptyList
+
+**Scenario**: The feed does not carry the requested package (HTTP 404 on its version list).
+
+**Expected**: Returns an empty list without throwing.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsNotFound`.
+
+#### NuGetCache_GetVersionsAsync_VersionsInMultipleSources_MergedDeduplicated
+
+**Scenario**: Two feeds advertise overlapping version sets.
+
+**Expected**: Returns the union, de-duplicated, in ascending order.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsDeduplication`.
+
+#### NuGetCache_GetVersionsAsync_SourceUnreachable_ContinuesToNextSource
+
+**Scenario**: The first feed drops the connection on the version list request; the second is healthy.
+
+**Expected**: Returns the versions from the second feed.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsSourceFailure`.
+
+#### NuGetCache_GetVersionsAsync_AllSourcesFail_ThrowsInvalidOperationException
+
+**Scenario**: The only configured feed drops the connection on the version list request.
+
+**Expected**: Throws `InvalidOperationException` whose message names the package and the failing
+source.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsAllSourcesFail`.
+
+#### NuGetCache_GetVersionsAsync_PackageSourceMapping_HonorsMapping
+
+**Scenario**: Both feeds carry the package but package source mapping maps it only to the second.
+
+**Expected**: Returns only the second feed's versions and the first feed receives no requests.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsSources`.
+
+#### NuGetCache_GetVersionsAsync_LocalFolderSource_IsIgnored
+
+**Scenario**: The settings list a remote feed advertising `1.0.0` and a local folder feed
+containing a valid `.nupkg` for `9.9.9`.
+
+**Expected**: Returns only `1.0.0`; the local folder source is not queried.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsSources`.
+
+#### NuGetCache_GetVersionsAsync_NonHttpNonLocalSource_IsIgnored
+
+**Scenario**: The settings list a remote HTTP feed advertising `1.0.0` and a source that is neither
+local nor HTTP/HTTPS (a custom-scheme URI).
+
+**Expected**: Returns only `1.0.0`; the non-HTTP source is ignored rather than queried.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsSources`.
+
+#### NuGetCache_GetVersionsAsync_CancelledToken_ThrowsOperationCanceledException
+
+**Scenario**: `GetVersionsAsync` is called with an already-cancelled token.
+
+**Expected**: Throws `OperationCanceledException` (or a derived type); cancellation is not
+swallowed as a skipped source.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsCancellation`.
+
+#### NuGetCache_GetVersionsAsync_CancelledTokenNoHttpSources_ThrowsBeforeRegistration
+
+**Scenario**: `GetVersionsAsync` is called with an already-cancelled token, settings that contain
+no sources, and a spy `ICredentialServiceRegistrar`.
+
+**Expected**: Throws `OperationCanceledException` (or a derived type) and the registrar is never
+invoked, proving cancellation is observed before registration and source enumeration.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsCancellation`.
+
+#### NuGetCache_GetVersionsAsync_AuthenticatedSourceWithCredentials_ReturnsVersions
+
+**Scenario**: A Basic Auth-protected feed with matching `packageSourceCredentials`.
+
+**Expected**: Returns the advertised versions.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsAuth`.
+
+#### NuGetCache_GetVersionsAsync_AnySource_InvokesCredentialServiceRegistrar
+
+**Scenario**: The internal overload is called with a spy `ICredentialServiceRegistrar`.
+
+**Expected**: The spy is invoked exactly once.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsAuth`.
+
+#### NuGetCache_GetVersionsAsync_ReturnedVersionUsableByEnsureCachedAsync
+
+**Scenario**: A version returned by `GetVersionsAsync` is passed to `EnsureCachedAsync`.
+
+**Expected**: The package is installed (the `.nupkg.metadata` sentinel exists).
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersions`.
+
+#### NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings
+
+**Scenario**: Reflection over the public `GetVersionsAsync` signature.
+
+**Expected**: Returns `Task<IReadOnlyList<string>>` and no parameter type is from a NuGet namespace.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersions`.
+
+#### NuGetCache_GetVersionsAsync_NullPackageId_ThrowsArgumentNullException
+
+**Scenario**: The public `GetVersionsAsync` is called with a null `packageId`.
+
+**Expected**: Throws `ArgumentNullException`.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsNullArguments`.
+
+#### NuGetCache_GetVersionsAsync_NullInternalArguments_ThrowsArgumentNullException
+
+**Scenario**: The internal overload is called with a null `packageId`, `settings`, or registrar.
+
+**Expected**: Throws `ArgumentNullException` in each case.
+
+**Requirement coverage**: `Caching-NuGetCache-GetVersionsNullArguments`.
+
 ### Requirements Coverage
 
 - **`Caching-NuGetCache-EnsureCached`**:
@@ -291,6 +473,38 @@ spy-based test above (which proves invocation but never touches the real NuGet S
   NuGetCache_EnsureCachedAsync_DefaultRegistrar_RegistersRealCredentialService
 - **`Caching-NuGetCache-AuthDiagnostic`**:
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
+- **`Caching-NuGetCache-GetVersions`**:
+  NuGetCache_GetVersionsAsync_ReturnedVersionUsableByEnsureCachedAsync,
+  NuGetCache_GetVersionsAsync_PublicSignature_ExposesOnlyStrings
+- **`Caching-NuGetCache-GetVersionsNormalization`**:
+  NuGetCache_GetVersionsAsync_NonNormalizedVersions_ReturnsNormalizedStrings
+- **`Caching-NuGetCache-GetVersionsOrdering`**:
+  NuGetCache_GetVersionsAsync_MultipleVersions_ReturnsAscendingNormalizedStrings,
+  NuGetCache_GetVersionsAsync_UnsortedVersions_ReturnsSemanticAscendingOrder
+- **`Caching-NuGetCache-GetVersionsDeduplication`**:
+  NuGetCache_GetVersionsAsync_VersionsInMultipleSources_MergedDeduplicated
+- **`Caching-NuGetCache-GetVersionsSources`**:
+  NuGetCache_GetVersionsAsync_PackageSourceMapping_HonorsMapping,
+  NuGetCache_GetVersionsAsync_LocalFolderSource_IsIgnored,
+  NuGetCache_GetVersionsAsync_NonHttpNonLocalSource_IsIgnored
+- **`Caching-NuGetCache-GetVersionsAuth`**:
+  NuGetCache_GetVersionsAsync_AuthenticatedSourceWithCredentials_ReturnsVersions,
+  NuGetCache_GetVersionsAsync_AnySource_InvokesCredentialServiceRegistrar
+- **`Caching-NuGetCache-GetVersionsSourceFailure`**:
+  NuGetCache_GetVersionsAsync_SourceUnreachable_ContinuesToNextSource
+- **`Caching-NuGetCache-GetVersionsAllSourcesFail`**:
+  NuGetCache_GetVersionsAsync_AllSourcesFail_ThrowsInvalidOperationException
+- **`Caching-NuGetCache-GetVersionsCancellation`**:
+  NuGetCache_GetVersionsAsync_CancelledToken_ThrowsOperationCanceledException,
+  NuGetCache_GetVersionsAsync_CancelledTokenNoHttpSources_ThrowsBeforeRegistration
+- **`Caching-NuGetCache-GetVersionsPrerelease`**:
+  NuGetCache_GetVersionsAsync_PrereleaseExcludedByDefault,
+  NuGetCache_GetVersionsAsync_IncludePrerelease_ReturnsPrereleaseVersions
+- **`Caching-NuGetCache-GetVersionsNotFound`**:
+  NuGetCache_GetVersionsAsync_PackageAbsent_ReturnsEmptyList
+- **`Caching-NuGetCache-GetVersionsNullArguments`**:
+  NuGetCache_GetVersionsAsync_NullPackageId_ThrowsArgumentNullException,
+  NuGetCache_GetVersionsAsync_NullInternalArguments_ThrowsArgumentNullException
 - **`Caching-NuGetCache-NotFound`**:
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ThrowsInvalidOperationException,
   NuGetCache_EnsureCachedAsync_PackageAbsentFromAllSources_ExceptionMessageContainsPackageIdAndVersion,

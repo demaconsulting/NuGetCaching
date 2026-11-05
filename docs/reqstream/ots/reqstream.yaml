@@ -9,23 +9,56 @@ sections:
       - title: ReqStream Requirements
         requirements:
           - id: Caching-OTS-ReqStream
-            title: >-
-              ReqStream shall process requirements and test evidence to produce
-              reports, a justifications document, and a trace matrix, and shall
-              enforce that every requirement is linked to passing test evidence.
+            title: ReqStream shall process requirements files and TRX test evidence.
             justification: |
-              DemaConsulting.ReqStream processes requirements YAML files and TRX test-result files
-              to produce a requirements report, justifications document, and traceability matrix.
-              It supports filtering requirements by tags and linting requirements files for issues.
-              When run with --enforce, it exits with a non-zero code if any requirement lacks test
-              evidence, making unproven requirements a build-breaking condition. A successful
-              pipeline run with --enforce proves all requirements are covered and that ReqStream
-              is functioning correctly across all of these capabilities.
+              DemaConsulting.ReqStream processes requirements YAML files and TRX test-result
+              files, which is the basis for every other ReqStream output. A successful pipeline
+              run proves the tool is functioning.
             tags: [ots]
             tests:
               - ReqStream_RequirementsProcessing
+
+          - id: Caching-OTS-ReqStream-TraceMatrix
+            title: ReqStream shall produce a trace matrix linking requirements to test evidence.
+            justification: |
+              The trace matrix is the compliance record that proves each requirement is covered
+              by passing tests.
+            tags: [ots]
+            tests:
               - ReqStream_TraceMatrix
+
+          - id: Caching-OTS-ReqStream-ReportExport
+            title: ReqStream shall export a requirements report and a justifications document.
+            justification: |
+              The requirements report and justifications document are part of the compliance
+              record shipped with each release.
+            tags: [ots]
+            tests:
               - ReqStream_ReportExport
+
+          - id: Caching-OTS-ReqStream-TagsFiltering
+            title: ReqStream shall filter requirements by tag.
+            justification: |
+              Tag filtering lets subsets of requirements be exported or enforced separately.
+            tags: [ots]
+            tests:
               - ReqStream_TagsFiltering
+
+          - id: Caching-OTS-ReqStream-EnforcementMode
+            title: >-
+              ReqStream shall exit with a non-zero code when enforcement is enabled and any
+              requirement lacks passing test evidence.
+            justification: |
+              Making unproven requirements a build-breaking condition is what guarantees that
+              all requirements are covered by passing tests.
+            tags: [ots]
+            tests:
               - ReqStream_EnforcementMode
+
+          - id: Caching-OTS-ReqStream-Lint
+            title: ReqStream shall lint requirements files for issues.
+            justification: |
+              Linting catches malformed requirements and broken links before reports are generated.
+            tags: [ots]
+            tests:
               - ReqStream_Lint

@@ -141,7 +141,7 @@ the base directory.
 
 **Expected**: Throws `ArgumentNullException` with `ParamName` equal to `"basePath"`.
 
-**Requirement coverage**: `Caching-OTS-Polyfill`.
+**Requirement coverage**: `Caching-OTS-Polyfill-ThrowIfNull`.
 
 #### PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException
 
@@ -150,7 +150,7 @@ the base directory.
 
 **Expected**: Throws `ArgumentNullException` with `ParamName` equal to `"relativePath"`.
 
-**Requirement coverage**: `Caching-OTS-Polyfill`.
+**Requirement coverage**: `Caching-OTS-Polyfill-ThrowIfNull`.
 
 ### Requirements Coverage
 
@@ -163,6 +163,7 @@ the base directory.
   PathHelpers_SafePathCombine_EmptyRelativePath_ReturnsBasePath,
   PathHelpers_SafePathCombine_SimpleFilename_CombinesCorrectly,
   PathHelpers_SafePathCombine_NestedPaths_CombinesCorrectly,
-  PathHelpers_SafePathCombine_GuidBasedFilename_CombinesSuccessfully,
+  PathHelpers_SafePathCombine_GuidBasedFilename_CombinesSuccessfully
+- **`Caching-OTS-Polyfill-ThrowIfNull`**:
   PathHelpers_SafePathCombine_NullBasePath_ThrowsArgumentNullException,
   PathHelpers_SafePathCombine_NullRelativePath_ThrowsArgumentNullException

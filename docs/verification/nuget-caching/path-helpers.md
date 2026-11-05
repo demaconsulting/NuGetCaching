@@ -14,6 +14,16 @@ Unit requirements are verified by tests that exercise `PathHelpers.SafePathCombi
 of valid and invalid input combinations. Each test scenario names a specific test method that
 provides evidence for the unit requirement.
 
+### Test Environment
+
+No setup beyond the standard test runner: the tests are pure unit tests that use the local file
+system path syntax of the host OS and require no network, external service, or configuration.
+
+### Acceptance Criteria
+
+All test scenarios below pass on every supported target framework: valid inputs return the
+expected combined path, and every traversal input is rejected with the documented exception.
+
 ### Test Scenarios
 
 #### PathHelpers_SafePathCombine_ValidPaths_CombinesCorrectly
@@ -47,7 +57,16 @@ would escape the base directory.
 
 **Scenario**: `SafePathCombine` is called with an absolute path as the relative component.
 
-**Expected**: Throws `ArgumentException` because an absolute path escapes the base directory.
+**Expected**: Throws `ArgumentException` because the relative component must not be rooted.
+
+**Requirement coverage**: `Caching-PathHelpers-RejectTraversal`.
+
+#### PathHelpers_SafePathCombine_RootedPathInsideBase_ThrowsArgumentException
+
+**Scenario**: `SafePathCombine` is called with a rooted relative component that resolves to a location
+inside the base directory.
+
+**Expected**: Throws `ArgumentException`; rooted relative paths are rejected even when contained.
 
 **Requirement coverage**: `Caching-PathHelpers-RejectTraversal`.
 
@@ -133,4 +152,5 @@ component.
 - **`Caching-PathHelpers-RejectTraversal`**:
   PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException,
   PathHelpers_SafePathCombine_DoubleDotsInMiddle_ThrowsArgumentException,
-  PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException
+  PathHelpers_SafePathCombine_AbsolutePath_ThrowsArgumentException,
+  PathHelpers_SafePathCombine_RootedPathInsideBase_ThrowsArgumentException

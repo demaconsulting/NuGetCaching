@@ -13,30 +13,55 @@ sections:
       - id: Caching-AuthFailureClassifier-DetectUnauthorized
         title: >-
           The authentication-failure classifier shall detect an HTTP 401 or 403
-          status code anywhere in an exception's InnerException chain - whether
-          exposed via a strongly typed status-code property or embedded in an
-          exception message - and shall build an actionable diagnostic message
-          identifying the source and the detected status; the classifier shall
-          not report a false positive for an unrelated exception or an unrelated
-          standalone number that resembles a status code.
+          status code in an exception, whether exposed via a strongly typed
+          status-code property or embedded in the exception message.
         justification: |
           The NuGet SDK does not consistently expose the failing HTTP status code
           as a strongly typed property, and authentication failures are frequently
-          wrapped in a NuGetProtocolException whose message - or whose
-          InnerException's message - simply embeds the reason-phrase text.
-          Detecting this consistently across every target framework and exception
-          shape is what makes an actionable 401/403 diagnostic possible for both
-          PackageSourceResolver and PackageDownloader, rather than an
-          indistinguishable "not found" outcome.
+          wrapped in a NuGetProtocolException whose message simply embeds the
+          reason-phrase text. Detecting both shapes is what makes an actionable
+          401/403 diagnostic possible for both PackageSourceResolver and
+          PackageDownloader, rather than an indistinguishable "not found" outcome.
         tests:
           - AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage
           - AuthFailureClassifier_TryDescribeAuthFailure_403InMessage_ReturnsTrueWithActionableMessage
-          - AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInMessage_ReturnsFalse
-          - AuthFailureClassifier_TryDescribeAuthFailure_UnrelatedNumberInMessage_ReturnsFalse
-          - AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInInnerException_ReturnsTrue
-          - AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInDeeplyNestedInnerException_ReturnsTrue
-          - AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInFullChain_ReturnsFalse
           - AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithStatusCodeProperty_ReturnsTrue
           - AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithForbiddenStatusCodeProperty_ReturnsTrue
+
+      - id: Caching-AuthFailureClassifier-DetectInInnerChain
+        title: >-
+          The authentication-failure classifier shall detect an HTTP 401 or 403
+          status code located anywhere in an exception's InnerException chain.
+        justification: |
+          The NuGet SDK wraps the originating HTTP failure in outer exceptions, so
+          the status code is frequently present only in a nested InnerException.
+        tests:
+          - AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInInnerException_ReturnsTrue
+          - AuthFailureClassifier_TryDescribeAuthFailure_StatusCodeInDeeplyNestedInnerException_ReturnsTrue
+
+      - id: Caching-AuthFailureClassifier-NoFalsePositive
+        title: >-
+          The authentication-failure classifier shall not report an authentication
+          failure for an unrelated exception, an unrelated status code, or an
+          unrelated standalone number that resembles a status code.
+        justification: |
+          A false positive would present a misleading credentials diagnostic for a
+          transient network or server failure and hide the real cause.
+        tests:
+          - AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInMessage_ReturnsFalse
+          - AuthFailureClassifier_TryDescribeAuthFailure_UnrelatedNumberInMessage_ReturnsFalse
+          - AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInFullChain_ReturnsFalse
           - AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithUnrelatedStatusCodeProperty_ReturnsFalse
+
+      - id: Caching-AuthFailureClassifier-ActionableMessage
+        title: >-
+          When the authentication-failure classifier detects a 401 or 403 status,
+          it shall build a diagnostic message identifying the source and the
+          detected status and including the original exception text.
+        justification: |
+          Callers need to know which source rejected the request and with which
+          status, together with the underlying error text, to fix a credentials
+          problem without further investigation.
+        tests:
+          - AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage
           - AuthFailureClassifier_TryDescribeAuthFailure_MatchFound_MessageIncludesOriginalExceptionText

@@ -42,7 +42,7 @@ results.
 
 **Expected**: Produces a correctly linked trace matrix.
 
-**Requirement coverage**: `Caching-OTS-ReqStream`.
+**Requirement coverage**: `Caching-OTS-ReqStream-TraceMatrix`.
 
 #### ReqStream_ReportExport
 
@@ -50,7 +50,7 @@ results.
 
 **Expected**: Produces a correctly formatted requirements report.
 
-**Requirement coverage**: `Caching-OTS-ReqStream`.
+**Requirement coverage**: `Caching-OTS-ReqStream-ReportExport`.
 
 #### ReqStream_TagsFiltering
 
@@ -58,7 +58,7 @@ results.
 
 **Expected**: Returns only requirements matching the specified tags.
 
-**Requirement coverage**: `Caching-OTS-ReqStream`.
+**Requirement coverage**: `Caching-OTS-ReqStream-TagsFiltering`.
 
 #### ReqStream_EnforcementMode
 
@@ -67,7 +67,7 @@ coverage.
 
 **Expected**: Exits 0; would exit non-zero if any requirement lacked coverage.
 
-**Requirement coverage**: `Caching-OTS-ReqStream`.
+**Requirement coverage**: `Caching-OTS-ReqStream-EnforcementMode`.
 
 #### ReqStream_Lint
 
@@ -76,9 +76,13 @@ deliberate issues.
 
 **Expected**: Correctly identifies and reports the issues.
 
-**Requirement coverage**: `Caching-OTS-ReqStream`.
+**Requirement coverage**: `Caching-OTS-ReqStream-Lint`.
 
 ### Requirements Coverage
 
-- **`Caching-OTS-ReqStream`**: ReqStream_RequirementsProcessing, ReqStream_TraceMatrix,
-  ReqStream_ReportExport, ReqStream_TagsFiltering, ReqStream_EnforcementMode, ReqStream_Lint
+- **`Caching-OTS-ReqStream`**: ReqStream_RequirementsProcessing
+- **`Caching-OTS-ReqStream-TraceMatrix`**: ReqStream_TraceMatrix
+- **`Caching-OTS-ReqStream-ReportExport`**: ReqStream_ReportExport
+- **`Caching-OTS-ReqStream-TagsFiltering`**: ReqStream_TagsFiltering
+- **`Caching-OTS-ReqStream-EnforcementMode`**: ReqStream_EnforcementMode
+- **`Caching-OTS-ReqStream-Lint`**: ReqStream_Lint

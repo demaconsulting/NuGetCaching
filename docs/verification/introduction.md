@@ -17,7 +17,7 @@ This document covers the verification design for the same software items describ
 *NuGetCaching Software Design Document*:
 
 - **NuGetCaching** — the system as a whole
-- **NuGetCache** — the public API unit providing `EnsureCachedAsync`
+- **NuGetCache** — the public API unit providing `EnsureCachedAsync` and `GetVersionsAsync`
 - **PathHelpers** — the internal safe path-combination utility
 - **PackageSourceResolver** — the internal source-resolution utility, including v2 fallback
 - **PackageDownloader** — the internal download-and-install utility and package-path convention

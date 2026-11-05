@@ -10,21 +10,47 @@ sections:
         requirements:
           - id: Caching-OTS-BuildMark
             title: >-
-              BuildMark shall generate build-notes documentation from GitHub Actions
-              metadata, Git history, issue and pull-request tracking, known-issues
-              reporting, and rules-based routing.
+              BuildMark shall generate a markdown build-notes document from GitHub
+              Actions metadata.
             justification: |
-              DemaConsulting.BuildMark queries the GitHub API to capture workflow run details,
-              reads Git version tags and commit history, fetches and processes GitHub issues and
-              pull requests, includes open known issues in the generated report, and routes items
-              to report sections based on label and type rules. It renders all of this as a
-              markdown build-notes document included in the release artifacts. It runs as part of
-              the same CI pipeline that produces the TRX test results, so a successful pipeline
-              run is evidence that BuildMark executed without error.
+              DemaConsulting.BuildMark queries the GitHub API to capture workflow run details and
+              renders them as a markdown build-notes document included in the release artifacts.
+              It runs as part of the same CI pipeline that produces the TRX test results, so a
+              successful pipeline run is evidence that BuildMark executed without error.
             tags: [ots]
             tests:
               - BuildMark_MarkdownReportGeneration
+
+          - id: Caching-OTS-BuildMark-GitIntegration
+            title: BuildMark shall read Git version tags and commit history.
+            justification: |
+              Build notes are scoped between version tags, so BuildMark must read tags and
+              commit history to determine what changed in a release.
+            tags: [ots]
+            tests:
               - BuildMark_GitIntegration
+
+          - id: Caching-OTS-BuildMark-IssueTracking
+            title: BuildMark shall fetch and process GitHub issues and pull requests.
+            justification: |
+              Issues and pull requests describe the changes included in a release and are the
+              source of the build-notes content.
+            tags: [ots]
+            tests:
               - BuildMark_IssueTracking
+
+          - id: Caching-OTS-BuildMark-KnownIssues
+            title: BuildMark shall include open known issues in the generated report.
+            justification: |
+              Release reviewers need open known issues reported alongside the changes.
+            tags: [ots]
+            tests:
               - BuildMark_KnownIssuesReporting
+
+          - id: Caching-OTS-BuildMark-RulesRouting
+            title: BuildMark shall route items to report sections based on label and type rules.
+            justification: |
+              Routing rules place each change in the correct section of the build notes.
+            tags: [ots]
+            tests:
               - BuildMark_RulesRouting

@@ -43,7 +43,7 @@ report from a test configuration and evidence store.
 
 **Expected**: Exits 0 and produces a non-empty review report.
 
-**Requirement coverage**: `Caching-OTS-ReviewMark`.
+**Requirement coverage**: `Caching-OTS-ReviewMark-ReportGeneration`.
 
 #### ReviewMark_IndexScan
 
@@ -52,7 +52,7 @@ report from a test configuration and evidence store.
 
 **Expected**: Exits 0 and produces a correctly structured `index.json`.
 
-**Requirement coverage**: `Caching-OTS-ReviewMark-Operations`.
+**Requirement coverage**: `Caching-OTS-ReviewMark-IndexScan`.
 
 #### ReviewMark_WorkingDirectoryOverride
 
@@ -61,7 +61,7 @@ operations.
 
 **Expected**: Exits 0 and resolves paths relative to the specified directory.
 
-**Requirement coverage**: `Caching-OTS-ReviewMark-Operations`.
+**Requirement coverage**: `Caching-OTS-ReviewMark-WorkingDirectory`.
 
 #### ReviewMark_Enforce
 
@@ -70,7 +70,7 @@ issues.
 
 **Expected**: Exits with a non-zero exit code when review issues are present.
 
-**Requirement coverage**: `Caching-OTS-ReviewMark-Operations`.
+**Requirement coverage**: `Caching-OTS-ReviewMark-Enforce`.
 
 #### ReviewMark_Elaborate
 
@@ -79,7 +79,7 @@ named review set.
 
 **Expected**: Exits 0 and prints the review-set ID, fingerprint, and file list.
 
-**Requirement coverage**: `Caching-OTS-ReviewMark-Operations`.
+**Requirement coverage**: `Caching-OTS-ReviewMark-Elaborate`.
 
 #### ReviewMark_Lint
 
@@ -88,10 +88,14 @@ issues.
 
 **Expected**: Correctly reports structural and semantic issues found in the test definition.
 
-**Requirement coverage**: `Caching-OTS-ReviewMark-Operations`.
+**Requirement coverage**: `Caching-OTS-ReviewMark-Lint`.
 
 ### Requirements Coverage
 
-- **`Caching-OTS-ReviewMark`**: ReviewMark_ReviewPlanGeneration, ReviewMark_ReviewReportGeneration
-- **`Caching-OTS-ReviewMark-Operations`**: ReviewMark_IndexScan, ReviewMark_WorkingDirectoryOverride,
-  ReviewMark_Enforce, ReviewMark_Elaborate, ReviewMark_Lint
+- **`Caching-OTS-ReviewMark`**: ReviewMark_ReviewPlanGeneration
+- **`Caching-OTS-ReviewMark-ReportGeneration`**: ReviewMark_ReviewReportGeneration
+- **`Caching-OTS-ReviewMark-IndexScan`**: ReviewMark_IndexScan
+- **`Caching-OTS-ReviewMark-WorkingDirectory`**: ReviewMark_WorkingDirectoryOverride
+- **`Caching-OTS-ReviewMark-Enforce`**: ReviewMark_Enforce
+- **`Caching-OTS-ReviewMark-Elaborate`**: ReviewMark_Elaborate
+- **`Caching-OTS-ReviewMark-Lint`**: ReviewMark_Lint
