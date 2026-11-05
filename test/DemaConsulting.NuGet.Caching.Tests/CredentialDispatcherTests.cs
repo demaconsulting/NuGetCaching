@@ -405,6 +405,81 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
+    ///     Tests that a callback that blocks the calling thread synchronously (never returning its
+    ///     task) is still bounded by <see cref="NuGetCacheOptions.AuthenticationTimeout"/>.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_CallbackBlocksSynchronously_TimesOutPromptly()
+    {
+        // Arrange
+        using var release = new ManualResetEventSlim(false);
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) =>
+            {
+                release.Wait(TimeSpan.FromSeconds(30));
+                return Task.FromResult<NuGetCredential?>(null);
+            },
+            AuthenticationTimeout = TimeSpan.FromMilliseconds(200),
+        };
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            // Act
+            var call = dispatcher.GetCredentialsAsync(
+                new Uri("http://localhost/feed"), null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+
+            // Assert - canceled within a bounded time, long before the blocked callback would return
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await call.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10));
+            Assert.ThrowsAny<OperationCanceledException>(scope.ThrowIfTimedOut);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    /// <summary>
+    ///     Tests that registration never overwrites a host service that appears between the default
+    ///     service setup and the final assignment, and installs the dispatcher otherwise.
+    /// </summary>
+    [Fact]
+    public void CredentialServiceRegistrar_Register_HostServiceAppearsBeforeAssignment_IsNotOverwritten()
+    {
+        var original = HttpHandlerResourceV3.CredentialService;
+        try
+        {
+            var defaultLazy = new Lazy<global::NuGet.Configuration.ICredentialService>(() => new CachedHitService());
+            var hostOwned = new Lazy<global::NuGet.Configuration.ICredentialService>(() => new CachedHitService());
+
+            // Host service shows up on the re-check read immediately before assignment
+            Lazy<global::NuGet.Configuration.ICredentialService>? store = null;
+            var reads = 0;
+            var assigned = false;
+            CredentialServiceRegistrar.Register(
+                () => ++reads >= 3 ? hostOwned : store,
+                v => assigned = true,
+                () => store = defaultLazy);
+            Assert.False(assigned);
+
+            // No interference: the wrapper is assigned
+            store = null;
+            Lazy<global::NuGet.Configuration.ICredentialService>? result = null;
+            CredentialServiceRegistrar.Register(() => store, v => result = v, () => store = defaultLazy);
+            Assert.NotNull(result);
+            Assert.NotSame(defaultLazy, result);
+        }
+        finally
+        {
+            HttpHandlerResourceV3.CredentialService = original;
+        }
+    }
+
+    /// <summary>
     ///     Tests that a configured callback makes the dispatcher bypass the last-known-good credential
     ///     cache for non-proxy requests, that proxy requests and callback-less calls still use it, and
     ///     that a call with a logger is routed to a logger-aware service rather than the default one.

@@ -118,29 +118,65 @@ internal sealed class CredentialServiceRegistrar : ICredentialServiceRegistrar
 
     private static Lazy<ICredentialService>? _installed;
 
-    private static void RegisterDefaultCredentialService()
+    private static void RegisterDefaultCredentialService() =>
+        Register(
+            () => HttpHandlerResourceV3.CredentialService,
+            value => HttpHandlerResourceV3.CredentialService = value,
+            // nonInteractive: true - the 1.5.0 default; interactive providers are selected per call
+            // by the dispatcher instead
+            () => DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true));
+
+    /// <summary>
+    ///     Registers the dispatcher around the default credential service unless a host application's
+    ///     own service is (or becomes) present.
+    /// </summary>
+    /// <remarks>
+    ///     Our own registrations are serialized with a lock, and the static property is re-read
+    ///     immediately before the final assignment so a host service that appeared while the default
+    ///     service was being set up is not overwritten. The NuGet SDK exposes
+    ///     <c>HttpHandlerResourceV3.CredentialService</c> as a plain static property with no atomic
+    ///     compare-and-set, so a host write landing between that last read and the assignment is
+    ///     still possible: the residual window is tiny but nonzero. A host service written during
+    ///     <c>SetupDefaultCredentialService</c> itself cannot be told apart from the default one it
+    ///     installs, so hosts should register their service before the first call.
+    /// </remarks>
+    /// <param name="get">Reads the process-wide credential service.</param>
+    /// <param name="set">Assigns the process-wide credential service.</param>
+    /// <param name="setupDefault">Sets up the NuGet SDK default credential service.</param>
+    internal static void Register(
+        Func<Lazy<ICredentialService>?> get,
+        Action<Lazy<ICredentialService>?> set,
+        Action setupDefault)
     {
         lock (RegistrationLock)
         {
             // Only register when nothing else has: a host application's own credential service
             // (first writer wins, as in 1.5.0) is never replaced
-            if (HttpHandlerResourceV3.CredentialService != null)
+            if (get() != null)
             {
                 return;
             }
 
-            // nonInteractive: true - the 1.5.0 default; interactive providers are selected per call
-            // by the dispatcher instead
-            DefaultCredentialServiceUtility.SetupDefaultCredentialService(NullLogger.Instance, nonInteractive: true);
+            setupDefault();
 
             // Wrap the default service so per-call options can be applied; with no ambient options
             // the dispatcher delegates every request unchanged, preserving 1.5.0 behavior
-            var defaultService = HttpHandlerResourceV3.CredentialService;
-            if (defaultService != null)
+            var defaultService = get();
+            if (defaultService == null)
             {
-                _installed = new Lazy<ICredentialService>(() => new CredentialDispatcher(defaultService.Value));
-                HttpHandlerResourceV3.CredentialService = _installed;
+                return;
             }
+
+            var wrapper = new Lazy<ICredentialService>(() => new CredentialDispatcher(defaultService.Value));
+
+            // Re-check immediately before assigning: leave a service that changed in the meantime alone
+            if (!ReferenceEquals(get(), defaultService))
+            {
+                return;
+            }
+
+            _installed = wrapper;
+            set(wrapper);
         }
     }
 }

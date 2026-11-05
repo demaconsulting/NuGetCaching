@@ -207,7 +207,12 @@ internal sealed class CredentialDispatcher : ICredentialService
         // Race the work against cancellation so a callback that ignores its token is still abandoned
         var cancelled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var registration = linked.Token.Register(() => cancelled.TrySetResult(true));
-        var task = work(linked.Token);
+
+        // Start the work on the thread pool so a callback or provider that blocks synchronously
+        // before returning its Task cannot prevent the timeout race below from being reached. The
+        // abandoned work cannot be interrupted if it ignores the token and may keep running (and
+        // hold its thread) after the timeout; only the caller is released.
+        var task = Task.Run(() => work(linked.Token), CancellationToken.None);
 
         if (await Task.WhenAny((Task)task, cancelled.Task) == task)
         {

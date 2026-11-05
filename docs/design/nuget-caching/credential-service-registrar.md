@@ -122,7 +122,13 @@ Satisfies requirements `Caching-CredentialServiceRegistrar-RegisterOnce` and
 After the default service is created, the registrar wraps it in an internal `CredentialDispatcher`
 and assigns that as the process-wide `HttpHandlerResourceV3.CredentialService`, exactly once. If a
 host application has already registered a credential service, the registrar leaves it in place
-(first writer wins) and per-call options cannot apply (`NuGetCache` logs a warning).
+(first writer wins) and per-call options cannot apply (`NuGetCache` logs a warning). Our own
+registrations are serialized with a lock, and `HttpHandlerResourceV3.CredentialService` is re-read
+immediately before the final assignment so a host service that appeared meanwhile is not overwritten.
+The SDK property has no atomic compare-and-set, so a host write landing between that last read and the
+assignment remains possible: the residual window is tiny but nonzero. A host service written during
+`SetupDefaultCredentialService` itself cannot be distinguished from the default it installs; hosts should
+register their service before the first call.
 
 The dispatcher reads an `AsyncLocal` call context set by `CredentialDispatcher.BeginScope` from the
 options overloads of `NuGetCache`:
@@ -142,7 +148,9 @@ options overloads of `NuGetCache`:
   the secure plugin credential providers (dialogs allowed) and the default network credentials provider.
 - **Timeout**: acquisition runs under a linked cancellation token with `CancelAfter(AuthenticationTimeout)`
   and is raced against the timeout, so a callback that ignores its token is abandoned and the call fails
-  with `OperationCanceledException`. Plugin processes are owned by NuGet's `PluginManager` and may
+  with `OperationCanceledException`. The work is started via `Task.Run`, so a callback that blocks
+  synchronously before returning its task cannot defeat the timeout; abandoned work cannot be interrupted
+  and may keep running (holding a thread) after the timeout. Plugin processes are owned by NuGet's `PluginManager` and may
   outlive the timeout; disposal was not verified and is documented as a limitation.
 - **Timed-out flag**: when the timeout elapses the dispatcher records it on the call's context (shared by
   reference across the call's async flow) and refuses any later credential exchange for that call with

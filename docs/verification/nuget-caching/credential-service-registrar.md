@@ -95,6 +95,12 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 
 - **CredentialServiceRegistrar_EnsureRegistered_RegistersDispatcherOnlyWhenNoServiceExists**: the
   dispatcher is installed when nothing is registered and a pre-registered host service is left in place.
+- **CredentialServiceRegistrar_Register_HostServiceAppearsBeforeAssignment_IsNotOverwritten**: via the
+  `Register` seam, a host service appearing before the final assignment is not overwritten, and the
+  wrapper is assigned otherwise.
+- **CredentialDispatcher_GetCredentialsAsync_CallbackBlocksSynchronously_TimesOutPromptly**: a callback
+  that blocks its thread synchronously is still canceled with `OperationCanceledException` within a
+  bounded time.
 - **NuGetCache_EnsureCachedAsync_WithOptions_InvokesCredentialServiceRegistrar**: the options overload
   calls the injected registrar test double.
 - **NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source**: the callback is
@@ -130,8 +136,8 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   NuGetCache_EnsureCachedAsync_CallbackReturnsNull_FallsThroughAndFailsWithAuthenticationException
 - **`Caching-CredentialServiceRegistrar-LoopGuard`**:
   NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails,
-  NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
-- **`Caching-CredentialServiceRegistrar-RegisterOnce`**:
+  NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
+  CredentialDispatcher_GetCredentialsAsync_CallbackBlocksSynchronously_TimesOutPromptly:
   CredentialServiceRegistrar_EnsureRegistered_RepeatedCalls_RegistersExactlyOnce,
   NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar,
   NuGetCache_EnsureCachedAsync_FreshRealRegistrar_RegistersRealCredentialService
