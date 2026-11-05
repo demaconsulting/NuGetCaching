@@ -479,7 +479,9 @@ process-wide credential service can be isolated and restored.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: one call with a callback succeeds
   while a concurrent call with default options fails authentication. Covers `OptionsIsolation`.
 - **NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret**,
-  **NuGetCredential_ToString_RedactsSecret**, and **NuGetCredential_Formatted_DoesNotExposeSecret**:
+  **NuGetCredential_ToString_RedactsSecret**, **NuGetCredential_Formatted_DoesNotExposeSecret**,
+  **NuGetCredential_ToString_IncludesUserNameAndRedactsSecret**, and
+  **NuGetCredential_Interpolation_DoesNotExposeSecret** (the last two in `NuGetCredentialTests`):
   the logger receives messages and neither logs nor string forms contain the secret. Covers `Logging`.
 
 - **`Caching-NuGetCache-EnsureCached`**:
@@ -527,6 +529,8 @@ process-wide credential service can be isolated and restored.
 - **`Caching-NuGetCache-Logging`**:
   NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret,
   NuGetCredential_ToString_RedactsSecret,
+  NuGetCredential_ToString_IncludesUserNameAndRedactsSecret,
+  NuGetCredential_Interpolation_DoesNotExposeSecret,
   NuGetCredential_Formatted_DoesNotExposeSecret
 - **`Caching-NuGetCache-GetVersions`**:
   NuGetCache_GetVersionsAsync_ReturnedVersionUsableByEnsureCachedAsync,

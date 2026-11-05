@@ -277,6 +277,58 @@ public class PackageDownloaderTests
     }
 
     /// <summary>
+    ///     Tests that an authentication failure during download also populates the structured
+    ///     <c>AuthFailure</c> value (source name and URL), so the orchestrator can raise an
+    ///     authentication exception or request credentials.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsAuthFailureInfo()
+    {
+        // Arrange - the feed requires Basic Auth on every endpoint; no credentials are supplied
+        var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(globalPackagesFolder);
+            const string packageId = "TestPackage.Downloader.AuthFailureInfo";
+            const string version = "1.0.0";
+
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageWithBasicAuth(packageId, version, [], "test-user", "test-password");
+            var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
+
+            var (sourceRepository, resource) = await ResolveResourceAsync(server.IndexUrl, "test-source");
+            var clientPolicyContext = ClientPolicyContext.GetClientPolicy(settings, NullLogger.Instance);
+            using var cacheContext = new SourceCacheContext();
+
+            // Act
+            var result = await PackageDownloader.TryDownloadAsync(
+                sourceRepository,
+                resource,
+                packageId,
+                NuGetVersion.Parse(version),
+                globalPackagesFolder,
+                clientPolicyContext,
+                cacheContext,
+                CancellationToken.None,
+                NullLogger.Instance);
+
+            // Assert - the structured failure names the source
+            Assert.Null(result.PackagePath);
+            Assert.NotNull(result.AuthFailure);
+            Assert.Equal("test-source", result.AuthFailure.SourceName);
+            Assert.False(string.IsNullOrEmpty(result.AuthFailure.SourceUrl));
+        }
+        finally
+        {
+            if (Directory.Exists(globalPackagesFolder))
+            {
+                Directory.Delete(globalPackagesFolder, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Tests that <c>GetPackagePath</c> follows the NuGet global packages folder convention of
     ///     lower-casing both the package identifier and version when building the on-disk path.
     /// </summary>

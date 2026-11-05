@@ -28,7 +28,10 @@ and `ErrorMessage` is set only for actionable source-level failures.
 internal readonly record struct PackageSourceResolution(
     SourceRepository Repository,
     FindPackageByIdResource? Resource,
-    string? ErrorMessage);
+    string? ErrorMessage)
+{
+    internal AuthFailureInfo? AuthFailure { get; init; }
+}
 ```
 
 Represents the result of resolving a `FindPackageByIdResource` for a configured package source:
@@ -39,6 +42,13 @@ Represents the result of resolving a `FindPackageByIdResource` for a configured 
 - `ErrorMessage` — a diagnostic message describing a source-level failure (e.g. protocol
   mismatch or an actionable authentication failure), or `null` when the source was reachable
   but simply did not resolve a resource, or when the failure is transient and non-actionable.
+- `AuthFailure` — an `AuthFailureInfo` (source name and URL of the endpoint that rejected the
+  request) set only when the failure was classified as HTTP 401/403, whether surfaced as an
+  `HttpRequestException` or a `NuGetProtocolException`; `null` otherwise. When a 401/403
+  `NuGetProtocolException` is captured on one candidate and a later candidate fails for an
+  unrelated reason, the earlier `AuthFailure` is preserved. `NuGetCache` uses it to raise
+  `NuGetAuthenticationException`. The resolver takes no logger parameter: it only constructs
+  repository objects and performs no NuGet calls that emit log messages of its own.
 
 #### ResolveAsync Method
 

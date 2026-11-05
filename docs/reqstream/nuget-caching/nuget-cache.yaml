@@ -247,6 +247,8 @@ sections:
           programmatically instead of parsing a message. The exception derives from
           InvalidOperationException, so existing handlers keep working; the 1.5.0
           overloads keep throwing a plain InvalidOperationException.
+        children:
+          - Caching-PackageDownloader-AuthFailureInfo
         tests:
           - NuGetAuthenticationException_Properties_AreExposed
           - NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException
@@ -281,9 +283,13 @@ sections:
         justification: |
           Diagnosing credential and download problems requires the NuGet SDK's
           messages, and credentials must never leak into logs.
+        children:
+          - Caching-OTS-LoggingAbstractions
         tests:
           - NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret
           - NuGetCredential_ToString_RedactsSecret
+          - NuGetCredential_ToString_IncludesUserNameAndRedactsSecret
+          - NuGetCredential_Interpolation_DoesNotExposeSecret
           - NuGetCredential_Formatted_DoesNotExposeSecret
 
       - id: Caching-NuGetCache-GetVersions

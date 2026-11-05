@@ -25,7 +25,10 @@ installed successfully.
 #### TryDownloadResult Record Struct
 
 ```csharp
-internal readonly record struct TryDownloadResult(string? PackagePath, string? ErrorMessage);
+internal readonly record struct TryDownloadResult(string? PackagePath, string? ErrorMessage)
+{
+    internal AuthFailureInfo? AuthFailure { get; init; }
+}
 ```
 
 Represents the result of a single package download attempt from one NuGet source:
@@ -35,6 +38,9 @@ Represents the result of a single package download attempt from one NuGet source
 - `ErrorMessage` — a diagnostic message describing a source-level failure (e.g. protocol
   mismatch), or `null` when the source was reachable but simply did not carry the requested
   package, or when the failure is transient and non-actionable.
+- `AuthFailure` — an `AuthFailureInfo` (source name and URL) set only when the failure was
+  classified as HTTP 401/403; `null` otherwise. It is an init-only property rather than a
+  positional parameter so existing deconstruction `var (path, error) = ...` keeps working.
 
 #### TryDownloadAsync Method
 
@@ -47,10 +53,13 @@ internal static async Task<TryDownloadResult> TryDownloadAsync(
     string globalPackagesFolder,
     ClientPolicyContext clientPolicyContext,
     SourceCacheContext cacheContext,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    ILogger? logger = null)
 ```
 
-Downloads and installs a NuGet package using an already-resolved `FindPackageByIdResource`.
+Downloads and installs a NuGet package using an already-resolved `FindPackageByIdResource`. The
+optional `logger` receives NuGet SDK messages from the download and install calls; when `null`,
+`NullLogger.Instance` is used so messages are discarded and behavior matches earlier versions.
 
 #### GetPackagePath Method
 
@@ -120,14 +129,17 @@ internal static async Task<TryDownloadResult> TryDownloadAsync(
     string globalPackagesFolder,
     ClientPolicyContext clientPolicyContext,
     SourceCacheContext cacheContext,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    ILogger? logger = null)
 ```
 
 Downloads and installs a package using an already-resolved `FindPackageByIdResource`. The
+`logger` is passed to the NuGet download and install calls. The
 method:
 
 1. Streams the `.nupkg` bytes into a `MemoryStream` using `CopyNupkgToStreamAsync`. Returns an
-   empty result if the package is absent from this source; an actionable diagnostic result when
+   empty result if the package is absent from this source; an actionable diagnostic result
+   (with `AuthFailure` set to an `AuthFailureInfo` of the source name and URL) when
    `AuthFailureClassifier.TryDescribeAuthFailure` detects an HTTP 401/403 in either a
    `NuGetProtocolException` or an `HttpRequestException`; a generic protocol-error result on any
    other `NuGetProtocolException`; or an empty result on any other `HttpRequestException`
@@ -137,8 +149,8 @@ method:
 3. Returns a success result containing the conventional package path (computed via
    `GetPackagePath`).
 
-Satisfies requirements `Caching-PackageDownloader-DownloadOutcome` and
-`Caching-PackageDownloader-AuthDiagnostic`.
+Satisfies requirements `Caching-PackageDownloader-DownloadOutcome`,
+`Caching-PackageDownloader-AuthDiagnostic`, and `Caching-PackageDownloader-AuthFailureInfo`.
 
 #### `GetPackagePath(string globalPackagesFolder, string packageId, string version)`
 

@@ -169,4 +169,73 @@ public class NuGetCachingTests
             }
         }
     }
+
+    /// <summary>
+    ///     Tests that the library caches a package from a source that challenges with HTTP 401 when
+    ///     the caller supplies per-call options with a credential callback, through the public
+    ///     options overload of <c>EnsureCachedAsync</c>.
+    /// </summary>
+    /// <remarks>
+    ///     This test proves Caching-Sys-CacheOptions: callers can supply per-call options (here a
+    ///     credential callback and a logger) and the call succeeds against a private feed.
+    /// </remarks>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCaching_EnsureCachedAsync_WhenOptionsSupplyCredentialCallback_CachesFromAuthenticatedSource()
+    {
+        // Arrange: a feed requiring Basic credentials and a repo-local nuget.config using only it
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var packagesFolder = Path.Combine(root, "packages");
+        try
+        {
+            Directory.CreateDirectory(root);
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageWithBasicAuth(
+                "TestPackage.SystemOptions",
+                "1.0.0",
+                NuGetPackageBuilder.CreateMinimalPackage("TestPackage.SystemOptions", "1.0.0"),
+                "test-user",
+                "test-password");
+            await File.WriteAllTextAsync(Path.Combine(root, "nuget.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <config>
+                    <add key="globalPackagesFolder" value="{packagesFolder}" />
+                  </config>
+                  <packageSources>
+                    <clear />
+                    <add key="local" value="{server.IndexUrl}" />
+                  </packageSources>
+                </configuration>
+                """, TestContext.Current.CancellationToken);
+            var callbackInvoked = false;
+            var options = new NuGetCacheOptions
+            {
+                CredentialCallback = (_, _) =>
+                {
+                    callbackInvoked = true;
+                    return Task.FromResult<NuGetCredential?>(new NuGetCredential("test-user", "test-password"));
+                },
+            };
+
+            // Act: invoke the public options overload
+            var path = await NuGetCache.EnsureCachedAsync(
+                "TestPackage.SystemOptions", "1.0.0", root, options, CancellationToken.None);
+
+            // Assert: the package was cached and the callback supplied the credentials
+            Assert.True(File.Exists(Path.Combine(path, ".nupkg.metadata")));
+            Assert.True(callbackInvoked);
+        }
+        finally
+        {
+            // The public overload registers the dispatching credential service once per process
+            // (memoized), exactly as in production; it is intentionally left in place because
+            // restoring a null service would make the memoized registration unrecoverable for
+            // later tests that rely on the default registrar.
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }

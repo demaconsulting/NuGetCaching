@@ -88,6 +88,21 @@ made during download.
 
 **Requirement coverage**: `Caching-PackageDownloader-AuthDiagnostic`.
 
+#### PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsAuthFailureInfo
+
+**Scenario**: Same Basic-Auth-protected WireMock feed and masked-resolution setup as the previous
+scenario, with an explicit `NullLogger` passed through the optional `logger` parameter.
+
+**Expected**: Returns a `null` `PackagePath` and a non-null `AuthFailure` whose `SourceName` is
+`test-source` and whose `SourceUrl` is non-empty. Passing a logger does not change the outcome.
+
+**Requirement coverage**: `Caching-PackageDownloader-AuthFailureInfo`.
+
+**Deviation note**: Forwarding of NuGet messages through the `logger` parameter to the caller's
+logger is verified end to end at the `NuGetCache` level (`Caching-NuGetCache-Logging`,
+`NuGetCache_EnsureCachedAsync_Logger_ReceivesMessagesWithoutSecret`) rather than by a separate
+unit scenario, because the parameter is a pass-through to NuGet SDK calls.
+
 #### PackageDownloader_GetPackagePath_MixedCaseIdAndVersion_ReturnsLowerCasedPath
 
 **Scenario**: `GetPackagePath` is called with a mixed-case package identifier and version
@@ -106,5 +121,7 @@ both segments are lower-cased following the NuGet global packages folder convent
   PackageDownloader_TryDownloadAsync_NetworkOrProtocolFailureDuringDownload_ReturnsEmptyResult
 - **`Caching-PackageDownloader-AuthDiagnostic`**:
   PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsActionableErrorMessage
+- **`Caching-PackageDownloader-AuthFailureInfo`**:
+  PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsAuthFailureInfo
 - **`Caching-PackageDownloader-PackagePathConvention`**:
   PackageDownloader_GetPackagePath_MixedCaseIdAndVersion_ReturnsLowerCasedPath

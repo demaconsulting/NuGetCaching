@@ -56,6 +56,7 @@ sections:
           - Caching-NuGetCache-Logging
         tests:
           - NuGetCaching_EnsureCachedAsync_WhenKnownPackageAndVersionProvided_ReturnsPackageFolder
+          - NuGetCaching_EnsureCachedAsync_WhenOptionsSupplyCredentialCallback_CachesFromAuthenticatedSource
 
       - id: Caching-Sys-VersionDiscovery
         title: The system shall list the available versions of a NuGet package as strings.

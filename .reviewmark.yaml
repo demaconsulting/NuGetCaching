@@ -107,6 +107,7 @@ reviews:
       - "src/DemaConsulting.NuGet.Caching/NuGetAuthenticationException.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheOptionsTests.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCredentialTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCacheServerTests.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetTestServer.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetPackageBuilder.cs"

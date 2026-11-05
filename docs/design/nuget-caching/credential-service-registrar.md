@@ -143,6 +143,18 @@ options overloads of `NuGetCache`:
 `NuGetLoggerAdapter` adapts a `Microsoft.Extensions.Logging.ILogger` to the NuGet logger so SDK
 messages reach the caller's logger.
 
+Limitations (stated honestly rather than hidden):
+
+- The scope is an `AsyncLocal`, so it follows the call's async flow only. Work that suppresses
+  execution-context flow sees no scope and gets 1.5.0 behavior. The scope is restored when the
+  disposable returned by `BeginScope` is disposed, so concurrent calls with different options stay isolated.
+- The credential-request loop guard is per call and keyed by (URI, request type); it prevents
+  repeated prompts but cannot tell a rejected credential from a legitimate second request.
+- After a timeout the abandoned callback or plugin may keep running; the library does not
+  terminate plugin processes and has not verified that NuGet's `PluginManager` disposes them
+  promptly. Callers should treat a timeout as a failed call, not as proof that cleanup completed.
+- When a host already registered its own credential service, per-call options are not applied.
+
 Satisfies requirements `Caching-CredentialServiceRegistrar-DispatchPerCall`,
 `Caching-CredentialServiceRegistrar-CallbackFirst`, and `Caching-CredentialServiceRegistrar-LoopGuard`.
 

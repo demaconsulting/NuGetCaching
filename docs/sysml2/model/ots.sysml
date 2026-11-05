@@ -8,6 +8,14 @@ package OtsDependencies {
         comment reqRef /* Requirements: docs/reqstream/ots/nuget.yaml */
     }
 
+    part def LoggingAbstractions {
+        doc /* OTS: Microsoft.Extensions.Logging.Abstractions, the ILogger contract accepted in NuGetCacheOptions. */
+
+        comment designRef /* Design: docs/design/ots/nuget.md */
+        comment verificationRef /* Verification: docs/verification/ots/nuget.md */
+        comment reqRef /* Requirements: docs/reqstream/ots/nuget.yaml */
+    }
+
     part def Polyfill {
         doc /* OTS: Polyfill compatibility shim (e.g. Path.GetRelativePath for netstandard2.0). */
 

@@ -141,6 +141,11 @@ addition to the summarized actionable framing.
 
 ### Requirements Coverage
 
+**Deviation note**: The `AuthFailureInfo` record is a plain data carrier with no logic of its
+own, so it has no dedicated requirement or scenario. Its construction and propagation are
+verified by `Caching-PackageDownloader-AuthFailureInfo` (downloader unit) and, end to end, by
+`Caching-NuGetCache-AuthenticationException`.
+
 - **`Caching-AuthFailureClassifier-DetectUnauthorized`**:
   AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage,
   AuthFailureClassifier_TryDescribeAuthFailure_403InMessage_ReturnsTrueWithActionableMessage,

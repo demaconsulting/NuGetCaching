@@ -81,6 +81,15 @@ masked by the v2 fallback candidate rather than surfaced as a diagnostic.
 
 ### Requirements Coverage
 
+**Deviation note**: The `AuthFailure` value of `PackageSourceResolution` (the structured
+counterpart of the authentication diagnostic) has no dedicated unit requirement or scenario.
+For a `/index.json` source the NuGet SDK provider chain masks resolution-time 401/403 failures
+behind the v2 fallback candidate (see the design note "Resolution-Time Failures Are Not Always
+Observable"), so a WireMock server cannot deterministically drive that branch. The
+structured authentication failure is verified where it is reliably reachable:
+`Caching-PackageDownloader-AuthFailureInfo` and, end to end, `Caching-NuGetCache-AuthenticationException`.
+The resolver has no logger parameter, so no logging scenario applies.
+
 - **`Caching-PackageSourceResolver-Resolve`**:
   PackageSourceResolver_ResolveAsync_HealthyV3Index_ReturnsResourceForOriginalRepository,
   PackageSourceResolver_ResolveAsync_NonIndexJsonSourceUrl_ResolvesDirectlyAsV2
