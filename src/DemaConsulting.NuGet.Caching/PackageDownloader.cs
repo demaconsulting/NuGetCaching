@@ -287,7 +287,7 @@ internal static class PackageDownloader
         var allowList = clientPolicyContext.AllowList;
         var hasAllowList = allowList is { Count: > 0 };
         var untrustedRoots = hasAllowList
-            ? allowList!
+            ? allowList
                 .Where(e => e.AllowUntrustedRoot)
                 .Select(e => new KeyValuePair<string, HashAlgorithmName>(e.Fingerprint, e.FingerprintAlgorithm))
                 .ToList()
@@ -299,7 +299,7 @@ internal static class PackageDownloader
         if (hasAllowList)
         {
             providers.Add(new AllowListVerificationProvider(
-                allowList!,
+                allowList,
                 true,
                 "No trusted signers are configured for signature validation mode 'require'.",
                 "The package signature does not match any trusted signer in the client configuration."));
