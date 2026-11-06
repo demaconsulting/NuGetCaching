@@ -157,7 +157,8 @@ public methods of `NuGetCache`:
   with `OperationCanceledException`. The work is started via `Task.Run`, so a callback that blocks
   synchronously before returning its task cannot defeat the timeout; abandoned work cannot be interrupted
   and may keep running (holding a thread) after the timeout. Plugin processes are owned by NuGet's
-  shared `PluginManager`; verified by decompiling NuGet.Protocol 7.3.1, a plugin is started with
+  shared `PluginManager`; verified by decompiling NuGet.Protocol 7.3.1 and re-checked against the 7.9.0
+  source, a plugin is started with
   `CancellationToken.None`, so cancellation or timeout does not terminate it. It exits on NuGet's idle
   timeout (30 minutes by default, `NUGET_PLUGIN_IDLE_TIMEOUT_IN_SECONDS`), on parent-exit detection, or at
   process end. The manager is a static `Lazy` with no reset hook and is shared with other NuGet users in

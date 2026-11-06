@@ -348,7 +348,8 @@ When a call runs, `NuGetCache`:
 
 Limitations: the credential service is process-wide, so a host-registered service bypasses the
 callback, timeout, and interactive mode. `AuthenticationTimeout` cancels the wait and the token
-given to the callback or provider. Plugin lifetime was verified by decompiling NuGet.Protocol 7.3.1: the
+given to the callback or provider. Plugin lifetime was verified by decompiling NuGet.Protocol 7.3.1 and
+re-checked against the 7.9.0 source: the
 shared `PluginManager` (a static `Lazy` instance) starts a plugin with `CancellationToken.None`, so
 cancelling or timing out a request does not terminate the plugin process; it exits on NuGet's idle timeout
 (30 minutes by default, `NUGET_PLUGIN_IDLE_TIMEOUT_IN_SECONDS`), when it detects that the parent exited, or
