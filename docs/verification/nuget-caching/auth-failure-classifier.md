@@ -149,6 +149,15 @@ path or no query.
 
 **Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
 
+#### AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted
+
+**Scenario**: `RedactUrl` is called with path-less URLs and URLs with a path whose password contains unencoded
+`?` or `#` before the `@`.
+
+**Expected**: Only scheme, host and path remain; no password text leaks.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
+
 #### AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly
 
 **Scenario**: A URL whose query contains `@`, a secret-free URL, non-URL text containing `@`, and a
@@ -194,5 +203,6 @@ verified by `Caching-PackageDownloader-AuthFailureInfo` (downloader unit) and, e
   NuGetCache_EnsureCachedAsync_ExplicitSourceWithQueryString_AuthFailureRedactsSecret
 - **`Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`**:
   AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved,
+  AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted,
   AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly,
   AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery

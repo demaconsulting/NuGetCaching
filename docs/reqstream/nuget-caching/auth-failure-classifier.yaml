@@ -78,5 +78,6 @@ sections:
           the password) or as query-string secrets such as SAS tokens.
         tests:
           - AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved
+          - AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted
           - AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly
           - AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery

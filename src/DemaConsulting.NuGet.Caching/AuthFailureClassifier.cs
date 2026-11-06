@@ -133,6 +133,17 @@ internal static class AuthFailureClassifier
     /// <returns>The redacted URL, or the input when it is not an absolute URI with such parts.</returns>
     internal static string RedactUrl(string url)
     {
+        var schemeEnd = url.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd >= 0 && url.IndexOf('@') >= 0)
+        {
+            // Credentials may contain unencoded '?' or '#', which Uri parsing would treat as the end of
+            // the authority, so strip user info and query/fragment textually first
+            var stripped = url[..(schemeEnd + 3)] + StripUserInfoAndSuffix(url[(schemeEnd + 3)..]);
+            return Uri.TryCreate(stripped, UriKind.Absolute, out var strippedUri)
+                ? strippedUri.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped)
+                : stripped;
+        }
+
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
             // Not a parseable URL: drop anything after a query or fragment delimiter
@@ -141,6 +152,33 @@ internal static class AuthFailureClassifier
         }
 
         return uri.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped);
+    }
+
+    /// <summary>
+    ///     Removes user info, query string and fragment from the text following <c>scheme://</c>.
+    /// </summary>
+    /// <remarks>
+    ///     The authority region is the text before the first <c>/</c> (or the whole text when there is no
+    ///     path). Everything before the last <c>@</c> of that region is user info, even when it contains
+    ///     <c>?</c> or <c>#</c>. The trade-off is that a path-less URL whose query contains <c>@</c> may
+    ///     lose its host, which errs on the side of over-redaction.
+    /// </remarks>
+    private static string StripUserInfoAndSuffix(string rest)
+    {
+        var authorityEnd = rest.IndexOf('/');
+        if (authorityEnd < 0)
+        {
+            authorityEnd = rest.Length;
+        }
+
+        var at = authorityEnd > 0 ? rest.LastIndexOf('@', authorityEnd - 1) : -1;
+        if (at >= 0)
+        {
+            rest = rest[(at + 1)..];
+        }
+
+        var cut = rest.IndexOfAny(['?', '#']);
+        return cut >= 0 ? rest[..cut] : rest;
     }
 
     /// <summary>
@@ -211,36 +249,14 @@ internal static class AuthFailureClassifier
     /// </summary>
     /// <remarks>
     ///     User info is removed through the last <c>@</c> of the authority region (the text before the
-    ///     first <c>/</c>, or before the first <c>?</c> or <c>#</c> when there is no path), so unencoded
+    ///     first <c>/</c>, or the whole URL text when there is no path), so unencoded
     ///     <c>@</c>, <c>?</c> or <c>#</c> characters inside a password are removed too. The trade-off
     ///     is that a query-only URL without a path whose query contains <c>@</c> may lose its host; that
     ///     errs on the side of over-redaction.
     /// </remarks>
     internal static string RedactEmbeddedUrls(string text) =>
         EmbeddedUrlPattern.Replace(text, match =>
-        {
-            var rest = match.Groups["rest"].Value;
-            var slash = rest.IndexOf('/');
-            var authorityEnd = slash >= 0 ? slash : rest.IndexOfAny(['?', '#']);
-            if (authorityEnd < 0)
-            {
-                authorityEnd = rest.Length;
-            }
-
-            var at = rest.LastIndexOf('@', Math.Max(authorityEnd - 1, 0), authorityEnd);
-            if (at >= 0)
-            {
-                rest = rest[(at + 1)..];
-            }
-
-            var cut = rest.IndexOfAny(['?', '#']);
-            if (cut >= 0)
-            {
-                rest = rest[..cut];
-            }
-
-            return match.Groups["scheme"].Value + rest;
-        });
+            match.Groups["scheme"].Value + StripUserInfoAndSuffix(match.Groups["rest"].Value));
 
     /// <summary>
     ///     Walks <paramref name="exception"/> and its <see cref="Exception.InnerException"/> chain

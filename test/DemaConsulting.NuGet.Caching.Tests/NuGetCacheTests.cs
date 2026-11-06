@@ -265,6 +265,24 @@ public class NuGetCacheTests
 
         // Assert
         Assert.Null(withNull.Uri);
+        Assert.Equal("source", withNull.Source);
+        Assert.Null(new NuGetAuthenticationException("message", null, null).Source);
+        Assert.Equal("source", clean.Source);
         Assert.Equal("https://host.example/index.json", clean.Uri?.AbsoluteUri);
+    }
+
+    /// <summary>
+    ///     Tests that <see cref="NuGetAuthenticationException"/> redacts a URL-like source name.
+    /// </summary>
+    [Fact]
+    public void NuGetAuthenticationException_Constructor_UrlLikeSource_RedactsSecrets()
+    {
+        // Arrange / Act
+        var exception = new NuGetAuthenticationException(
+            "message", "https://user:p?ss@host.example/feed/index.json?sig=SasToken", null);
+
+        // Assert
+        Assert.Equal("https://host.example/feed/index.json", exception.Source);
+        Assert.DoesNotContain("SasToken", exception.ToString(), StringComparison.Ordinal);
     }
 }

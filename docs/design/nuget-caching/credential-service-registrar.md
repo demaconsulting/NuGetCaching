@@ -165,7 +165,9 @@ public methods of `NuGetCache`:
   download-stage retry delay is inherent to NuGet and is not eliminated.
 - **Per-source attribution**: the record is keyed by the package source being operated on, not by the
   challenged host. Callers mark the source with `CredentialDispatcher.BeginSource(sourceUrl)`, which
-  sets a second `AsyncLocal` (the redacted source URL) inline in the async method that awaits the NuGet
+  sets a second `AsyncLocal` (a non-secret key: `src:` plus the first 16 hex characters of the SHA-256
+  of the full source string, query included, so sources differing only by query or SAS token stay
+  distinct and no secret is stored) inline in the async method that awaits the NuGet
   calls and restores the previous value on dispose. `FailChallenge` tags the challenge with the current
   source, and `FindAmbientUnsatisfiedChallenge(source)` looks up by the same key, so two sources on one
   host and port (only one needing authentication) are never conflated. The challenged URL may be

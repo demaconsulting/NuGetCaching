@@ -1049,7 +1049,36 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
-    ///     Deterministic, HTTP-free test: with no source marked, a challenge is still attributed by host and port,
+    ///     Deterministic, HTTP-free test: two sources that differ only by query string (for example a SAS token)
+    ///     keep distinct correlation keys, so a challenge raised for one is never attributed to the other.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_SourcesDifferingOnlyByQuery_AttributedSeparately()
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        const string authed = "http://localhost:5000/feed/index.json?sig=SecretOne";
+        const string open = "http://localhost:5000/feed/index.json?sig=SecretTwo";
+        var challenged = new Uri("http://localhost:5000/flat/pkg/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+
+        // Act
+        using (CredentialDispatcher.BeginSource(authed))
+        {
+            await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+                await dispatcher.GetCredentialsAsync(
+                    challenged, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        }
+
+        // Assert
+        Assert.Equal(challenged, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(authed));
+        Assert.Null(CredentialDispatcher.FindAmbientUnsatisfiedChallenge(open));
+        Assert.NotEqual(CredentialDispatcher.SourceKey(authed), CredentialDispatcher.SourceKey(open));
+        Assert.DoesNotContain("Secret", CredentialDispatcher.SourceKey(authed), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: an unmarked challenge is still attributed by host and port,
     ///     and the marked-source tag reaches the dispatcher through the authentication-timeout task hop.
     /// </summary>
     [Fact]

@@ -260,6 +260,7 @@ sections:
           - NuGetAuthenticationException_Properties_AreExposed
           - NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment
           - NuGetAuthenticationException_Constructor_NullOrCleanUri_IsPreserved
+          - NuGetAuthenticationException_Constructor_UrlLikeSource_RedactsSecrets
           - NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted
           - NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource
           - NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource

@@ -153,6 +153,9 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_ChallengeInMarkedSource_AttributedToThatSourceOnly**: a
   challenge raised for a resource outside the source's path is attributed to the marked source only; a
   second source on the same host does not see it.
+- **CredentialDispatcher_GetCredentialsAsync_SourcesDifferingOnlyByQuery_AttributedSeparately**: two
+  sources that differ only by query string get distinct non-secret keys; a challenge marked for one is
+  not reported for the other.
 - **CredentialDispatcher_GetCredentialsAsync_UnmarkedAndTimeoutHop_AttributionBehaves**: with no marked
   source the host-and-port fallback applies, and the source tag survives the timeout's `Task.Run` hop.
 - **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**,
@@ -198,6 +201,7 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   CredentialDispatcher_GetCredentialsAsync_CallbackThrewWithTimeout_RepeatChallengeRethrowsOriginal
 - **`Caching-CredentialServiceRegistrar-PerSourceChallenge`**:
   CredentialDispatcher_GetCredentialsAsync_ChallengeInMarkedSource_AttributedToThatSourceOnly,
+  CredentialDispatcher_GetCredentialsAsync_SourcesDifferingOnlyByQuery_AttributedSeparately,
   CredentialDispatcher_GetCredentialsAsync_UnmarkedAndTimeoutHop_AttributionBehaves,
   NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource,
   NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource

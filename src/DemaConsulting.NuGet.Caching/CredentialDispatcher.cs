@@ -115,7 +115,18 @@ internal sealed class CredentialDispatcher : ICredentialService
         return new SourceScope(previous);
     }
 
-    private static string SourceKey(string sourceUrl) => AuthFailureClassifier.RedactUrl(sourceUrl);
+    /// <summary>
+    ///     Builds a non-secret correlation key for a package source from a hash of its full URL text
+    ///     (including any query), so sources differing only by query string or SAS token stay distinct
+    ///     while no secret is ever stored in a key.
+    /// </summary>
+    internal static string SourceKey(string sourceUrl)
+    {
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(sourceUrl));
+        // "src:" can never equal a host[:port] authority key; 16 hex characters (64 bits) suffice
+        return "src:" + BitConverter.ToString(hash, 0, 8).Replace("-", string.Empty);
+    }
 
     /// <inheritdoc />
     public bool HandlesDefaultCredentials => _defaultService.HandlesDefaultCredentials;

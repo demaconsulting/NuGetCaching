@@ -38,7 +38,11 @@ public sealed class NuGetAuthenticationException : InvalidOperationException
     ///     Initializes a new instance of the <see cref="NuGetAuthenticationException"/> class.
     /// </summary>
     /// <param name="message">The diagnostic message.</param>
-    /// <param name="source">The configured name of the package source that rejected the request.</param>
+    /// <param name="source">
+    ///     The configured name of the package source that rejected the request. When it looks like a URL
+    ///     (or contains a query, fragment or user-info delimiter) its user info, query string and fragment
+    ///     are removed on construction because they may carry secrets.
+    /// </param>
     /// <param name="uri">
     ///     The URL of the endpoint that rejected the request, when known. Any user info, query string
     ///     and fragment are removed on construction because they may carry secrets.
@@ -46,7 +50,8 @@ public sealed class NuGetAuthenticationException : InvalidOperationException
     public NuGetAuthenticationException(string message, string? source, Uri? uri)
         : base(message)
     {
-        Source = source;
+        // NuGet defaults an unnamed source's name to its URL, so redact URL-like names
+        Source = source == null ? null : AuthFailureClassifier.RedactSourceName(source);
         Uri = Redact(uri);
     }
 

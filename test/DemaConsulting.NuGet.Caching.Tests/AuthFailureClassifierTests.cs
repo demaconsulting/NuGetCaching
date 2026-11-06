@@ -280,6 +280,26 @@ public class AuthFailureClassifierTests
     }
 
     /// <summary>
+    ///     Tests that <c>RedactUrl</c> removes credentials containing unencoded <c>?</c> or <c>#</c>, with
+    ///     and without a path.
+    /// </summary>
+    [Theory]
+    [InlineData("https://user:p?ss@host.example", "https://host.example/")]
+    [InlineData("https://user:p#ss@host.example", "https://host.example/")]
+    [InlineData("https://user:p?ss@host.example/feed/index.json?sig=1", "https://host.example/feed/index.json")]
+    [InlineData("https://user:p#ss@host.example/feed/index.json#f", "https://host.example/feed/index.json")]
+    [InlineData("https://user:pass@host.example/feed?x=1", "https://host.example/feed")]
+    public void AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted(string input, string expected)
+    {
+        // Arrange / Act
+        var result = AuthFailureClassifier.RedactUrl(input);
+
+        // Assert
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain("ss", result.Replace("host.example", string.Empty), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Tests that <c>RedactEmbeddedUrls</c> removes the user info (user and password) of an embedded URL.
     /// </summary>
     [Theory]
@@ -296,6 +316,10 @@ public class AuthFailureClassifierTests
     [InlineData("https://u:p@host.example?x=1", "https://host.example")]
     [InlineData("https://u:p@host.example#frag", "https://host.example")]
     [InlineData("https://host.example?x=1", "https://host.example")]
+    [InlineData("https://user:p?ss@host.example", "https://host.example")]
+    [InlineData("https://user:p#ss@host.example", "https://host.example")]
+    [InlineData("see https://user:p?ss@host.example.", "see https://host.example.")]
+    [InlineData("\"https://user:p#ss@host.example\" failed", "\"https://host.example\" failed")]
     public void AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved(string input, string expected)
     {
         // Arrange / Act

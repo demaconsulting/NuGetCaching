@@ -487,6 +487,8 @@ process-wide credential service can be isolated and restored.
   **NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted**: `Uri` never carries user
   info, query or fragment (direct construction, and end to end for `EnsureCachedAsync` and
   `GetVersionsAsync` with query and user-info sources); `null` and clean URIs are preserved.
+- **NuGetAuthenticationException_Constructor_UrlLikeSource_RedactsSecrets**: a URL-like `Source` name has
+  its user info, query and fragment removed; `null` and plain names are preserved.
 - **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**,
   **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource** and
   **NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**: with two
@@ -602,6 +604,7 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   NuGetAuthenticationException_Properties_AreExposed,
   NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment,
   NuGetAuthenticationException_Constructor_NullOrCleanUri_IsPreserved,
+  NuGetAuthenticationException_Constructor_UrlLikeSource_RedactsSecrets,
   NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted,
   NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource,
   NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource,

@@ -79,11 +79,13 @@ internal static string RedactEmbeddedUrls(string text)
 
 Rewrites every absolute `http(s)://` URL quoted in a message (SDK exception messages quote the
 requested URL). For each URL, the user info is removed through the last `@` of the authority region
-(the text before the first `/`, or before the first `?`/`#` when the URL has no path), which also
-handles unencoded `@`, `?` and `#` characters inside a password, percent-encoded user info, and URLs
-without a path or query. The remainder is then cut at the first `?` or `#`, leaving scheme, host, port
-and path. The trade-off is over-redaction in the safe direction: a path-less URL whose query contains
-`@` may lose its host. Satisfies `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
+(the text before the first `/`, or the whole URL text when it has no path — so a `?` or `#` inside
+the password never ends the authority early), which also handles unencoded `@`, `?` and `#`
+characters inside a password, percent-encoded user info, and URLs without a path or query. The
+remainder is then cut at the first `?` or `#`, leaving scheme, host, port and path. `RedactUrl` uses
+the same textual stripping before URI normalization whenever the URL contains `@`. The trade-off is
+over-redaction in the safe direction: a path-less URL whose query contains `@` may lose its host.
+Satisfies `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
 
 ### Design Decisions
 

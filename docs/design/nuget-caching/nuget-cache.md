@@ -347,7 +347,9 @@ When a call runs, `NuGetCache`:
    so `NuGetAuthenticationException.Uri` identifies the endpoint that rejected the request. The URI
    is redacted (scheme, host, port and path only): `AuthFailureInfo.SourceUrl` is redacted when the
    record is created and the exception constructor redacts again, so user info, query string and
-   fragment never reach the caller.
+   fragment never reach the caller. A URL-like source name (NuGet defaults an unnamed source's name to
+   its URL) is redacted the same way (`AuthFailureClassifier.RedactSourceName`) by the exception
+   constructor before it is stored in `Source`.
 6. Marks the package source being operated on (`CredentialDispatcher.BeginSource`) around each
    source's resolve, download and version-listing calls (in `PackageSourceResolver`,
    `PackageDownloader` and the version-listing loop), so an unsatisfied challenge is attributed only
