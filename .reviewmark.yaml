@@ -116,6 +116,7 @@ reviews:
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetTestServer.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetPackageBuilder.cs"
       - "test/DemaConsulting.NuGet.Caching.Tests/AssemblyInfo.cs"
+      - "test/DemaConsulting.NuGet.Caching.Tests/HttpCacheIsolation.cs"
 
   # NuGetCaching - PathHelpers
   - id: NuGetCaching-PathHelpers

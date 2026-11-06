@@ -35,7 +35,9 @@ evidence for one or more `NuGetCache`-level requirements.
 - **Controlled integration tests**: a local `NuGetTestServer` (WireMock) on a random loopback
   port, an injected `ISettings` pointing at it, and a disposable temporary global packages folder
   per test; for `GetVersionsAsync`, a `root` directory containing a `nuget.config` that points at
-  the local feed. No internet access is required.
+  the local feed. No internet access is required. The test process uses a private
+  `NUGET_HTTP_CACHE_PATH` so cached feed responses from earlier runs cannot mask simulated failures
+  when a random port is reused.
 
 ### Acceptance Criteria
 
