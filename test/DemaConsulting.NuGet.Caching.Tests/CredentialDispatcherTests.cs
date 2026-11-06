@@ -265,11 +265,13 @@ public class CredentialDispatcherTests
         // Arrange
         var calls = 0;
         var neverCompletes = new TaskCompletionSource<NuGetCredential?>();
+        var callbackStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var options = new NuGetCacheOptions
         {
             CredentialCallback = (_, _) =>
             {
                 Interlocked.Increment(ref calls);
+                callbackStarted.TrySetResult(true);
                 return neverCompletes.Task;
             },
             AuthenticationTimeout = TimeSpan.FromMilliseconds(100),
@@ -284,11 +286,15 @@ public class CredentialDispatcherTests
             await dispatcher.GetCredentialsAsync(
                 uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
 
+        // Under CPU contention the timer can fire before the abandoned callback work item is scheduled,
+        // so wait until the first request's callback has started before checking the repeat request
+        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
         // A repeat request is canceled immediately and does not invoke the callback again
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
             await dispatcher.GetCredentialsAsync(
                 uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
-        Assert.Equal(1, calls);
+        Assert.Equal(1, Volatile.Read(ref calls));
 
         // The scope reports the timeout so the owning call can surface it
         Assert.ThrowsAny<OperationCanceledException>(scope.ThrowIfTimedOut);
