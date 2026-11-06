@@ -20,6 +20,7 @@
 
 using System;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace DemaConsulting.NuGet.Caching;
 
@@ -44,6 +45,70 @@ internal sealed record AuthFailureInfo(string SourceName, string SourceUrl);
 /// </remarks>
 internal static class AuthFailureClassifier
 {
+    /// <summary>
+    ///     Determines whether <paramref name="exception"/> (or any exception in its inner chain) is the
+    ///     dispatcher's fail-fast <see cref="CredentialDispatcher.AuthChallengeUnsatisfiedException"/>.
+    /// </summary>
+    /// <param name="exception">The exception to inspect.</param>
+    /// <param name="cancellationToken">
+    ///     The caller's cancellation token; a cancellation it requested is never reported as an
+    ///     authentication failure.
+    /// </param>
+    /// <returns><see langword="true"/> when an unsatisfied authentication challenge is in the chain.</returns>
+    internal static bool IsUnsatisfiedChallenge(Exception exception, CancellationToken cancellationToken)
+    {
+        // Some runtimes (notably .NET Framework) replace the dispatcher's exception with a plain
+        // TaskCanceledException inside NuGet's retry handler; the call's recorded challenge identifies it,
+        // unless the caller itself canceled the operation
+        if (exception is OperationCanceledException
+            && !cancellationToken.IsCancellationRequested
+            && CredentialDispatcher.AmbientUnsatisfiedChallenge != null)
+        {
+            return true;
+        }
+
+        for (var current = exception; current != null; current = current.InnerException)
+        {
+            if (current is CredentialDispatcher.AuthChallengeUnsatisfiedException)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether the current call recorded an authentication challenge that could not be
+    ///     satisfied for the host of <paramref name="source"/>, and if so builds the actionable message.
+    /// </summary>
+    /// <remarks>
+    ///     NuGet's own retry loops (for example while downloading a package from a flat container) can swallow
+    ///     the dispatcher's fail-fast exception and report the package as not found, so callers also consult
+    ///     this record after such an outcome.
+    /// </remarks>
+    /// <param name="sourceName">The configured name of the package source.</param>
+    /// <param name="source">The URL of the package source.</param>
+    /// <param name="message">The actionable diagnostic message when this method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when an unsatisfied challenge for the source's host was recorded.</returns>
+    internal static bool TryDescribeRecordedChallenge(
+        string sourceName,
+        string source,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
+    {
+        var challenge = CredentialDispatcher.AmbientUnsatisfiedChallenge;
+        if (challenge != null
+            && Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)
+            && string.Equals(challenge.Authority, sourceUri.Authority, StringComparison.OrdinalIgnoreCase))
+        {
+            return TryDescribeAuthFailure(
+                new CredentialDispatcher.AuthChallengeUnsatisfiedException(challenge), sourceName, source, out message);
+        }
+
+        message = null;
+        return false;
+    }
+
     /// <summary>
     ///     Matches an HTTP status code embedded in a NuGet SDK exception message, e.g.
     ///     <c>"Response status code does not indicate success: 401 (Unauthorized)."</c>
@@ -83,6 +148,12 @@ internal static class AuthFailureClassifier
         string source,
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
     {
+        if (exception is OperationCanceledException and not CredentialDispatcher.AuthChallengeUnsatisfiedException
+            && CredentialDispatcher.AmbientUnsatisfiedChallenge is { } recorded)
+        {
+            exception = new CredentialDispatcher.AuthChallengeUnsatisfiedException(recorded);
+        }
+
         if (!TryGetHttpStatusCode(exception, out var statusCode))
         {
             message = null;
@@ -118,6 +189,13 @@ internal static class AuthFailureClassifier
     {
         for (var current = exception; current != null; current = current.InnerException)
         {
+            // The dispatcher's fail-fast exception stands for an unsatisfied 401 challenge
+            if (current is CredentialDispatcher.AuthChallengeUnsatisfiedException)
+            {
+                statusCode = 401;
+                return true;
+            }
+
 #if !NETSTANDARD2_0
             if (current is HttpRequestException { StatusCode: not null } httpRequestException)
             {

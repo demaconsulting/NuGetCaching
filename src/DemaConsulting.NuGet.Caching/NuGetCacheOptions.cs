@@ -108,6 +108,13 @@ public sealed class NuGetCacheOptions
     ///         the settings are loaded. An empty list is valid and means no sources.
     ///         The list does not apply to <see cref="NuGetCache.GetCachedVersions"/>.
     ///     </para>
+    ///     <para>
+    ///         A NuGet V3 source must be given as its service index URL ending in <c>index.json</c> (for
+    ///         example <c>https://host/v3/index.json</c>). NuGet treats only URLs ending in <c>.json</c> as V3;
+    ///         any other URL, including an <c>index.json</c> URL followed by a query string, is used as a V2
+    ///         feed. The library logs a warning for an HTTP(S) URL that has a query string and a path ending
+    ///         in <c>.json</c>.
+    ///     </para>
     /// </remarks>
     public IReadOnlyList<string>? Sources { get; set; }
 
@@ -197,6 +204,15 @@ public sealed class NuGetCacheOptions
     ///         consulted again; no credential is supplied, so the call fails instead of looping.
     ///         Credentials returned by the callback are held in memory only and are never persisted.
     ///     </para>
+    ///     <para>
+    ///         The callback is invoked at most once per (URL, request type) per call, whatever it
+    ///         returns: a <see langword="null"/> answer is remembered, and a repeat challenge for the
+    ///         same URL and request type skips the callback but still reaches the credential providers.
+    ///         NuGet challenges several distinct URLs of one source (for example the service index and
+    ///         each resource), so the callback can still run once for each of them. When no credential
+    ///         is available from the callback or the providers, the call fails promptly with
+    ///         <see cref="NuGetAuthenticationException"/> instead of waiting through NuGet's retries.
+    ///     </para>
     /// </remarks>
     public Func<Uri, CancellationToken, Task<NuGetCredential?>>? CredentialCallback { get; set; }
 
@@ -212,7 +228,10 @@ public sealed class NuGetCacheOptions
     ///     <see cref="int.MaxValue"/> milliseconds (about 24.8 days), or <see cref="Timeout.InfiniteTimeSpan"/>
     ///     (equivalent to <see langword="null"/>, no limit). Any other value makes the
     ///     <see cref="NuGetCache"/> call throw <see cref="ArgumentOutOfRangeException"/> before any work
-    ///     starts. The
+    ///     starts. The limit bounds each credential exchange, not the whole call: it does not include the
+    ///     time NuGet spends on requests before the first challenge (including NuGet's own retries with
+    ///     about one second between attempts), and after it is exceeded the call fails immediately
+    ///     instead of starting another exchange. The
     ///     token passed to the callback is canceled, but a callback that ignores its token is
     ///     abandoned rather than interrupted. A credential-provider plugin process is created by NuGet
     ///     (without a cancellation token) and owned by NuGet's process-wide plugin manager, not by this library:

@@ -75,6 +75,12 @@ internal sealed class CredentialDispatcher : ICredentialService
     /// </summary>
     internal static NuGetLoggerAdapter? AmbientLogger => Ambient.Value?.Logger;
 
+    /// <summary>
+    ///     Gets the URL of the first authentication challenge that could not be satisfied during the
+    ///     current ambient call, or <see langword="null"/> when there was none.
+    /// </summary>
+    internal static Uri? AmbientUnsatisfiedChallenge => Ambient.Value?.UnsatisfiedChallenge;
+
     /// <inheritdoc />
     public bool HandlesDefaultCredentials => _defaultService.HandlesDefaultCredentials;
 
@@ -91,7 +97,9 @@ internal sealed class CredentialDispatcher : ICredentialService
     internal static Scope BeginScope(NuGetCacheOptions? options, NuGetLoggerAdapter? logger)
     {
         var previous = Ambient.Value;
-        var current = options == null ? null : new CallContext(options, logger);
+        // Option-less calls use default options, which behave exactly like delegating to the default
+        // service but still get the fail-fast handling of unsatisfied authentication challenges
+        var current = new CallContext(options ?? new NuGetCacheOptions(), logger);
         Ambient.Value = current;
         return new Scope(previous, current);
     }
@@ -167,27 +175,46 @@ internal sealed class CredentialDispatcher : ICredentialService
         var callback = context.Options.CredentialCallback;
         if (callback != null && type != CredentialRequestType.Proxy)
         {
-            // A repeat challenge for a (uri, type) the callback already answered means the supplied
-            // credential was rejected; supply nothing so the call fails instead of looping
-            if (!context.Answered.TryAdd((uri.AbsoluteUri, type), 0))
+            // The callback is consulted at most once per (uri, type) per call. A repeat challenge after it
+            // supplied a credential means that credential was rejected, so the call fails instead of
+            // looping. A repeat challenge after it declined (null) skips the callback but still falls
+            // through to the credential providers.
+            var key = (uri.AbsoluteUri, type);
+            if (!context.Asked.TryAdd(key, false))
             {
-                context.Logger?.LogDebug("Credential callback already answered a challenge for this request; not asking again.");
-                return null;
-            }
+                if (context.Asked.TryGetValue(key, out var supplied) && supplied)
+                {
+                    context.Logger?.LogDebug("Credential callback already answered a challenge for this request; not asking again.");
+                    context.MarkUnsatisfied(uri);
+                    throw new AuthChallengeUnsatisfiedException(uri);
+                }
 
-            var credential = await callback(uri, cancellationToken);
-            if (credential != null)
+                context.Logger?.LogDebug("Credential callback already declined a challenge for this request; not asking again.");
+            }
+            else
             {
-                return new NetworkCredential(credential.UserName, credential.Secret);
+                var credential = await callback(uri, cancellationToken);
+                if (credential != null)
+                {
+                    context.Asked[key] = true;
+                    return new NetworkCredential(credential.UserName, credential.Secret);
+                }
             }
-
-            // Nothing supplied: fall through to the credential providers (and allow a later,
-            // provider-driven retry for this URI)
-            context.Answered.TryRemove((uri.AbsoluteUri, type), out _);
         }
 
         var service = SelectService(context);
-        return await service.GetCredentialsAsync(uri, proxy, type, message, cancellationToken);
+        var credentials = await service.GetCredentialsAsync(uri, proxy, type, message, cancellationToken);
+
+        // No credential is available for an HTTP challenge: stop NuGet's retry loop (which would sleep
+        // about a second per retry) by canceling the request; callers report it as an authentication failure
+        if (credentials == null && type != CredentialRequestType.Proxy)
+        {
+            context.Logger?.LogDebug("No credentials are available for the authentication challenge; failing the request.");
+            context.MarkUnsatisfied(uri);
+            throw new AuthChallengeUnsatisfiedException(uri);
+        }
+
+        return credentials;
     }
 
     private static async Task<T> WithTimeoutAsync<T>(
@@ -272,7 +299,18 @@ internal sealed class CredentialDispatcher : ICredentialService
         // task of the call, so it is visible however NuGet surfaces or wraps the failure
         private volatile string? _timeoutMessage;
 
-        internal ConcurrentDictionary<(string Uri, CredentialRequestType Type), byte> Answered { get; } = new();
+        // Set when a challenge could not be satisfied; NuGet's own retry loops can swallow the fail-fast
+        // exception (reporting "not found" instead), so the owning call checks this to still report the
+        // authentication failure
+        private volatile Uri? _unsatisfiedChallenge;
+
+        internal Uri? UnsatisfiedChallenge => _unsatisfiedChallenge;
+
+        internal void MarkUnsatisfied(Uri uri) => _unsatisfiedChallenge ??= uri;
+
+        // Challenges the callback has been asked about; the value is true when it supplied a credential
+        // and false when it declined (returned null)
+        internal ConcurrentDictionary<(string Uri, CredentialRequestType Type), bool> Asked { get; } = new();
 
         internal void MarkTimedOut(TimeSpan timeout) =>
             _timeoutMessage ??= $"Authentication did not complete within {timeout.TotalSeconds:0.###} seconds.";
@@ -309,6 +347,32 @@ internal sealed class CredentialDispatcher : ICredentialService
 
         /// <inheritdoc />
         public void Dispose() => Ambient.Value = _previous;
+    }
+
+    /// <summary>
+    ///     Thrown by the dispatcher when an HTTP authentication challenge cannot be satisfied.
+    /// </summary>
+    /// <remarks>
+    ///     It derives from <see cref="OperationCanceledException"/> because NuGet's retry loops rethrow
+    ///     cancellation immediately instead of retrying (with a delay) a request that cannot succeed.
+    ///     The owning <c>NuGetCache</c> call translates it into an authentication failure.
+    /// </remarks>
+    internal sealed class AuthChallengeUnsatisfiedException : OperationCanceledException
+    {
+        /// <summary>
+        ///     Initializes a new instance for the challenged <paramref name="uri"/>.
+        /// </summary>
+        /// <param name="uri">The URL that issued the authentication challenge.</param>
+        internal AuthChallengeUnsatisfiedException(Uri uri)
+            : base($"Response status code does not indicate success: 401 (Unauthorized). No credentials are available for '{uri}'.")
+        {
+            ChallengeUri = uri;
+        }
+
+        /// <summary>
+        ///     Gets the URL that issued the authentication challenge.
+        /// </summary>
+        internal Uri ChallengeUri { get; }
     }
 
     private sealed class AmbientNuGetLogger : LoggerBase

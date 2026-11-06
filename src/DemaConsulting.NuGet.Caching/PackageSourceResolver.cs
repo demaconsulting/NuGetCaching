@@ -26,7 +26,8 @@ namespace DemaConsulting.NuGet.Caching;
 /// <summary>
 ///     Resolves the <see cref="FindPackageByIdResource"/> for a configured NuGet package source,
 ///     including the ordered candidate-repository construction needed to support automatic v2
-///     OData fallback for feeds configured with a v3 <c>/index.json</c> URL.
+///     OData fallback for feeds configured with a v3 <c>/index.json</c> URL. An authentication
+///     failure (HTTP 401/403 or an unsatisfied challenge) is reported immediately without trying the fallback.
 /// </summary>
 /// <remarks>
 ///     This class owns source-resolution concerns only; it does not download package content. Once
@@ -87,7 +88,6 @@ internal static class PackageSourceResolver
         var sourceName = sourceRepository.PackageSource.Name;
         var candidates = BuildCandidateRepositories(sourceRepository, providers);
         string? protocolErrorMessage = null;
-        AuthFailureInfo? protocolAuthFailure = null;
 
         foreach (var candidate in candidates)
         {
@@ -114,22 +114,32 @@ internal static class PackageSourceResolver
             }
             catch (HttpRequestException)
             {
-                // Transient network-level failure on this candidate - not actionable on its own,
-                // but preserve any actionable 401/403 diagnostic already captured from an earlier
-                // candidate (e.g. the v3 service index) so a later candidate's unrelated transient
-                // failure (e.g. the v2 fallback) doesn't downgrade a real authentication failure
-                // into a generic, indistinguishable "not found" result.
-                return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage) { AuthFailure = protocolAuthFailure };
+                // Transient network-level failure on this candidate - not actionable on its own.
+                // Authentication failures never reach this point: they return immediately above.
+                return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage);
+            }
+            catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, cancellationToken)
+                && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
+            {
+                // The credential service had nothing to offer for the challenge and canceled the
+                // request to stop NuGet's retries; this is an authentication failure, and the v2
+                // fallback (same host, same credentials) would only repeat it
+                return new PackageSourceResolution(candidate, null, authMessage)
+                {
+                    AuthFailure = new AuthFailureInfo(sourceName, candidate.PackageSource.Source),
+                };
             }
             catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
             {
                 // Same as above, but the NuGet SDK wrapped the 401/403 as a protocol exception
                 // (e.g. while loading the v3 service index) rather than a raw HttpRequestException.
-                // Use the failing candidate's own URL for the same reason as above.
-                // The authentication metadata is recorded independently of whichever diagnostic
-                // message was captured first, so a later 401/403 is never lost.
-                protocolErrorMessage ??= authMessage;
-                protocolAuthFailure ??= new AuthFailureInfo(sourceName, candidate.PackageSource.Source);
+                // Use the failing candidate's own URL for the same reason as above. The v2 fallback is
+                // not tried after an authentication failure: it targets the same host with the same
+                // credentials, so it would only repeat the failure after more retries.
+                return new PackageSourceResolution(candidate, null, authMessage)
+                {
+                    AuthFailure = new AuthFailureInfo(sourceName, candidate.PackageSource.Source),
+                };
             }
             catch (NuGetProtocolException ex)
             {
@@ -140,7 +150,7 @@ internal static class PackageSourceResolver
             }
         }
 
-        return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage) { AuthFailure = protocolAuthFailure };
+        return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage);
     }
 
     /// <summary>

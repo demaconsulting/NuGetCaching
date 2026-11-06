@@ -470,6 +470,7 @@ public static class NuGetCache
         // Determine the sources permitted for this package (explicit sources, or enabled configured
         // sources honoring source mapping); local sources are always consulted when downloading
         var allowedSources = ResolveSources(settings, packageId, options);
+        WarnOnQueryStringSources(allowedSources, logger);
 
         // Accumulate per-source diagnostic messages so they can be included in the
         // final exception when all sources fail - giving callers actionable context
@@ -665,6 +666,7 @@ public static class NuGetCache
 
         var providers = Repository.Provider.GetCoreV3();
         var allowedSources = ResolveSources(settings, packageId, options);
+        WarnOnQueryStringSources(allowedSources, logger);
         var explicitSources = options?.Sources != null;
         var includeLocal = options?.IncludeLocalSources == true;
 
@@ -715,13 +717,15 @@ public static class NuGetCache
                     .Select(v => new NuGetPackageVersion(v.ToNormalizedString(), effectiveSource.Name, true, null))
                     .ToList();
             }
-            catch (Exception ex) when (ex is HttpRequestException or NuGetProtocolException)
+            catch (Exception ex) when (ex is HttpRequestException or NuGetProtocolException
+                || AuthFailureClassifier.IsUnsatisfiedChallenge(ex, cancellationToken))
             {
                 // An authentication timeout takes priority over the failure NuGet reported instead
                 scope.ThrowIfTimedOut();
 
                 // Record the failure and try the next source; reported only if nothing is found
-                if (AuthFailureClassifier.TryDescribeAuthFailure(ex, effectiveSource.Name, effectiveSource.Source, out var authMessage))
+                if (AuthFailureClassifier.TryDescribeAuthFailure(ex, effectiveSource.Name, effectiveSource.Source, out var authMessage)
+                    || AuthFailureClassifier.TryDescribeRecordedChallenge(effectiveSource.Name, effectiveSource.Source, out authMessage))
                 {
                     authFailure ??= new AuthFailureInfo(effectiveSource.Name, effectiveSource.Source);
                     sourceErrors.Add(authMessage);
@@ -731,6 +735,16 @@ public static class NuGetCache
                     sourceErrors.Add($"{packageSource.Source}: Error retrieving versions. ({ex.Message})");
                 }
 
+                continue;
+            }
+
+            // NuGet may swallow the request the dispatcher canceled for an unsatisfied challenge and
+            // report an empty list instead; that is still an authentication failure
+            if (sourceVersions.Count == 0
+                && AuthFailureClassifier.TryDescribeRecordedChallenge(effectiveSource.Name, effectiveSource.Source, out var recordedMessage))
+            {
+                authFailure ??= new AuthFailureInfo(effectiveSource.Name, effectiveSource.Source);
+                sourceErrors.Add(recordedMessage);
                 continue;
             }
 
@@ -784,6 +798,16 @@ public static class NuGetCache
         var source = repository.PackageSource.Source;
         try
         {
+            // A V3 service index without a registration resource cannot serve listing metadata (NuGet
+            // would fail with a NullReferenceException), so detect it up front; the service index is
+            // already cached from resolving the source. V2 repositories have no V3 service index.
+            var serviceIndex = await repository.GetResourceAsync<ServiceIndexResourceV3>(cancellationToken);
+            if (serviceIndex != null && serviceIndex.GetServiceEntryUris(ServiceTypes.RegistrationsBaseUrl).Count == 0)
+            {
+                logger.LogDebug($"{source}: The service index has no registration resource; using the flat version list.");
+                return null;
+            }
+
             var metadataResource = await repository.GetResourceAsync<PackageMetadataResource>(cancellationToken);
             if (metadataResource == null)
             {
@@ -849,6 +873,33 @@ public static class NuGetCache
             logger.LogWarning(
                 "A different NuGet credential service is already registered in this process; " +
                 "the Interactive, CredentialCallback and AuthenticationTimeout options are not applied.");
+        }
+    }
+
+    /// <summary>
+    ///     Logs a warning for each HTTP(S) source whose URL has a query string and a path ending in
+    ///     <c>.json</c>: NuGet treats only URLs ending in <c>.json</c> as V3 service indexes, so such a
+    ///     source is used as a V2 feed.
+    /// </summary>
+    /// <param name="sources">The sources to consult.</param>
+    /// <param name="logger">The call's logger, or <see langword="null"/>.</param>
+    private static void WarnOnQueryStringSources(IEnumerable<PackageSource> sources, NuGetLoggerAdapter? logger)
+    {
+        if (logger == null)
+        {
+            return;
+        }
+
+        foreach (var url in sources.Where(s => s.IsHttp).Select(s => s.Source))
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                && uri.Query.Length > 0
+                && uri.AbsolutePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogWarning(
+                    $"Source '{url}' has a query string, so NuGet treats it as a V2 feed. " +
+                    "A V3 source must be the service index URL ending in 'index.json' with no query string.");
+            }
         }
     }
 

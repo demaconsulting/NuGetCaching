@@ -259,6 +259,43 @@ public class NuGetCacheListingTests
     }
 
     /// <summary>
+    ///     Tests that a service index without a registration resource falls back to the flat version
+    ///     list instead of failing with a <see cref="NullReferenceException"/>, and that the metadata
+    ///     endpoint is never requested.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_ListVersionsAsync_NoRegistrationResource_FallsBackToFlatList()
+    {
+        var folder = CreateTempFolder();
+        try
+        {
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageVersionsWithoutRegistration("NoMeta.Package", "1.0.0", "2.0.0");
+            var settings = server.CreateSettings(folder, server.IndexUrl);
+
+            var listed = await NuGetCache.ListVersionsAsync(
+                "NoMeta.Package", false, settings, null, CredentialServiceRegistrar.DefaultCredentialRegistrar, CancellationToken.None);
+
+            Assert.Equal(["1.0.0", "2.0.0"], listed.Select(v => v.Version));
+            Assert.All(listed, v =>
+            {
+                Assert.True(v.IsListed);
+                Assert.Null(v.Published);
+            });
+            var requestPaths = server.RequestPaths;
+            Assert.True(
+                !requestPaths.Any(p => p.Contains("registration", StringComparison.OrdinalIgnoreCase)),
+                $"No registration request expected; requests were: {string.Join(", ", requestPaths)}");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
     ///     Tests that, across sources, the first source that reports a version wins.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>

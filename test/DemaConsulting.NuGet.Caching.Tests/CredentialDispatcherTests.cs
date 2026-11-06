@@ -524,6 +524,274 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
+    ///     Tests that a callback returning <see langword="null"/> is asked at most once per URL and
+    ///     request type in a call, while the credential providers are still reached.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_CallbackReturnsNull_AsksOncePerUriAndType()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange - every request is rejected and the callback never supplies anything
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterUnauthorizedForAllRequests();
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+            var challenged = new ConcurrentBag<string>();
+            var options = new NuGetCacheOptions
+            {
+                CredentialCallback = (uri, _) =>
+                {
+                    challenged.Add(uri.AbsoluteUri);
+                    return Task.FromResult<NuGetCredential?>(null);
+                },
+            };
+
+            // Act
+            await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "Null.Once", "1.0.0", settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
+
+            // Assert - no URL was asked about twice
+            Assert.NotEmpty(challenged);
+            Assert.Equal(challenged.Count, challenged.Distinct().Count());
+        });
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: a callback that returned <see langword="null"/> is not asked
+    ///     again for the same URL and request type, but each request still reaches the default
+    ///     credential service.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders()
+    {
+        // Arrange
+        var calls = 0;
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.FromResult<NuGetCredential?>(null);
+            },
+        };
+        var service = new SuppliedCredentialService();
+        var dispatcher = new CredentialDispatcher(service);
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+
+        // Act
+        var first = await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+        var second = await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+
+        // Assert - the callback ran once; both requests reached the default service
+        Assert.Equal(1, calls);
+        Assert.Equal(2, service.Calls);
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: when neither the callback nor the credential providers supply a
+    ///     credential for an HTTP challenge, the dispatcher fails the request with the fail-fast exception
+    ///     (an <see cref="OperationCanceledException"/>), while a proxy challenge is not failed.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge()
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+
+        // Act / Assert
+        var exception = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        Assert.IsAssignableFrom<OperationCanceledException>(exception);
+        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(exception, CancellationToken.None));
+        Assert.True(AuthFailureClassifier.TryDescribeAuthFailure(exception, "src", uri.AbsoluteUri, out _));
+        Assert.Null(await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Proxy, "m", CancellationToken.None));
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: a plain cancellation observed after the call recorded an unsatisfied
+    ///     challenge is reported as an authentication failure only while the caller's token is not canceled,
+    ///     while the dispatcher's own exception is always reported.
+    /// </summary>
+    [Fact]
+    public async Task AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure()
+    {
+        // Arrange - record an unsatisfied challenge for the current call
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        var unsatisfied = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        var canceledToken = new CancellationToken(canceled: true);
+        var plainCancellation = new TaskCanceledException();
+
+        // Act / Assert
+        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(plainCancellation, CancellationToken.None));
+        Assert.False(AuthFailureClassifier.IsUnsatisfiedChallenge(plainCancellation, canceledToken));
+        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(unsatisfied, canceledToken));
+    }
+
+    /// <summary>
+    ///     Tests that a source that rejects every request fails promptly with
+    ///     <see cref="NuGetAuthenticationException"/> when no credentials are available, without NuGet's
+    ///     retry delays and without the v2 fallback request.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_NoCredentials_FailsFastWithoutRetries()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterUnauthorizedForAllRequests();
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+
+            // Act
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "FastFail.Package", "1.0.0", settings, null, new CredentialServiceRegistrar(), CancellationToken.None));
+            stopwatch.Stop();
+
+            // Assert - without the fix this takes about 8 seconds and makes 16 requests
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(4), $"Took {stopwatch.Elapsed}.");
+            Assert.True(server.RequestPaths.Count <= 6, $"Made {server.RequestPaths.Count} requests.");
+            Assert.DoesNotContain(server.RequestPaths, p => p.Contains("FindPackagesById", StringComparison.OrdinalIgnoreCase));
+        });
+    }
+
+    /// <summary>
+    ///     Tests that <c>GetVersionsAsync</c> and <c>ListVersionsAsync</c> also fail promptly with
+    ///     <see cref="NuGetAuthenticationException"/> when no credentials are available.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterUnauthorizedForAllRequests();
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+
+            // Act
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.GetVersionsAsync(
+                    "FastFail.Versions", false, settings, null, new CredentialServiceRegistrar(), CancellationToken.None));
+            await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.ListVersionsAsync(
+                    "FastFail.Versions", false, settings, null, new CredentialServiceRegistrar(), CancellationToken.None));
+            stopwatch.Stop();
+
+            // Assert - each call took about 6 seconds before; both together now finish well under that
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Took {stopwatch.Elapsed}.");
+            Assert.DoesNotContain(server.RequestPaths, p => p.Contains("FindPackagesById", StringComparison.OrdinalIgnoreCase));
+        });
+    }
+
+    /// <summary>
+    ///     Tests that <see cref="NuGetCacheOptions.AuthenticationTimeout"/> surfaces promptly: a
+    ///     callback that never completes costs about the timeout, is asked once, and the call fails with
+    ///     <see cref="OperationCanceledException"/> rather than an authentication failure.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterUnauthorizedForAllRequests();
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+            var calls = 0;
+            var neverCompletes = new TaskCompletionSource<NuGetCredential?>();
+            var options = new NuGetCacheOptions
+            {
+                CredentialCallback = (_, _) =>
+                {
+                    Interlocked.Increment(ref calls);
+                    return neverCompletes.Task;
+                },
+                AuthenticationTimeout = TimeSpan.FromMilliseconds(300),
+            };
+
+            // Act
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var ensure = await Record.ExceptionAsync(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "Prompt.Timeout", "1.0.0", settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
+            var ensureElapsed = stopwatch.Elapsed;
+            var ensureCalls = Volatile.Read(ref calls);
+            stopwatch.Restart();
+            var list = await Record.ExceptionAsync(async () =>
+                await NuGetCache.ListVersionsAsync(
+                    "Prompt.Timeout", false, settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
+            var listElapsed = stopwatch.Elapsed;
+
+            // Assert
+            Assert.IsAssignableFrom<OperationCanceledException>(ensure);
+            Assert.IsNotType<NuGetAuthenticationException>(ensure);
+            Assert.IsAssignableFrom<OperationCanceledException>(list);
+            Assert.IsNotType<NuGetAuthenticationException>(list);
+            Assert.True(ensureElapsed < TimeSpan.FromSeconds(3), $"EnsureCached took {ensureElapsed}.");
+            Assert.True(listElapsed < TimeSpan.FromSeconds(3), $"ListVersions took {listElapsed}.");
+            Assert.Equal(1, ensureCalls);
+        });
+    }
+
+    /// <summary>
+    ///     A credential service that always supplies a credential and counts its requests.
+    /// </summary>
+    private sealed class SuppliedCredentialService : global::NuGet.Configuration.ICredentialService
+    {
+        private int _calls;
+
+        /// <summary>Gets the number of credential requests received.</summary>
+        public int Calls => Volatile.Read(ref _calls);
+
+        /// <inheritdoc />
+        public bool HandlesDefaultCredentials => true;
+
+        /// <inheritdoc />
+        public Task<System.Net.ICredentials?> GetCredentialsAsync(
+            Uri uri,
+            System.Net.IWebProxy? proxy,
+            global::NuGet.Configuration.CredentialRequestType type,
+            string message,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            return Task.FromResult<System.Net.ICredentials?>(new System.Net.NetworkCredential("u", "p"));
+        }
+
+        /// <inheritdoc />
+        public bool TryGetLastKnownGoodCredentialsFromCache(Uri uri, bool isProxy, out System.Net.ICredentials? credentials)
+        {
+            credentials = null;
+            return false;
+        }
+    }
+
+    /// <summary>
     ///     A credential service whose last-known-good cache always reports a hit.
     /// </summary>
     private sealed class CachedHitService : global::NuGet.Configuration.ICredentialService

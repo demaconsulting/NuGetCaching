@@ -243,7 +243,9 @@ chooses where `nuget.config` discovery starts. Throws `ArgumentNullException` or
 - `Sources` (`IReadOnlyList<string>?`): when set, exactly these sources are used instead of the configured
   ones, and package source mapping is bypassed. Each entry is a configured source name, an http(s) URL, a
   `file:` URI, or a rooted folder path; duplicates are collapsed and any other entry throws
-  `ArgumentException`.
+  `ArgumentException`. A v3 feed entry must be the full `.../index.json` service-index URL (a bare
+  host or API root is treated as v2). A URL with a query string is not rewritten and a warning is
+  logged when a logger is supplied.
 - `IncludeLocalSources` (bool, default false): includes local folder sources in `GetVersionsAsync` and
   `ListVersionsAsync`. `EnsureCachedAsync` always consults local sources.
 - `RequireSignedPackages` (bool, default false): requires the package to be signed for this call. An
@@ -263,12 +265,14 @@ chooses where `nuget.config` discovery starts. Throws `ArgumentNullException` or
   `{Message}` and no added category. Secrets are never logged. The logger can be called from background
   threads, so it must be thread-safe and a GUI application must marshal to its UI thread.
 - `CredentialCallback` (`Func<Uri, CancellationToken, Task<NuGetCredential?>>?`): called when a source
-  needs credentials, before any credential provider. Return a `NuGetCredential` to use it, or null to
-  fall through to the providers. If a credential is rejected, the callback is not asked again for the
-  same address within the call.
-- `AuthenticationTimeout` (`TimeSpan?`): maximum time for credential acquisition. When exceeded, the call
+  needs credentials, before any credential provider, at most once per (URL, request type) per call.
+  Return a `NuGetCredential` to use it, or null to fall through to the providers (the null answer is
+  remembered for the call). If no credential can be supplied, or a supplied credential is rejected, the
+  call fails fast with `NuGetAuthenticationException`.
+- `AuthenticationTimeout` (`TimeSpan?`): maximum time for each credential exchange (not the whole call).
+  When exceeded, the call
   throws `OperationCanceledException` (never `NuGetAuthenticationException`, even when NuGet retries or
-  wraps the failed request). This applies to every async method. The value
+  wraps the failed request) without further retries. This applies to every async method. The value
   must be greater than zero and at most `int.MaxValue` milliseconds (about 24.8 days), or
   `Timeout.InfiniteTimeSpan` (same as null, no limit); any other value makes the call throw
   `ArgumentOutOfRangeException` before any work starts.
@@ -308,6 +312,8 @@ catch (NuGetAuthenticationException ex)
   `NUGET_PLUGIN_IDLE_TIMEOUT_IN_SECONDS` environment variable), when the parent process exits, or when
   the process ends. The library does not dispose NuGet's shared plugin manager.
 - Versions are NuGet-normalized strings and may carry `+metadata` or four parts.
+- When a flat-container package download is rejected after credentials were refused, NuGet's own
+  download retry loop (about 5 s) runs before the authentication error is reported.
 
 ##### Migrating from 1.x
 

@@ -112,6 +112,13 @@ internal static class PackageDownloader
                 logger,
                 cancellationToken);
         }
+        catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, cancellationToken)
+            && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
+        {
+            // The credential service had no credentials for the challenge and canceled the request
+            // to stop NuGet's retries; report it exactly like the 401 failure it stands for
+            return new TryDownloadResult(null, authMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) };
+        }
         catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
         {
             // An authentication failure (401/403) is actionable during download too - the source
@@ -138,10 +145,13 @@ internal static class PackageDownloader
             return default;
         }
 
-        // The source confirmed it does not carry this package version
+        // The source confirmed it does not carry this package version, unless NuGet swallowed the
+        // request that the dispatcher canceled for an unsatisfied authentication challenge
         if (!found)
         {
-            return default;
+            return AuthFailureClassifier.TryDescribeRecordedChallenge(sourceName, source, out var recordedMessage)
+                ? new TryDownloadResult(null, recordedMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) }
+                : default;
         }
 
         // Rewind the stream then install the package into the global packages folder.

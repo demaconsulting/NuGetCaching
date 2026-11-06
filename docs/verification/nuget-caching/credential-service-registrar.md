@@ -123,6 +123,18 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback**:
   deterministic, HTTP-free: after a timeout a repeat request is canceled without invoking the
   callback again and the scope's `ThrowIfTimedOut()` throws `OperationCanceledException`.
+- **CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOncePerUriAndType** and
+  **..._AsksOnceButStillReachesProviders**: a null answer is remembered per (URI, type) so the callback
+  runs once, while the providers are still consulted.
+- **CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge**: with no
+  credential available the dispatcher throws an `OperationCanceledException`-derived exception.
+- **AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure**: a plain
+  cancellation after a recorded challenge is an authentication failure only while the caller's token is
+  not canceled; the dispatcher's own exception is always one.
+- **NuGetCache_EnsureCachedAsync_NoCredentials_FailsFastWithoutRetries**,
+  **NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries** and
+  **NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout**: end-to-end
+  fail-fast and prompt-timeout behavior.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: concurrent calls with and without a
   callback do not see each other's options.
 - **CredentialDispatcher_TryGetLastKnownGoodCredentialsFromCache_HonorsCallbackAndLoggerRouting**: a
@@ -143,8 +155,14 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **`Caching-CredentialServiceRegistrar-LoopGuard`**:
   NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails,
   NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
-  CredentialDispatcher_GetCredentialsAsync_CallbackBlocksSynchronously_TimesOutPromptly
-- **`Caching-CredentialServiceRegistrar-RegisterOnce`**:
+  CredentialDispatcher_GetCredentialsAsync_CallbackBlocksSynchronously_TimesOutPromptly,
+  CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOncePerUriAndType,
+  CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders,
+  NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout
+- **`Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`**:
+  CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge,
+  AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure,
+  NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries
   CredentialServiceRegistrar_EnsureRegistered_RepeatedCalls_RegistersExactlyOnce,
   NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar,
   NuGetCache_EnsureCachedAsync_FreshRealRegistrar_RegistersRealCredentialService,

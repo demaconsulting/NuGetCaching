@@ -144,9 +144,19 @@ public methods of `NuGetCache`:
 - **Scope with a callback**: for non-proxy requests the last-known-good credential cache is bypassed
   (so credentials cached by another call cannot take precedence over the callback) and the callback is
   consulted first. A non-null
-  `NuGetCredential` becomes the response; null falls through to the providers. A per-call set of
-  (URI, request type) pairs is the loop guard: a second request for a pair already answered returns
-  null, because the NuGet SDK asks again only after the previous credential was rejected.
+  `NuGetCredential` becomes the response. A per-call set records each (URI, request type) pair
+  asked: the callback runs at most once per pair per call. A null answer is remembered and the
+  providers are still consulted; a second challenge for a pair whose supplied credential was
+  rejected throws the unsatisfied-challenge exception.
+- **Fail fast**: when no credential can be supplied for a non-proxy challenge (callback declined and
+  providers returned nothing, or a supplied credential was rejected), the dispatcher throws
+  `AuthChallengeUnsatisfiedException`, an `OperationCanceledException`, instead of returning null.
+  Returning null made NuGet retry with ~1.1 s back-off (about 8 s and 16 requests for a 401
+  everywhere). `AuthFailureClassifier`, `PackageSourceResolver`, `PackageDownloader` and `NuGetCache`
+  translate it into `NuGetAuthenticationException`. NuGet's flat-container download loop swallows
+  the exception, retries (~5 s) and reports "not found", so the dispatcher also records the
+  challenge URI in an ambient field consulted by the downloader and version listing. This
+  download-stage retry delay is inherent to NuGet and is not eliminated.
 - **Scope with a logger, non-interactive**: a lazily created non-interactive `CredentialService` whose
   plugin logger forwards to the ambient call's logger, so provider diagnostics reach the caller. Without
   a logger the original default service is used unchanged.
@@ -185,9 +195,12 @@ Limitations (stated honestly rather than hidden):
   terminate plugin processes, and NuGet's `PluginManager` stops them only on idle timeout, parent exit, or
   process end (see above). Callers should treat a timeout as a failed call, not as proof that cleanup completed.
 - When a host already registered its own credential service, per-call options are not applied.
+- A cancellation requested by the caller's own `CancellationToken` is never reported as an authentication
+  failure, even if a challenge was recorded earlier in the call; it propagates as a cancellation.
 
 Satisfies requirements `Caching-CredentialServiceRegistrar-DispatchPerCall`,
-`Caching-CredentialServiceRegistrar-CallbackFirst`, and `Caching-CredentialServiceRegistrar-LoopGuard`.
+`Caching-CredentialServiceRegistrar-CallbackFirst`, `Caching-CredentialServiceRegistrar-LoopGuard`, and
+`Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`.
 
 ### Error Handling
 

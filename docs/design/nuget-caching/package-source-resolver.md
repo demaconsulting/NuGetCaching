@@ -171,16 +171,17 @@ fallback when a v3 `/index.json` URL fails with a protocol error. The method:
    candidate's transient network error is not itself actionable, but must not discard a genuine
    authentication failure detected on a prior candidate.
 6. On a `NuGetProtocolException` where `AuthFailureClassifier.TryDescribeAuthFailure` detects an
-   HTTP 401/403, captures the actionable diagnostic message via `??=` and tries the next
-   candidate (e.g. the v2 OData fallback), the same as any other `NuGetProtocolException` — the
-   protocol layer already implies the request reached the source and got a structured response,
-   so a fallback candidate is still worth trying before giving up.
+   HTTP 401/403, or on the dispatcher's unsatisfied-challenge `OperationCanceledException`, returns
+   the authentication diagnostic immediately and does **not** try the v2 fallback: a rejected index
+   request means the credentials are missing or wrong, and the fallback would repeat the rejection
+   after several seconds of NuGet retries.
 7. On any other `NuGetProtocolException`, captures the first (configured URL's) error message
    via `??=` and tries the next candidate. After all candidates are exhausted, returns the
    captured error message (auth-diagnostic or generic) referencing the original configured URL.
 
 Satisfies requirements `Caching-PackageSourceResolver-Resolve` and
-`Caching-PackageSourceResolver-FallbackOnProtocolError`.
+`Caching-PackageSourceResolver-FallbackOnProtocolError` and
+`Caching-PackageSourceResolver-NoV2FallbackAfterAuthFailure`.
 
 #### `BuildCandidateRepositories(...)` (private)
 

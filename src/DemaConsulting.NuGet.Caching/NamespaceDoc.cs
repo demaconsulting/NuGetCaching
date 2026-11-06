@@ -102,7 +102,8 @@ namespace DemaConsulting.NuGet.Caching;
 ///         machine settings. This mirrors the behavior of the <c>dotnet</c> CLI, so a repository-local
 ///         <c>nuget.config</c> works as expected. <see cref="NuGetCacheOptions.Sources"/> replaces the
 ///         discovered sources for one call, and <see cref="NuGetCacheOptions.IncludeLocalSources"/> adds
-///         local folder feeds to version listing.
+///         local folder feeds to version listing. A NuGet V3 source must be its <c>index.json</c> service index URL
+///         with no query string; NuGet treats any other URL as a V2 feed.
 ///     </para>
 ///     <para>
 ///         <b>Errors</b>: a package source that is unreachable or rejects the request is skipped as long as
@@ -202,12 +203,14 @@ namespace DemaConsulting.NuGet.Caching;
 ///         <c>options</c> argument.
 ///         <see cref="NuGetCacheOptions.CredentialCallback"/> supplies a <see cref="NuGetCredential"/> when a source
 ///         answers HTTP 401 or 403 (it is consulted before any credential provider; returning null falls through to the
-///         providers, and a rejected credential is not requested again for the same address),
+///         providers; the callback is invoked at most once per URL and request type per call, so a null answer or a
+///         rejected credential is not requested again for the same address),
 ///         <see cref="NuGetCacheOptions.Interactive"/> allows credential providers to prompt,
 ///         <see cref="NuGetCacheOptions.Logger"/> receives NuGet messages, and
-///         <see cref="NuGetCacheOptions.AuthenticationTimeout"/> bounds credential acquisition (the call then throws
+///         <see cref="NuGetCacheOptions.AuthenticationTimeout"/> bounds each credential exchange, not the whole call (the call then throws
 ///         <see cref="OperationCanceledException"/>, never <see cref="NuGetAuthenticationException"/>, even when NuGet
-///         retries or wraps the failed request). Caveats: the NuGet credential service is
+///         retries or wraps the failed request). When no credential is available for a challenge, the call fails
+///         promptly with <see cref="NuGetAuthenticationException"/> rather than waiting through NuGet's retries. Caveats: the NuGet credential service is
 ///         process-wide, so options apply only when this library registered it (a host application's own
 ///         registration wins, and a warning is logged), and a timeout abandons the wait but does not terminate an
 ///         external credential-provider process: NuGet owns it and ends it on its idle timeout

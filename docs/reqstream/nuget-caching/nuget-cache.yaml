@@ -131,6 +131,7 @@ sections:
         children:
           - Caching-PackageSourceResolver-FallbackOnProtocolError
           - Caching-PackageSourceResolver-NoFallbackForNonIndexUrl
+          - Caching-PackageSourceResolver-NoV2FallbackAfterAuthFailure
         tests:
           - NuGetCache_EnsureCachedAsync_V3IndexFailsV2PackageRegistered_ReturnsExistingPackagePath
 
@@ -230,6 +231,7 @@ sections:
           - Caching-CredentialServiceRegistrar-DispatchPerCall
           - Caching-CredentialServiceRegistrar-CallbackFirst
           - Caching-CredentialServiceRegistrar-LoopGuard
+          - Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge
         tests:
           - NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source
           - NuGetCache_GetVersionsAsync_CallbackSuppliesCredentials_ReturnsVersions
@@ -276,6 +278,7 @@ sections:
           - NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
           - NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled
           - CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback
+          - NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout
 
       - id: Caching-NuGetCache-OptionsIsolation
         title: >-
@@ -459,6 +462,7 @@ sections:
           - NuGetCache_Sources_ConfiguredName_ResolvesToConfiguredSource
           - NuGetCache_Sources_ExplicitSource_BypassesSourceMapping
           - NuGetCache_Sources_DuplicateEntries_QueryTheSourceOnce
+          - NuGetCache_Sources_QueryStringJsonUrl_LogsV2Warning
 
       - id: Caching-NuGetCache-IncludeLocalSources
         title: >-
@@ -497,6 +501,7 @@ sections:
         tests:
           - NuGetCache_ListVersionsAsync_RegistrationMetadata_ReturnsListedStateAndPublishedDate
           - NuGetCache_ListVersionsAsync_NoRegistrationMetadata_FallsBackToFlatList
+          - NuGetCache_ListVersionsAsync_NoRegistrationResource_FallsBackToFlatList
           - NuGetCache_ListVersionsAsync_VersionInTwoSources_FirstSourceWins
           - NuGetPackageVersion_Record_HasValueSemantics
 

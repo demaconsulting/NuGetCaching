@@ -72,19 +72,17 @@ rather than surfaced as a diagnostic.
 
 #### PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsActionableErrorMessage
 
-**Scenario**: A WireMock feed requires HTTP Basic Auth on every endpoint (including the
-service index); no credentials are supplied. The resource is resolved through
-`PackageSourceResolver.ResolveAsync`'s production v2-fallback logic, which - per
-`PackageSourceResolverTests.PackageSourceResolver_ResolveAsync_NetworkFailureOnIndex_DoesNotThrowAndReturnsNoErrorMessage`
-
-- masks the index-fetch authentication failure by resolving the v2 fallback candidate without
-performing any HTTP request. `TryDownloadAsync` is then called with that masked resource,
-performing the first real HTTP request against the feed.
+**Scenario**: A WireMock feed serves a public service index and version list, but its `.nupkg`
+endpoint answers HTTP 401. A dispatching credential scope with no credentials is active, so
+the credential service cancels the rejected request with its unsatisfied-challenge exception. NuGet's
+flat-container download loop swallows that exception and reports "not found"; `TryDownloadAsync`
+therefore consults the challenge recorded for the call and reports the authentication failure.
 
 **Expected**: Returns a `null` `PackagePath` and a non-null `ErrorMessage` containing both the
-configured source name (`test-source`) and the detected HTTP status code (`401`), confirming the
-authentication failure - deferred past resolution - reliably surfaces once a real HTTP request is
-made during download.
+configured source name (`test-source`) and the detected HTTP status code (`401`).
+
+**Note**: NuGet's own download retries (about 5 s) still run
+before the failure is reported. The test runs on every target framework, including .NET Framework.
 
 **Requirement coverage**: `Caching-PackageDownloader-AuthDiagnostic`.
 
