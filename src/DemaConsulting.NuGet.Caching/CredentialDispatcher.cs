@@ -77,9 +77,21 @@ internal sealed class CredentialDispatcher : ICredentialService
 
     /// <summary>
     ///     Gets the URL of the first authentication challenge that could not be satisfied during the
-    ///     current ambient call, or <see langword="null"/> when there was none.
+    ///     current ambient call for the same host as <paramref name="source"/>, or
+    ///     <see langword="null"/> when there was none.
     /// </summary>
-    internal static Uri? AmbientUnsatisfiedChallenge => Ambient.Value?.UnsatisfiedChallenge;
+    /// <param name="source">The package source URL the caller is operating on.</param>
+    /// <returns>The recorded challenge URL for the source's host, or <see langword="null"/>.</returns>
+    internal static Uri? FindAmbientUnsatisfiedChallenge(string source)
+    {
+        var context = Ambient.Value;
+        if (context == null || !Uri.TryCreate(source, UriKind.Absolute, out var sourceUri))
+        {
+            return null;
+        }
+
+        return context.FindUnsatisfied(sourceUri);
+    }
 
     /// <inheritdoc />
     public bool HandlesDefaultCredentials => _defaultService.HandlesDefaultCredentials;
@@ -185,8 +197,7 @@ internal sealed class CredentialDispatcher : ICredentialService
                 if (context.Asked.TryGetValue(key, out var supplied) && supplied)
                 {
                     context.Logger?.LogDebug("Credential callback already answered a challenge for this request; not asking again.");
-                    context.MarkUnsatisfied(uri);
-                    throw new AuthChallengeUnsatisfiedException(uri);
+                    throw FailChallenge(context, uri, cancellationToken);
                 }
 
                 context.Logger?.LogDebug("Credential callback already declined a challenge for this request; not asking again.");
@@ -210,11 +221,18 @@ internal sealed class CredentialDispatcher : ICredentialService
         if (credentials == null && type != CredentialRequestType.Proxy)
         {
             context.Logger?.LogDebug("No credentials are available for the authentication challenge; failing the request.");
-            context.MarkUnsatisfied(uri);
-            throw new AuthChallengeUnsatisfiedException(uri);
+            throw FailChallenge(context, uri, cancellationToken);
         }
 
         return credentials;
+    }
+
+    private static Exception FailChallenge(CallContext context, Uri uri, CancellationToken cancellationToken)
+    {
+        // Caller cancellation must propagate as a normal cancellation, never become an authentication failure
+        cancellationToken.ThrowIfCancellationRequested();
+        context.MarkUnsatisfied(uri);
+        return new AuthChallengeUnsatisfiedException(uri);
     }
 
     private static async Task<T> WithTimeoutAsync<T>(
@@ -302,11 +320,14 @@ internal sealed class CredentialDispatcher : ICredentialService
         // Set when a challenge could not be satisfied; NuGet's own retry loops can swallow the fail-fast
         // exception (reporting "not found" instead), so the owning call checks this to still report the
         // authentication failure
-        private volatile Uri? _unsatisfiedChallenge;
+        // Keyed by authority (host and port) so a challenge is only attributed to the source it came from
+        private readonly ConcurrentDictionary<string, Uri> _unsatisfiedChallenges =
+            new(StringComparer.OrdinalIgnoreCase);
 
-        internal Uri? UnsatisfiedChallenge => _unsatisfiedChallenge;
+        internal Uri? FindUnsatisfied(Uri source) =>
+            _unsatisfiedChallenges.TryGetValue(source.Authority, out var challenge) ? challenge : null;
 
-        internal void MarkUnsatisfied(Uri uri) => _unsatisfiedChallenge ??= uri;
+        internal void MarkUnsatisfied(Uri uri) => _unsatisfiedChallenges.TryAdd(uri.Authority, uri);
 
         // Challenges the callback has been asked about; the value is true when it supplied a credential
         // and false when it declined (returned null)
@@ -364,13 +385,14 @@ internal sealed class CredentialDispatcher : ICredentialService
         /// </summary>
         /// <param name="uri">The URL that issued the authentication challenge.</param>
         internal AuthChallengeUnsatisfiedException(Uri uri)
-            : base($"Response status code does not indicate success: 401 (Unauthorized). No credentials are available for '{uri}'.")
+            : base("Response status code does not indicate success: 401 (Unauthorized). No credentials are available for the challenged request.")
         {
             ChallengeUri = uri;
         }
 
         /// <summary>
-        ///     Gets the URL that issued the authentication challenge.
+        ///     Gets the URL that issued the authentication challenge. It is deliberately not part of
+        ///     <see cref="Exception.Message"/> because it may carry secrets in its query string.
         /// </summary>
         internal Uri ChallengeUri { get; }
     }

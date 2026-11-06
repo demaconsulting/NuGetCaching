@@ -112,7 +112,7 @@ internal static class PackageDownloader
                 logger,
                 cancellationToken);
         }
-        catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, cancellationToken)
+        catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, source, cancellationToken)
             && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
         {
             // The credential service had no credentials for the challenge and canceled the request
@@ -131,7 +131,7 @@ internal static class PackageDownloader
             // Protocol error during the download itself - surface a diagnostic message
             // so the caller can include it in the final not-found exception
             return new TryDownloadResult(null,
-                $"{source}: Protocol error downloading package. ({ex.Message})");
+                $"{AuthFailureClassifier.RedactUrl(source)}: Protocol error downloading package. ({ex.Message})");
         }
         catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
         {
@@ -169,7 +169,7 @@ internal static class PackageDownloader
                     await VerifySignedAsync(
                         reader,
                         clientPolicyContext,
-                        $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{source}'",
+                        $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{AuthFailureClassifier.RedactUrl(source)}'",
                         cancellationToken);
                 }
 
@@ -199,7 +199,7 @@ internal static class PackageDownloader
             // A signature failure is a security failure, not an availability problem, so it is never
             // skipped to the next source: it is reported with a clear message and the NuGet detail
             throw new InvalidOperationException(
-                $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{source}' failed signature verification: {ex.Message}",
+                $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{AuthFailureClassifier.RedactUrl(source)}' failed signature verification: {ex.Message}",
                 ex);
         }
 

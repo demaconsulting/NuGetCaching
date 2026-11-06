@@ -50,19 +50,20 @@ internal static class AuthFailureClassifier
     ///     dispatcher's fail-fast <see cref="CredentialDispatcher.AuthChallengeUnsatisfiedException"/>.
     /// </summary>
     /// <param name="exception">The exception to inspect.</param>
+    /// <param name="source">The URL of the package source the failed operation targeted.</param>
     /// <param name="cancellationToken">
     ///     The caller's cancellation token; a cancellation it requested is never reported as an
     ///     authentication failure.
     /// </param>
     /// <returns><see langword="true"/> when an unsatisfied authentication challenge is in the chain.</returns>
-    internal static bool IsUnsatisfiedChallenge(Exception exception, CancellationToken cancellationToken)
+    internal static bool IsUnsatisfiedChallenge(Exception exception, string source, CancellationToken cancellationToken)
     {
         // Some runtimes (notably .NET Framework) replace the dispatcher's exception with a plain
-        // TaskCanceledException inside NuGet's retry handler; the call's recorded challenge identifies it,
-        // unless the caller itself canceled the operation
+        // TaskCanceledException inside NuGet's retry handler; the call's recorded challenge for this
+        // source's host identifies it, unless the caller itself canceled the operation
         if (exception is OperationCanceledException
             && !cancellationToken.IsCancellationRequested
-            && CredentialDispatcher.AmbientUnsatisfiedChallenge != null)
+            && CredentialDispatcher.FindAmbientUnsatisfiedChallenge(source) != null)
         {
             return true;
         }
@@ -96,10 +97,7 @@ internal static class AuthFailureClassifier
         string source,
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
     {
-        var challenge = CredentialDispatcher.AmbientUnsatisfiedChallenge;
-        if (challenge != null
-            && Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)
-            && string.Equals(challenge.Authority, sourceUri.Authority, StringComparison.OrdinalIgnoreCase))
+        if (CredentialDispatcher.FindAmbientUnsatisfiedChallenge(source) is { } challenge)
         {
             return TryDescribeAuthFailure(
                 new CredentialDispatcher.AuthChallengeUnsatisfiedException(challenge), sourceName, source, out message);
@@ -107,6 +105,24 @@ internal static class AuthFailureClassifier
 
         message = null;
         return false;
+    }
+
+    /// <summary>
+    ///     Returns <paramref name="url"/> without its user info, query string and fragment, which may
+    ///     carry secrets (for example a SAS token), so it is safe to log or surface in diagnostics.
+    /// </summary>
+    /// <param name="url">The URL to redact.</param>
+    /// <returns>The redacted URL, or the input when it is not an absolute URI with such parts.</returns>
+    internal static string RedactUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            // Not a parseable URL: drop anything after a query or fragment delimiter
+            var index = url.IndexOfAny(['?', '#']);
+            return index >= 0 ? url[..index] : url;
+        }
+
+        return uri.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped);
     }
 
     /// <summary>
@@ -149,7 +165,7 @@ internal static class AuthFailureClassifier
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
     {
         if (exception is OperationCanceledException and not CredentialDispatcher.AuthChallengeUnsatisfiedException
-            && CredentialDispatcher.AmbientUnsatisfiedChallenge is { } recorded)
+            && CredentialDispatcher.FindAmbientUnsatisfiedChallenge(source) is { } recorded)
         {
             exception = new CredentialDispatcher.AuthChallengeUnsatisfiedException(recorded);
         }
@@ -162,7 +178,7 @@ internal static class AuthFailureClassifier
 
         var statusText = statusCode == 403 ? "403 (Forbidden)" : "401 (Unauthorized)";
         message =
-            $"{sourceName} ({source}): HTTP {statusText} - the source requires authentication or the " +
+            $"{sourceName} ({RedactUrl(source)}): HTTP {statusText} - the source requires authentication or the " +
             $"configured credentials were rejected. Check packageSourceCredentials in nuget.config, or " +
             $"any configured NuGet credential provider, for this source. ({exception.Message})";
         return true;

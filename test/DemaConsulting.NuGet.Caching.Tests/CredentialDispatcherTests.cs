@@ -605,7 +605,7 @@ public class CredentialDispatcherTests
     {
         // Arrange
         var dispatcher = new CredentialDispatcher(new CachedHitService());
-        var uri = new Uri("http://localhost/feed/index.json");
+        var uri = new Uri("http://localhost/feed/index.json?sig=TopSecretToken");
         using var scope = CredentialDispatcher.BeginScope(null, null);
 
         // Act / Assert
@@ -613,16 +613,19 @@ public class CredentialDispatcherTests
             await dispatcher.GetCredentialsAsync(
                 uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
         Assert.IsAssignableFrom<OperationCanceledException>(exception);
-        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(exception, CancellationToken.None));
-        Assert.True(AuthFailureClassifier.TryDescribeAuthFailure(exception, "src", uri.AbsoluteUri, out _));
+        Assert.Equal(uri, exception.ChallengeUri);
+        Assert.DoesNotContain("TopSecretToken", exception.Message, StringComparison.Ordinal);
+        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(exception, uri.AbsoluteUri, CancellationToken.None));
+        Assert.True(AuthFailureClassifier.TryDescribeAuthFailure(exception, "src", uri.AbsoluteUri, out var described));
+        Assert.DoesNotContain("TopSecretToken", described, StringComparison.Ordinal);
         Assert.Null(await dispatcher.GetCredentialsAsync(
             uri, null, global::NuGet.Configuration.CredentialRequestType.Proxy, "m", CancellationToken.None));
     }
 
     /// <summary>
     ///     Deterministic, HTTP-free test: a plain cancellation observed after the call recorded an unsatisfied
-    ///     challenge is reported as an authentication failure only while the caller's token is not canceled,
-    ///     while the dispatcher's own exception is always reported.
+    ///     challenge is reported as an authentication failure only while the caller's token is not canceled
+    ///     and only for a source on the challenged host, while the dispatcher's own exception is always reported.
     /// </summary>
     [Fact]
     public async Task AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure()
@@ -636,11 +639,41 @@ public class CredentialDispatcherTests
                 uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
         var canceledToken = new CancellationToken(canceled: true);
         var plainCancellation = new TaskCanceledException();
+        var source = uri.AbsoluteUri;
 
         // Act / Assert
-        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(plainCancellation, CancellationToken.None));
-        Assert.False(AuthFailureClassifier.IsUnsatisfiedChallenge(plainCancellation, canceledToken));
-        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(unsatisfied, canceledToken));
+        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(plainCancellation, source, CancellationToken.None));
+        Assert.False(AuthFailureClassifier.IsUnsatisfiedChallenge(plainCancellation, source, canceledToken));
+        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(unsatisfied, source, canceledToken));
+
+        // A cancellation for a source on another host is not attributed to the recorded challenge
+        Assert.False(AuthFailureClassifier.IsUnsatisfiedChallenge(
+            plainCancellation, "http://other.example/feed/index.json", CancellationToken.None));
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: when the caller's token is already canceled, the dispatcher throws a
+    ///     normal cancellation (not the fail-fast exception) and records no unsatisfied challenge.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation()
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act
+        var exception = await Record.ExceptionAsync(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", cts.Token));
+
+        // Assert
+        Assert.IsAssignableFrom<OperationCanceledException>(exception);
+        Assert.IsNotType<CredentialDispatcher.AuthChallengeUnsatisfiedException>(exception);
+        Assert.Null(CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri));
     }
 
     /// <summary>

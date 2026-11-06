@@ -127,10 +127,13 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   **..._AsksOnceButStillReachesProviders**: a null answer is remembered per (URI, type) so the callback
   runs once, while the providers are still consulted.
 - **CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge**: with no
-  credential available the dispatcher throws an `OperationCanceledException`-derived exception.
+  credential available the dispatcher throws an `OperationCanceledException`-derived exception whose
+  message carries no URL (the challenged URL, which may hold secrets, is only in `ChallengeUri`).
+- **CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation**: when the caller's
+  token is canceled the dispatcher throws a plain cancellation and records no challenge.
 - **AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure**: a plain
   cancellation after a recorded challenge is an authentication failure only while the caller's token is
-  not canceled; the dispatcher's own exception is always one.
+  not canceled and only for a source on the challenged host; the dispatcher's own exception is always one.
 - **NuGetCache_EnsureCachedAsync_NoCredentials_FailsFastWithoutRetries**,
   **NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries** and
   **NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout**: end-to-end
@@ -161,8 +164,10 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout
 - **`Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`**:
   CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge,
+  CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation,
   AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure,
   NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries
+- **`Caching-CredentialServiceRegistrar-RegisterOnce`**:
   CredentialServiceRegistrar_EnsureRegistered_RepeatedCalls_RegistersExactlyOnce,
   NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar,
   NuGetCache_EnsureCachedAsync_FreshRealRegistrar_RegistersRealCredentialService,

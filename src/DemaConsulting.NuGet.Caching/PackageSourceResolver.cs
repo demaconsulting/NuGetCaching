@@ -118,7 +118,7 @@ internal static class PackageSourceResolver
                 // Authentication failures never reach this point: they return immediately above.
                 return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage);
             }
-            catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, cancellationToken)
+            catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, candidate.PackageSource.Source, cancellationToken)
                 && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
             {
                 // The credential service had nothing to offer for the challenge and canceled the
@@ -146,7 +146,7 @@ internal static class PackageSourceResolver
                 // Capture the first error message using the failing candidate's own URL (which may
                 // be the v2 fallback, not the originally configured source); try the next candidate
                 // if available
-                protocolErrorMessage ??= $"{candidate.PackageSource.Source}: Failed to load package source. ({ex.Message})";
+                protocolErrorMessage ??= $"{AuthFailureClassifier.RedactUrl(candidate.PackageSource.Source)}: Failed to load package source. ({ex.Message})";
             }
         }
 

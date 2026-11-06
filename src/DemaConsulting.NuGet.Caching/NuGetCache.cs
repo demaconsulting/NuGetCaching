@@ -698,7 +698,7 @@ public static class NuGetCache
             if (resource == null)
             {
                 authFailure ??= resolution.AuthFailure;
-                sourceErrors.Add(resolution.ErrorMessage ?? $"{packageSource.Source}: Source is unreachable or unsupported.");
+                sourceErrors.Add(resolution.ErrorMessage ?? $"{AuthFailureClassifier.RedactUrl(packageSource.Source)}: Source is unreachable or unsupported.");
                 continue;
             }
 
@@ -718,7 +718,7 @@ public static class NuGetCache
                     .ToList();
             }
             catch (Exception ex) when (ex is HttpRequestException or NuGetProtocolException
-                || AuthFailureClassifier.IsUnsatisfiedChallenge(ex, cancellationToken))
+                || AuthFailureClassifier.IsUnsatisfiedChallenge(ex, effectiveSource.Source, cancellationToken))
             {
                 // An authentication timeout takes priority over the failure NuGet reported instead
                 scope.ThrowIfTimedOut();
@@ -732,7 +732,7 @@ public static class NuGetCache
                 }
                 else
                 {
-                    sourceErrors.Add($"{packageSource.Source}: Error retrieving versions. ({ex.Message})");
+                    sourceErrors.Add($"{AuthFailureClassifier.RedactUrl(packageSource.Source)}: Error retrieving versions. ({ex.Message})");
                 }
 
                 continue;
@@ -804,7 +804,7 @@ public static class NuGetCache
             var serviceIndex = await repository.GetResourceAsync<ServiceIndexResourceV3>(cancellationToken);
             if (serviceIndex != null && serviceIndex.GetServiceEntryUris(ServiceTypes.RegistrationsBaseUrl).Count == 0)
             {
-                logger.LogDebug($"{source}: The service index has no registration resource; using the flat version list.");
+                logger.LogDebug($"{AuthFailureClassifier.RedactUrl(source)}: The service index has no registration resource; using the flat version list.");
                 return null;
             }
 
@@ -897,7 +897,7 @@ public static class NuGetCache
                 && uri.AbsolutePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             {
                 logger.LogWarning(
-                    $"Source '{url}' has a query string, so NuGet treats it as a V2 feed. " +
+                    $"Source '{AuthFailureClassifier.RedactUrl(url)}' has a query string, so NuGet treats it as a V2 feed. " +
                     "A V3 source must be the service index URL ending in 'index.json' with no query string.");
             }
         }

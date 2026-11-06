@@ -166,10 +166,11 @@ fallback when a v3 `/index.json` URL fails with a protocol error. The method:
    HTTP 401/403, returns the actionable diagnostic message immediately rather than continuing
    to the next candidate — an authenticated HTTP-level rejection is definitive for this
    candidate URL.
-5. On any other `HttpRequestException` from any candidate, returns a result carrying any
-   actionable diagnostic already captured from an earlier candidate (or `null` if none) — this
-   candidate's transient network error is not itself actionable, but must not discard a genuine
-   authentication failure detected on a prior candidate.
+5. On any other `HttpRequestException` from any candidate (one that is not an authentication
+   failure), stops trying candidates and returns a result carrying the first protocol error
+   message captured from an earlier candidate (or `null` if none) — this candidate's transient
+   network error is not itself actionable. Authentication failures never reach this step: they
+   return immediately in steps 4 and 6.
 6. On a `NuGetProtocolException` where `AuthFailureClassifier.TryDescribeAuthFailure` detects an
    HTTP 401/403, or on the dispatcher's unsatisfied-challenge `OperationCanceledException`, returns
    the authentication diagnostic immediately and does **not** try the v2 fallback: a rejected index

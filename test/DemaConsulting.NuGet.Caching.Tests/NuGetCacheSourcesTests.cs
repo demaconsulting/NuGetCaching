@@ -241,10 +241,13 @@ public class NuGetCacheSourcesTests
                 "Query.Package",
                 false,
                 settings,
-                new NuGetCacheOptions { Sources = [server.IndexUrl + "?x=y"], Logger = withQuery },
+                new NuGetCacheOptions { Sources = [server.IndexUrl + "?sig=TopSecretToken"], Logger = withQuery },
                 registrar,
                 CancellationToken.None));
             Assert.Contains(withQuery.Warnings, m => m.Contains("query string", StringComparison.Ordinal));
+
+            // The query string (which may carry a secret) must never be logged
+            Assert.DoesNotContain(withQuery.Warnings, m => m.Contains("TopSecretToken", StringComparison.Ordinal));
 
             // A plain service index URL is not warned about
             var plain = new MessageLogger();
