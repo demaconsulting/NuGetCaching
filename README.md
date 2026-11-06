@@ -75,7 +75,9 @@ IReadOnlyList<string> installed = NuGetCache.GetCachedVersions("Newtonsoft.Json"
 
 See the user guide for `NuGetCacheOptions` (explicit `Sources`, `IncludeLocalSources`,
 `RequireSignedPackages`), logging, `NuGetAuthenticationException`, and limitations.
-Versions are NuGet-normalized strings and may carry `+metadata` or four parts.
+Versions are NuGet-normalized strings and may carry `+metadata` or four parts. A V3 source in `Sources`
+must be the full `index.json` URL; credential callbacks run at most once per (URL, request type) per call
+and an unsatisfied challenge fails fast with `NuGetAuthenticationException`.
 
 ## Documentation
 

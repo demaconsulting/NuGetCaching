@@ -37,7 +37,9 @@ evidence for one or more `NuGetCache`-level requirements.
   per test; for `GetVersionsAsync`, a `root` directory containing a `nuget.config` that points at
   the local feed. No internet access is required. The test process uses a private
   `NUGET_HTTP_CACHE_PATH` so cached feed responses from earlier runs cannot mask simulated failures
-  when a random port is reused.
+  when a random port is reused. `NuGetTestServer` also never reuses a port within a test process
+  (NuGet's in-process service-index cache is keyed by URL) and registers its default mappings at
+  priority 5 so that override mappings (priority 0) always take precedence deterministically.
 
 ### Acceptance Criteria
 
@@ -480,12 +482,32 @@ process-wide credential service can be isolated and restored.
   metadata fallback; recorded as a source failure and thrown because nothing was found).
 - **NuGetAuthenticationException_Properties_AreExposed**: `Source`, `Uri`, and message are
   preserved. Covers `AuthenticationException`.
+- **NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment**,
+  **NuGetAuthenticationException_Constructor_NullOrCleanUri_IsPreserved** and
+  **NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted**: `Uri` never carries user
+  info, query or fragment (direct construction, and end to end for `EnsureCachedAsync` and
+  `GetVersionsAsync` with query and user-info sources); `null` and clean URIs are preserved.
+- **NuGetAuthenticationException_Constructor_UrlLikeSource_RedactsSecrets**: a URL-like `Source` name has
+  its user info, query and fragment removed; `null` and plain names are preserved.
+- **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**,
+  **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource** and
+  **NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**: with two
+  sources on one host (one 401, one public) the failure names only the protected source.
 - **NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: a
   callback that never completes, with a 500 ms timeout, ends in `OperationCanceledException` (not
   `NuGetAuthenticationException`); the `GetVersionsAsync` variant and a deterministic dispatcher-level
   test (`CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback`)
   cover the same guarantee.
+  **NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout** asserts the
+  failure arrives promptly after the timeout. Remaining delay in field reports is NuGet's own retry
+  back-off (~1.1 s per retry), not the timeout.
   Covers `AuthenticationTimeout`.
+- **NuGetCache_EnsureCachedAsync_NoCredentials_FailsFastWithoutRetries** and
+  **NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries**: a server returning 401 to every
+  request ends in `NuGetAuthenticationException` quickly with few requests (no retry/V2 fallback).
+- **NuGetCache_Sources_QueryStringJsonUrl_LogsV2Warning** and
+  **NuGetCache_ListVersionsAsync_NoRegistrationResource_FallsBackToFlatList**: the query-string source
+  warning, and a service index without a registration resource falling back to the flat list without error.
 - **NuGetCache_InvalidAuthenticationTimeout_ThrowsArgumentOutOfRangeException** (zero, negative,
   and over-`int.MaxValue`-ms timeouts, all three async methods) and
   **NuGetCacheOptions_Validate_ValidTimeouts_DoNotThrow** (null, infinite, 1 tick, max). Cover
@@ -580,6 +602,13 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails
 - **`Caching-NuGetCache-AuthenticationException`**:
   NuGetAuthenticationException_Properties_AreExposed,
+  NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment,
+  NuGetAuthenticationException_Constructor_NullOrCleanUri_IsPreserved,
+  NuGetAuthenticationException_Constructor_UrlLikeSource_RedactsSecrets,
+  NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted,
+  NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource,
+  NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource,
+  NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource,
   NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException,
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic,
   NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException,

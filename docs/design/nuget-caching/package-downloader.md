@@ -98,6 +98,12 @@ resolution or the download step may be the one an authenticated feed rejects: fo
 Always Observable" design note in the `PackageSourceResolver` design document), so download is
 often where the actionable diagnostic is actually surfaced.
 
+#### Per-Source Challenge Attribution
+
+`TryDownloadAsync` calls `CredentialDispatcher.BeginSource(source)` inline (not in a helper that
+awaits) so an `AsyncLocal` marks the source for the duration of the attempt. Credential challenges
+raised by NuGet are then correlated to this source rather than to the host alone.
+
 #### `GetPackagePath` Exposed as Internal
 
 `GetPackagePath` is declared `internal` (rather than `private`) specifically so `NuGetCache` can

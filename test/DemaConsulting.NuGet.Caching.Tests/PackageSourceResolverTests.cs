@@ -142,5 +142,42 @@ public class PackageSourceResolverTests
         // used to search for or download the package, exercised separately by PackageDownloaderTests
         Assert.Null(result.ErrorMessage);
     }
+
+    /// <summary>
+    ///     Tests that <c>ResolveAsync</c> reports an authentication failure and does not try the v2
+    ///     fallback when the v3 index is challenged and no credentials are available.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task PackageSourceResolver_ResolveAsync_V3Unauthorized_ReportsAuthFailureWithoutV2Fallback()
+    {
+        var original = HttpHandlerResourceV3.CredentialService;
+        try
+        {
+            // Arrange - every request is rejected and the dispatching credential service has nothing to offer
+            HttpHandlerResourceV3.CredentialService = null;
+            new CredentialServiceRegistrar().EnsureRegistered();
+            using var scope = CredentialDispatcher.BeginScope(null, null);
+            await using var server = new NuGetTestServer();
+            server.RegisterUnauthorizedForAllRequests();
+            var packageSource = new PackageSource(server.IndexUrl, "test-source");
+            var providers = Repository.Provider.GetCoreV3();
+            var sourceRepository = new SourceRepository(packageSource, providers);
+
+            // Act
+            var result = await PackageSourceResolver.ResolveAsync(sourceRepository, providers, CancellationToken.None);
+
+            // Assert - the failure is an authentication failure for the v3 source and the v2 candidate
+            // (the base URL, queried through FindPackagesById) was never tried
+            Assert.Null(result.Resource);
+            Assert.NotNull(result.AuthFailure);
+            Assert.Equal(server.IndexUrl, result.AuthFailure.SourceUrl);
+            Assert.DoesNotContain(server.RequestPaths, p => p.Contains("FindPackagesById", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            HttpHandlerResourceV3.CredentialService = original;
+        }
+    }
 }
 

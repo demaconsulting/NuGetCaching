@@ -98,6 +98,10 @@ internal static class PackageDownloader
         var source = sourceRepository.PackageSource.Source;
         var sourceName = sourceRepository.PackageSource.Name;
 
+        // Attribute any unsatisfied challenge raised while downloading to this source only; set inline
+        // so it flows to the credential service through the awaited NuGet calls
+        using var sourceScope = CredentialDispatcher.BeginSource(source);
+
         // Stream the .nupkg bytes into memory; returns false when the package is absent from
         // this source, and throws on transient or permanent protocol errors
         using var packageStream = new MemoryStream();
@@ -112,6 +116,13 @@ internal static class PackageDownloader
                 logger,
                 cancellationToken);
         }
+        catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, source, cancellationToken)
+            && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
+        {
+            // The credential service had no credentials for the challenge and canceled the request
+            // to stop NuGet's retries; report it exactly like the 401 failure it stands for
+            return new TryDownloadResult(null, authMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) };
+        }
         catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
         {
             // An authentication failure (401/403) is actionable during download too - the source
@@ -124,7 +135,7 @@ internal static class PackageDownloader
             // Protocol error during the download itself - surface a diagnostic message
             // so the caller can include it in the final not-found exception
             return new TryDownloadResult(null,
-                $"{source}: Protocol error downloading package. ({ex.Message})");
+                $"{AuthFailureClassifier.RedactUrl(source)}: Protocol error downloading package. ({AuthFailureClassifier.RedactEmbeddedUrls(ex.Message)})");
         }
         catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
         {
@@ -138,10 +149,13 @@ internal static class PackageDownloader
             return default;
         }
 
-        // The source confirmed it does not carry this package version
+        // The source confirmed it does not carry this package version, unless NuGet swallowed the
+        // request that the dispatcher canceled for an unsatisfied authentication challenge
         if (!found)
         {
-            return default;
+            return AuthFailureClassifier.TryDescribeRecordedChallenge(sourceName, source, out var recordedMessage)
+                ? new TryDownloadResult(null, recordedMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) }
+                : default;
         }
 
         // Rewind the stream then install the package into the global packages folder.
@@ -159,7 +173,7 @@ internal static class PackageDownloader
                     await VerifySignedAsync(
                         reader,
                         clientPolicyContext,
-                        $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{source}'",
+                        $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{AuthFailureClassifier.RedactUrl(source)}'",
                         cancellationToken);
                 }
 
@@ -189,7 +203,7 @@ internal static class PackageDownloader
             // A signature failure is a security failure, not an availability problem, so it is never
             // skipped to the next source: it is reported with a clear message and the NuGet detail
             throw new InvalidOperationException(
-                $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{source}' failed signature verification: {ex.Message}",
+                $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{AuthFailureClassifier.RedactUrl(source)}' failed signature verification: {AuthFailureClassifier.RedactEmbeddedUrls(ex.Message)}",
                 ex);
         }
 

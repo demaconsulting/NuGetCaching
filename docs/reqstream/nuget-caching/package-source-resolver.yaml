@@ -46,6 +46,18 @@ sections:
         tests:
           - PackageSourceResolver_ResolveAsync_NonIndexJsonSourceUrl_ResolvesDirectlyAsV2
 
+      - id: Caching-PackageSourceResolver-NoV2FallbackAfterAuthFailure
+        title: >-
+          The source-resolution utility shall report an authentication failure and shall
+          not attempt the v2 fallback when the v3 service index request is rejected with
+          HTTP 401 or 403 or an authentication challenge cannot be satisfied.
+        justification: |
+          A rejected index request means the credentials are missing or wrong; the v2
+          fallback would hit the same host, repeat the rejection, and delay the actionable
+          error by several seconds of retries.
+        tests:
+          - PackageSourceResolver_ResolveAsync_V3Unauthorized_ReportsAuthFailureWithoutV2Fallback
+
       - id: Caching-PackageSourceResolver-TransientFailure
         title: >-
           The source-resolution utility shall not surface a diagnostic error

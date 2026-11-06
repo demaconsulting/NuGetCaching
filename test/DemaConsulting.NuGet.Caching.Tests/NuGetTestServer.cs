@@ -38,6 +38,9 @@ namespace DemaConsulting.NuGet.Caching.Tests;
 /// </remarks>
 internal sealed class NuGetTestServer : IAsyncDisposable
 {
+    /// <summary>Ports already used by a server in this process; guarded by locking on the set.</summary>
+    private static readonly HashSet<int> UsedPorts = [];
+
     /// <summary>The underlying WireMock server instance.</summary>
     private readonly WireMockServer _server;
 
@@ -53,13 +56,43 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     /// </summary>
     public NuGetTestServer()
     {
-        // Start on a random available port so tests can run in parallel
-        _server = WireMockServer.Start();
+        // Start on a random available port, never reusing a port already used by an earlier server in
+        // this process: NuGet caches service indexes keyed by URL (including the port), so a reused
+        // port would be answered with a stale index from a previous test's server
+        _server = StartOnUnusedPort();
 
         // Create a dedicated temp directory to hold the test nuget.config files written
         // by CreateSettings — each test instance gets its own isolated directory
         _tempConfigDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempConfigDir);
+    }
+
+    /// <summary>
+    ///     Starts a <see cref="WireMockServer"/> on a port that no earlier server in this process has used.
+    /// </summary>
+    /// <returns>The started server.</returns>
+    private static WireMockServer StartOnUnusedPort()
+    {
+        const int maxAttempts = 100;
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var server = WireMockServer.Start();
+            bool isFresh;
+            lock (UsedPorts)
+            {
+                isFresh = UsedPorts.Add(server.Ports[0]);
+            }
+
+            if (isFresh)
+            {
+                return server;
+            }
+
+            server.Stop();
+            server.Dispose();
+        }
+
+        throw new InvalidOperationException("Unable to start a mock server on a previously unused port.");
     }
 
     /// <summary>
@@ -80,6 +113,130 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     ///     to the server — for example to verify a cache-hit path made no HTTP calls.
     /// </remarks>
     internal IEnumerable<object> LogEntries => _server.LogEntries;
+
+    /// <summary>
+    ///     Gets the paths of the HTTP requests received by the server since it started, in arrival order.
+    /// </summary>
+    internal IReadOnlyList<string> RequestPaths =>
+        _server.LogEntries.Select(e => e.RequestMessage?.Path ?? string.Empty).ToList();
+
+    /// <summary>
+    ///     Makes the server answer every request with HTTP 401 and a Basic challenge, so no credential
+    ///     can ever satisfy it.
+    /// </summary>
+    internal void RegisterUnauthorizedForAllRequests()
+    {
+        _server
+            .Given(Request.Create().UsingAnyMethod())
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
+    ///     Gets the v3 service index URL of the source that always answers HTTP 401, registered by
+    ///     <see cref="RegisterAuthedAndOpenSourcesOnSameHost"/>.
+    /// </summary>
+    internal string AuthedIndexUrl => $"{BaseUrl}/authed/index.json";
+
+    /// <summary>
+    ///     Gets the v3 service index URL of the public source registered by
+    ///     <see cref="RegisterAuthedAndOpenSourcesOnSameHost"/>.
+    /// </summary>
+    internal string OpenIndexUrl => $"{BaseUrl}/open/index.json";
+
+    /// <summary>
+    ///     Registers two package sources on this one host and port: <see cref="AuthedIndexUrl"/> answers
+    ///     every request with HTTP 401, while <see cref="OpenIndexUrl"/> is public and serves its flat
+    ///     container from a path outside the source's own path (as many real feeds do).
+    /// </summary>
+    /// <param name="packageId">The package served by the open source, or <see langword="null"/> for none.</param>
+    /// <param name="version">The version served by the open source.</param>
+    /// <param name="nupkgBytes">The .nupkg bytes served by the open source.</param>
+    internal void RegisterAuthedAndOpenSourcesOnSameHost(string? packageId, string version, byte[] nupkgBytes)
+    {
+        _server
+            .Given(Request.Create().WithPath("/authed/*").UsingAnyMethod())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+
+        _server
+            .Given(Request.Create().WithPath("/open/index.json").UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody($$"""
+                    {"version":"3.0.0","resources":[{"@id":"{{BaseUrl}}/open-flat/","@type":"PackageBaseAddress/3.0.0"}]}
+                    """)
+                .WithHeader("Content-Type", "application/json"));
+
+        if (packageId == null)
+        {
+            return;
+        }
+
+        var id = packageId.ToLowerInvariant();
+        var ver = version.ToLowerInvariant();
+        _server
+            .Given(Request.Create().WithPath($"/open-flat/{id}/index.json").UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody($"{{\"versions\":[\"{ver}\"]}}")
+                .WithHeader("Content-Type", "application/json"));
+        _server
+            .Given(Request.Create().WithPath($"/open-flat/{id}/{ver}/{id}.{ver}.nupkg").UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(nupkgBytes)
+                .WithHeader("Content-Type", "application/zip"));
+    }
+
+    /// <summary>
+    ///     Registers the v3 flat-container endpoints for a package whose service index and version list are
+    ///     public, while the .nupkg download endpoint rejects every request with HTTP 401.
+    /// </summary>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="version">The package version string.</param>
+    internal void RegisterV3PackageWithUnauthorizedDownload(string packageId, string version)
+    {
+        RegisterV3Package(packageId, version, []);
+
+        var id = packageId.ToLowerInvariant();
+        var ver = version.ToLowerInvariant();
+        _server
+            .Given(Request.Create().WithPath($"/v3-flatcontainer/{id}/{ver}/{id}.{ver}.nupkg").UsingGet())
+            .AtPriority(0)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+    }
+
+    /// <summary>
+    ///     Registers a v3 service index that advertises only the flat container (no
+    ///     <c>RegistrationsBaseUrl</c> resource) together with a flat-container version list.
+    /// </summary>
+    /// <param name="packageId">The NuGet package identifier.</param>
+    /// <param name="versions">The versions served by the flat container.</param>
+    internal void RegisterV3PackageVersionsWithoutRegistration(string packageId, params string[] versions)
+    {
+        // The default index (which includes a registration resource) is registered first, so the
+        // index without one is mapped at a higher priority to take precedence over it
+        RegisterV3PackageVersions(packageId, versions);
+
+        _server
+            .Given(Request.Create().WithPath("/index.json").UsingGet())
+            .AtPriority(0)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody($$"""
+                    {"version":"3.0.0","resources":[{"@id":"{{BaseUrl}}/v3-flatcontainer/","@type":"PackageBaseAddress/3.0.0"}]}
+                    """)
+                .WithHeader("Content-Type", "application/json"));
+    }
 
     /// <summary>
     ///     Registers the NuGet v3 flat-container endpoints needed to serve a single package version.
@@ -110,9 +267,12 @@ internal sealed class NuGetTestServer : IAsyncDisposable
         var id = packageId.ToLowerInvariant();
         var ver = version.ToLowerInvariant();
 
+        // Default mappings use priority 5 so that helpers that layer an override on top (priority 0)
+        // deterministically win; equal priorities would be resolved in an unspecified order
         // Register the v3 service index so the NuGet SDK can discover the flat-container resource
         _server
             .Given(Request.Create().WithPath("/index.json").UsingGet())
+            .AtPriority(5)
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBody(BuildV3ServiceIndexJson())
@@ -121,6 +281,7 @@ internal sealed class NuGetTestServer : IAsyncDisposable
         // Register the version list so the SDK knows this version exists in the feed
         _server
             .Given(Request.Create().WithPath($"/v3-flatcontainer/{id}/index.json").UsingGet())
+            .AtPriority(5)
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBody($"{{\"versions\":[\"{ver}\"]}}")
@@ -131,6 +292,7 @@ internal sealed class NuGetTestServer : IAsyncDisposable
             .Given(Request.Create()
                 .WithPath($"/v3-flatcontainer/{id}/{ver}/{id}.{ver}.nupkg")
                 .UsingGet())
+            .AtPriority(5)
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBody(nupkgBytes)
@@ -150,6 +312,7 @@ internal sealed class NuGetTestServer : IAsyncDisposable
 
         _server
             .Given(Request.Create().WithPath("/index.json").UsingGet())
+            .AtPriority(5)
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBody(BuildV3ServiceIndexJson())
@@ -157,6 +320,7 @@ internal sealed class NuGetTestServer : IAsyncDisposable
 
         _server
             .Given(Request.Create().WithPath($"/v3-flatcontainer/{id}/index.json").UsingGet())
+            .AtPriority(5)
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBody($"{{\"versions\":[{versionList}]}}")

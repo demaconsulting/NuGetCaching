@@ -139,6 +139,43 @@ addition to the summarized actionable framing.
 
 **Requirement coverage**: `Caching-AuthFailureClassifier-ActionableMessage`.
 
+#### AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved
+
+**Scenario**: `RedactEmbeddedUrls` is called with URLs that carry `user:pass@`, user-only info,
+`@`, `?` or `#` inside the password, percent-encoded user info, a query and fragment, and URLs with no
+path or no query.
+
+**Expected**: Only scheme, host, port and path remain in every case.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
+
+#### AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted
+
+**Scenario**: `RedactUrl` is called with path-less URLs and URLs with a path whose password contains unencoded
+`?` or `#` before the `@`.
+
+**Expected**: Only scheme, host and path remain; no password text leaks.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
+
+#### AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly
+
+**Scenario**: A URL whose query contains `@`, a secret-free URL, non-URL text containing `@`, and a
+message with several URLs.
+
+**Expected**: The host is kept for the query case, clean input is unchanged, and every URL is redacted.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
+
+#### AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery
+
+**Scenario**: `TryDescribeAuthFailure` is called with a 401 message quoting a URL with user info and a
+query, and a source URL with the same.
+
+**Expected**: The built message contains neither the password, `user:`, nor the query.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
+
 ### Requirements Coverage
 
 **Deviation note**: The `AuthFailureInfo` record is a plain data carrier with no logic of its
@@ -161,4 +198,11 @@ verified by `Caching-PackageDownloader-AuthFailureInfo` (downloader unit) and, e
   AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestExceptionWithUnrelatedStatusCodeProperty_ReturnsFalse
 - **`Caching-AuthFailureClassifier-ActionableMessage`**:
   AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage,
-  AuthFailureClassifier_TryDescribeAuthFailure_MatchFound_MessageIncludesOriginalExceptionText
+  AuthFailureClassifier_TryDescribeAuthFailure_MatchFound_MessageIncludesOriginalExceptionText,
+  AuthFailureClassifier_TryDescribeAuthFailure_UrlSourceNameWithQuery_RedactsName,
+  NuGetCache_EnsureCachedAsync_ExplicitSourceWithQueryString_AuthFailureRedactsSecret
+- **`Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`**:
+  AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved,
+  AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted,
+  AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly,
+  AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery

@@ -222,28 +222,30 @@ public class PackageDownloaderTests
     ///     production resolution path (including v2 fallback) as <see cref="NuGetCache"/>.
     /// </summary>
     /// <remarks>
-    ///     For a v3 <c>/index.json</c> source, an authentication failure at the index-fetch stage is
-    ///     masked by <see cref="PackageSourceResolver"/>'s <c>ResolveAsync</c> v2 fallback candidate, which
-    ///     resolves without performing any HTTP request (see
-    ///     <c>PackageSourceResolverTests.PackageSourceResolver_ResolveAsync_NetworkFailureOnIndex_DoesNotThrowAndReturnsNoErrorMessage</c>).
-    ///     The failure is therefore deferred and reliably surfaces once <c>TryDownloadAsync</c>
-    ///     performs the real HTTP request via <c>CopyNupkgToStreamAsync</c> against the masked v2
-    ///     resource.
+    ///     The service index and version list are public and only the <c>.nupkg</c> endpoint answers
+    ///     401, so resolution succeeds and the failure surfaces once <c>TryDownloadAsync</c> performs
+    ///     the real HTTP request via <c>CopyNupkgToStreamAsync</c>. NuGet itself reports a rejected
+    ///     flat-container download as "not found", so the failure is only visible through the
+    ///     dispatching credential service, which cancels the request when it has no credentials.
     /// </remarks>
     [Fact]
     [Trait("Category", "LocalIntegration")]
     public async Task PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsActionableErrorMessage()
     {
-        // Arrange - the feed requires Basic Auth on every endpoint; no credentials are supplied
+        // Arrange - the .nupkg endpoint answers 401 and the dispatching credential service has no credentials
+        var originalService = HttpHandlerResourceV3.CredentialService;
         var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         try
         {
+            HttpHandlerResourceV3.CredentialService = null;
+            new CredentialServiceRegistrar().EnsureRegistered();
+            using var scope = CredentialDispatcher.BeginScope(null, null);
             Directory.CreateDirectory(globalPackagesFolder);
             const string packageId = "TestPackage.Downloader.AuthFailure";
             const string version = "1.0.0";
 
             await using var server = new NuGetTestServer();
-            server.RegisterV3PackageWithBasicAuth(packageId, version, [], "test-user", "test-password");
+            server.RegisterV3PackageWithUnauthorizedDownload(packageId, version);
             var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
 
             var (sourceRepository, resource) = await ResolveResourceAsync(server.IndexUrl, "test-source");
@@ -269,6 +271,7 @@ public class PackageDownloaderTests
         }
         finally
         {
+            HttpHandlerResourceV3.CredentialService = originalService;
             if (Directory.Exists(globalPackagesFolder))
             {
                 Directory.Delete(globalPackagesFolder, recursive: true);
@@ -285,16 +288,20 @@ public class PackageDownloaderTests
     [Trait("Category", "LocalIntegration")]
     public async Task PackageDownloader_TryDownloadAsync_AuthenticationFailureDuringDownload_ReturnsAuthFailureInfo()
     {
-        // Arrange - the feed requires Basic Auth on every endpoint; no credentials are supplied
+        // Arrange - the .nupkg endpoint answers 401 and the dispatching credential service has no credentials
+        var originalService = HttpHandlerResourceV3.CredentialService;
         var globalPackagesFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         try
         {
+            HttpHandlerResourceV3.CredentialService = null;
+            new CredentialServiceRegistrar().EnsureRegistered();
+            using var scope = CredentialDispatcher.BeginScope(null, null);
             Directory.CreateDirectory(globalPackagesFolder);
             const string packageId = "TestPackage.Downloader.AuthFailureInfo";
             const string version = "1.0.0";
 
             await using var server = new NuGetTestServer();
-            server.RegisterV3PackageWithBasicAuth(packageId, version, [], "test-user", "test-password");
+            server.RegisterV3PackageWithUnauthorizedDownload(packageId, version);
             var settings = server.CreateSettings(globalPackagesFolder, server.IndexUrl);
 
             var (sourceRepository, resource) = await ResolveResourceAsync(server.IndexUrl, "test-source");
@@ -321,6 +328,7 @@ public class PackageDownloaderTests
         }
         finally
         {
+            HttpHandlerResourceV3.CredentialService = originalService;
             if (Directory.Exists(globalPackagesFolder))
             {
                 Directory.Delete(globalPackagesFolder, recursive: true);

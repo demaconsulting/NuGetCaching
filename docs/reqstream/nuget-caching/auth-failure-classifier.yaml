@@ -65,3 +65,19 @@ sections:
         tests:
           - AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage
           - AuthFailureClassifier_TryDescribeAuthFailure_MatchFound_MessageIncludesOriginalExceptionText
+          - AuthFailureClassifier_TryDescribeAuthFailure_UrlSourceNameWithQuery_RedactsName
+          - NuGetCache_EnsureCachedAsync_ExplicitSourceWithQueryString_AuthFailureRedactsSecret
+
+      - id: Caching-AuthFailureClassifier-RedactEmbeddedUserInfo
+        title: >-
+          The authentication-failure classifier shall remove user info, query string
+          and fragment from every HTTP(S) URL quoted in a diagnostic message.
+        justification: |
+          SDK exception messages quote the requested URL, which may carry credentials
+          as user info (including unencoded or percent-encoded special characters in
+          the password) or as query-string secrets such as SAS tokens.
+        tests:
+          - AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved
+          - AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted
+          - AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly
+          - AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery

@@ -278,4 +278,94 @@ public class AuthFailureClassifierTests
         Assert.NotNull(message);
         Assert.Contains(originalText, message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Tests that <c>RedactUrl</c> removes credentials containing unencoded <c>?</c> or <c>#</c>, with
+    ///     and without a path.
+    /// </summary>
+    [Theory]
+    [InlineData("https://user:p?ss@host.example", "https://host.example/")]
+    [InlineData("https://user:p#ss@host.example", "https://host.example/")]
+    [InlineData("https://user:p?ss@host.example/feed/index.json?sig=1", "https://host.example/feed/index.json")]
+    [InlineData("https://user:p#ss@host.example/feed/index.json#f", "https://host.example/feed/index.json")]
+    [InlineData("https://user:pass@host.example/feed?x=1", "https://host.example/feed")]
+    public void AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted(string input, string expected)
+    {
+        // Arrange / Act
+        var result = AuthFailureClassifier.RedactUrl(input);
+
+        // Assert
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain("ss", result.Replace("host.example", string.Empty), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that <c>RedactEmbeddedUrls</c> removes the user info (user and password) of an embedded URL.
+    /// </summary>
+    [Theory]
+    [InlineData("see https://user:pass@host.example/v3/x.json now", "see https://host.example/v3/x.json now")]
+    [InlineData("see https://user@host.example/v3/x.json now", "see https://host.example/v3/x.json now")]
+    [InlineData("https://user:pass@host.example/v3/x.json?sig=abc#frag", "https://host.example/v3/x.json")]
+    [InlineData("https://user:pass@host.example:8443/v3/x.json", "https://host.example:8443/v3/x.json")]
+    [InlineData("https://user:p@ss@host.example/p", "https://host.example/p")]
+    [InlineData("https://user:p?ss@host.example/p", "https://host.example/p")]
+    [InlineData("https://user:p#ss@host.example/p", "https://host.example/p")]
+    [InlineData("https://user:p#ss?x=1@host.example/p?y=2", "https://host.example/p")]
+    [InlineData("https://us%40er:p%3Ass@host.example/p", "https://host.example/p")]
+    [InlineData("https://user:pass@host.example", "https://host.example")]
+    [InlineData("https://u:p@host.example?x=1", "https://host.example")]
+    [InlineData("https://u:p@host.example#frag", "https://host.example")]
+    [InlineData("https://host.example?x=1", "https://host.example")]
+    [InlineData("https://user:p?ss@host.example", "https://host.example")]
+    [InlineData("https://user:p#ss@host.example", "https://host.example")]
+    [InlineData("see https://user:p?ss@host.example.", "see https://host.example.")]
+    [InlineData("\"https://user:p#ss@host.example\" failed", "\"https://host.example\" failed")]
+    public void AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved(string input, string expected)
+    {
+        // Arrange / Act
+        var result = AuthFailureClassifier.RedactEmbeddedUrls(input);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    /// <summary>
+    ///     Tests that <c>RedactEmbeddedUrls</c> keeps the host of a URL whose query contains <c>@</c>, leaves
+    ///     secret-free URLs and non-URL text unchanged, and redacts every URL in a message.
+    /// </summary>
+    [Fact]
+    public void AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal("https://host.example/p", AuthFailureClassifier.RedactEmbeddedUrls("https://host.example/p?email=a@b.example"));
+        Assert.Equal("https://host.example/p", AuthFailureClassifier.RedactEmbeddedUrls("https://host.example/p"));
+        Assert.Equal("mail a@b.example about 401", AuthFailureClassifier.RedactEmbeddedUrls("mail a@b.example about 401"));
+        Assert.Equal(
+            "a https://h1.example/x and http://h2.example/y",
+            AuthFailureClassifier.RedactEmbeddedUrls("a https://u:p@h1.example/x?s=1 and http://v:q@h2.example/y?t=2"));
+    }
+
+    /// <summary>
+    ///     Tests that a classifier-built message never contains the user info or query of a URL quoted by the
+    ///     exception message.
+    /// </summary>
+    [Fact]
+    public void AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery()
+    {
+        // Arrange
+        var exception = new InvalidOperationException(
+            "Response status code does not indicate success: 401 (Unauthorized) for https://user:secret@host.example/v3/x.json?sig=abc.");
+
+        // Act
+        var result = AuthFailureClassifier.TryDescribeAuthFailure(
+            exception, "test-source", "https://user:secret@host.example/index.json?sig=abc", out var message);
+
+        // Assert
+        Assert.True(result);
+        Assert.NotNull(message);
+        Assert.DoesNotContain("secret", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("user:", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("sig", message, StringComparison.Ordinal);
+        Assert.Contains("https://host.example/v3/x.json", message, StringComparison.Ordinal);
+    }
 }

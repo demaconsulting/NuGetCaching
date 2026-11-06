@@ -228,4 +228,61 @@ public class NuGetCacheTests
         // and does not change the cache location on subsequent calls
         Assert.Equal(firstPath, secondPath);
     }
+
+    /// <summary>
+    ///     Tests that <see cref="NuGetAuthenticationException"/> removes user info, query string and
+    ///     fragment from the supplied URI, however it is constructed.
+    /// </summary>
+    [Fact]
+    public void NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment()
+    {
+        // Arrange
+        var uri = new Uri("https://user:TopSecret@host.example:8443/feed/v3/index.json?sig=SasToken#frag");
+
+        // Act
+        var exception = new NuGetAuthenticationException("message", "source", uri);
+
+        // Assert
+        Assert.NotNull(exception.Uri);
+        Assert.Equal("https://host.example:8443/feed/v3/index.json", exception.Uri.AbsoluteUri);
+        Assert.Equal(string.Empty, exception.Uri.UserInfo);
+        Assert.Equal(string.Empty, exception.Uri.Query);
+        Assert.Equal(string.Empty, exception.Uri.Fragment);
+        Assert.DoesNotContain("TopSecret", exception.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("SasToken", exception.Uri.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that <see cref="NuGetAuthenticationException"/> keeps a <see langword="null"/> URI and
+    ///     leaves a secret-free URI unchanged.
+    /// </summary>
+    [Fact]
+    public void NuGetAuthenticationException_Constructor_NullOrCleanUri_IsPreserved()
+    {
+        // Arrange / Act
+        var withNull = new NuGetAuthenticationException("message", "source", null);
+        var clean = new NuGetAuthenticationException("message", "source", new Uri("https://host.example/index.json"));
+
+        // Assert
+        Assert.Null(withNull.Uri);
+        Assert.Equal("source", withNull.Source);
+        Assert.Null(new NuGetAuthenticationException("message", null, null).Source);
+        Assert.Equal("source", clean.Source);
+        Assert.Equal("https://host.example/index.json", clean.Uri?.AbsoluteUri);
+    }
+
+    /// <summary>
+    ///     Tests that <see cref="NuGetAuthenticationException"/> redacts a URL-like source name.
+    /// </summary>
+    [Fact]
+    public void NuGetAuthenticationException_Constructor_UrlLikeSource_RedactsSecrets()
+    {
+        // Arrange / Act
+        var exception = new NuGetAuthenticationException(
+            "message", "https://user:p?ss@host.example/feed/index.json?sig=SasToken", null);
+
+        // Assert
+        Assert.Equal("https://host.example/feed/index.json", exception.Source);
+        Assert.DoesNotContain("SasToken", exception.ToString(), StringComparison.Ordinal);
+    }
 }

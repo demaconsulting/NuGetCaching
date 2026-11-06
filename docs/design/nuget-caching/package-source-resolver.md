@@ -114,6 +114,10 @@ v2-only feed.
 - **Other network errors**: `HttpRequestException` that does not represent a 401/403 response
   (transient network error, connection refused, DNS failure, timeout) is still silently
   swallowed — network outages on individual feeds remain non-actionable.
+- **Per-source challenge attribution**: each candidate loop iteration calls
+  `CredentialDispatcher.BeginSource(candidate.PackageSource.Source)` inline, so credential challenges
+  are attributed to the candidate source (including the v2 fallback candidate) instead of to every
+  source sharing the host.
 
 #### Resolution-Time Failures Are Not Always Observable
 
@@ -166,21 +170,23 @@ fallback when a v3 `/index.json` URL fails with a protocol error. The method:
    HTTP 401/403, returns the actionable diagnostic message immediately rather than continuing
    to the next candidate — an authenticated HTTP-level rejection is definitive for this
    candidate URL.
-5. On any other `HttpRequestException` from any candidate, returns a result carrying any
-   actionable diagnostic already captured from an earlier candidate (or `null` if none) — this
-   candidate's transient network error is not itself actionable, but must not discard a genuine
-   authentication failure detected on a prior candidate.
+5. On any other `HttpRequestException` from any candidate (one that is not an authentication
+   failure), stops trying candidates and returns a result carrying the first protocol error
+   message captured from an earlier candidate (or `null` if none) — this candidate's transient
+   network error is not itself actionable. Authentication failures never reach this step: they
+   return immediately in steps 4 and 6.
 6. On a `NuGetProtocolException` where `AuthFailureClassifier.TryDescribeAuthFailure` detects an
-   HTTP 401/403, captures the actionable diagnostic message via `??=` and tries the next
-   candidate (e.g. the v2 OData fallback), the same as any other `NuGetProtocolException` — the
-   protocol layer already implies the request reached the source and got a structured response,
-   so a fallback candidate is still worth trying before giving up.
+   HTTP 401/403, or on the dispatcher's unsatisfied-challenge `OperationCanceledException`, returns
+   the authentication diagnostic immediately and does **not** try the v2 fallback: a rejected index
+   request means the credentials are missing or wrong, and the fallback would repeat the rejection
+   after several seconds of NuGet retries.
 7. On any other `NuGetProtocolException`, captures the first (configured URL's) error message
    via `??=` and tries the next candidate. After all candidates are exhausted, returns the
    captured error message (auth-diagnostic or generic) referencing the original configured URL.
 
 Satisfies requirements `Caching-PackageSourceResolver-Resolve` and
-`Caching-PackageSourceResolver-FallbackOnProtocolError`.
+`Caching-PackageSourceResolver-FallbackOnProtocolError` and
+`Caching-PackageSourceResolver-NoV2FallbackAfterAuthFailure`.
 
 #### `BuildCandidateRepositories(...)` (private)
 

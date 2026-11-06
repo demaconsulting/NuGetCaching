@@ -219,6 +219,54 @@ public class NuGetCacheSourcesTests
     }
 
     /// <summary>
+    ///     Tests that an HTTP(S) source URL ending in <c>.json</c> with a query string logs a warning,
+    ///     because NuGet treats it as a V2 feed, while a plain <c>index.json</c> URL does not.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_Sources_QueryStringJsonUrl_LogsV2Warning()
+    {
+        var folder = CreateTempFolder();
+        try
+        {
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageVersions("Query.Package", "1.0.0");
+            var settings = server.CreateSettings(folder, server.IndexUrl);
+            var registrar = CredentialServiceRegistrar.DefaultCredentialRegistrar;
+
+            // A query string makes NuGet treat the source as V2; the outcome of the call is irrelevant
+            var withQuery = new MessageLogger();
+            await Record.ExceptionAsync(async () => await NuGetCache.GetVersionsAsync(
+                "Query.Package",
+                false,
+                settings,
+                new NuGetCacheOptions { Sources = [server.IndexUrl + "?sig=TopSecretToken"], Logger = withQuery },
+                registrar,
+                CancellationToken.None));
+            Assert.Contains(withQuery.Warnings, m => m.Contains("query string", StringComparison.Ordinal));
+
+            // The query string (which may carry a secret) must never be logged
+            Assert.DoesNotContain(withQuery.Warnings, m => m.Contains("TopSecretToken", StringComparison.Ordinal));
+
+            // A plain service index URL is not warned about
+            var plain = new MessageLogger();
+            await NuGetCache.GetVersionsAsync(
+                "Query.Package",
+                false,
+                settings,
+                new NuGetCacheOptions { Sources = [server.IndexUrl], Logger = plain },
+                registrar,
+                CancellationToken.None);
+            Assert.Empty(plain.Warnings);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
     ///     Creates an empty unique temporary folder.
     /// </summary>
     /// <returns>The folder path.</returns>
@@ -227,5 +275,39 @@ public class NuGetCacheSourcesTests
         var folder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         return folder;
+    }
+
+    /// <summary>
+    ///     A logger that records the formatted messages written at warning level or above.
+    /// </summary>
+    private sealed class MessageLogger : Microsoft.Extensions.Logging.ILogger
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _warnings = new();
+
+        /// <summary>
+        ///     Gets the warning messages recorded so far.
+        /// </summary>
+        public IReadOnlyCollection<string> Warnings => _warnings;
+
+        /// <inheritdoc />
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        /// <inheritdoc />
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        /// <inheritdoc />
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel,
+            Microsoft.Extensions.Logging.EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= Microsoft.Extensions.Logging.LogLevel.Warning)
+            {
+                _warnings.Enqueue(formatter(state, exception));
+            }
+        }
     }
 }

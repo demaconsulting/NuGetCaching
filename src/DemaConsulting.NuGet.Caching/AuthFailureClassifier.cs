@@ -20,6 +20,7 @@
 
 using System;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace DemaConsulting.NuGet.Caching;
 
@@ -28,7 +29,14 @@ namespace DemaConsulting.NuGet.Caching;
 /// </summary>
 /// <param name="SourceName">The configured name of the package source.</param>
 /// <param name="SourceUrl">The URL of the endpoint that rejected the request.</param>
-internal sealed record AuthFailureInfo(string SourceName, string SourceUrl);
+internal sealed record AuthFailureInfo(string SourceName, string SourceUrl)
+{
+    /// <summary>Gets the source name with any query string, user info or fragment removed.</summary>
+    public string SourceName { get; } = AuthFailureClassifier.RedactSourceName(SourceName);
+
+    /// <summary>Gets the endpoint URL with any user info, query string and fragment removed.</summary>
+    public string SourceUrl { get; } = AuthFailureClassifier.RedactUrl(SourceUrl);
+}
 
 /// <summary>
 ///     Classifies exceptions raised while communicating with a NuGet source as an actionable HTTP
@@ -44,6 +52,135 @@ internal sealed record AuthFailureInfo(string SourceName, string SourceUrl);
 /// </remarks>
 internal static class AuthFailureClassifier
 {
+    /// <summary>
+    ///     Determines whether <paramref name="exception"/> (or any exception in its inner chain) is the
+    ///     dispatcher's fail-fast <see cref="CredentialDispatcher.AuthChallengeUnsatisfiedException"/>.
+    /// </summary>
+    /// <param name="exception">The exception to inspect.</param>
+    /// <param name="source">The URL of the package source the failed operation targeted.</param>
+    /// <param name="cancellationToken">
+    ///     The caller's cancellation token; a cancellation it requested is never reported as an
+    ///     authentication failure.
+    /// </param>
+    /// <returns><see langword="true"/> when an unsatisfied authentication challenge is in the chain.</returns>
+    internal static bool IsUnsatisfiedChallenge(Exception exception, string source, CancellationToken cancellationToken)
+    {
+        // Some runtimes (notably .NET Framework) replace the dispatcher's exception with a plain
+        // TaskCanceledException inside NuGet's retry handler; the call's recorded challenge for this
+        // source's host identifies it, unless the caller itself canceled the operation
+        if (exception is OperationCanceledException
+            && !cancellationToken.IsCancellationRequested
+            && CredentialDispatcher.FindAmbientUnsatisfiedChallenge(source) != null)
+        {
+            return true;
+        }
+
+        for (var current = exception; current != null; current = current.InnerException)
+        {
+            if (current is CredentialDispatcher.AuthChallengeUnsatisfiedException)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether the current call recorded an authentication challenge that could not be
+    ///     satisfied for the host of <paramref name="source"/>, and if so builds the actionable message.
+    /// </summary>
+    /// <remarks>
+    ///     NuGet's own retry loops (for example while downloading a package from a flat container) can swallow
+    ///     the dispatcher's fail-fast exception and report the package as not found, so callers also consult
+    ///     this record after such an outcome.
+    /// </remarks>
+    /// <param name="sourceName">The configured name of the package source.</param>
+    /// <param name="source">The URL of the package source.</param>
+    /// <param name="message">The actionable diagnostic message when this method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when an unsatisfied challenge for the source's host was recorded.</returns>
+    internal static bool TryDescribeRecordedChallenge(
+        string sourceName,
+        string source,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
+    {
+        if (CredentialDispatcher.FindAmbientUnsatisfiedChallenge(source) is { } challenge)
+        {
+            return TryDescribeAuthFailure(
+                new CredentialDispatcher.AuthChallengeUnsatisfiedException(challenge), sourceName, source, out message);
+        }
+
+        message = null;
+        return false;
+    }
+
+    /// <summary>
+    ///     Redacts a package-source name that may be a URL (NuGet defaults an unnamed source's name to
+    ///     its URL), so a query-string secret in it is never surfaced.
+    /// </summary>
+    /// <param name="sourceName">The source name.</param>
+    /// <returns>The name, redacted when it is URL-like or contains a query or fragment delimiter.</returns>
+    internal static string RedactSourceName(string sourceName) =>
+        sourceName.IndexOfAny(['?', '#', '@']) >= 0 || sourceName.Contains("://", StringComparison.Ordinal)
+            ? RedactUrl(sourceName)
+            : sourceName;
+
+    /// <summary>
+    ///     Returns <paramref name="url"/> without its user info, query string and fragment, which may
+    ///     carry secrets (for example a SAS token), so it is safe to log or surface in diagnostics.
+    /// </summary>
+    /// <param name="url">The URL to redact.</param>
+    /// <returns>The redacted URL, or the input when it is not an absolute URI with such parts.</returns>
+    internal static string RedactUrl(string url)
+    {
+        var schemeEnd = url.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd >= 0 && url.IndexOf('@') >= 0)
+        {
+            // Credentials may contain unencoded '?' or '#', which Uri parsing would treat as the end of
+            // the authority, so strip user info and query/fragment textually first
+            var stripped = url[..(schemeEnd + 3)] + StripUserInfoAndSuffix(url[(schemeEnd + 3)..]);
+            return Uri.TryCreate(stripped, UriKind.Absolute, out var strippedUri)
+                ? strippedUri.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped)
+                : stripped;
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            // Not a parseable URL: drop anything after a query or fragment delimiter
+            var index = url.IndexOfAny(['?', '#']);
+            return index >= 0 ? url[..index] : url;
+        }
+
+        return uri.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped);
+    }
+
+    /// <summary>
+    ///     Removes user info, query string and fragment from the text following <c>scheme://</c>.
+    /// </summary>
+    /// <remarks>
+    ///     The authority region is the text before the first <c>/</c> (or the whole text when there is no
+    ///     path). Everything before the last <c>@</c> of that region is user info, even when it contains
+    ///     <c>?</c> or <c>#</c>. The trade-off is that a path-less URL whose query contains <c>@</c> may
+    ///     lose its host, which errs on the side of over-redaction.
+    /// </remarks>
+    private static string StripUserInfoAndSuffix(string rest)
+    {
+        var authorityEnd = rest.IndexOf('/');
+        if (authorityEnd < 0)
+        {
+            authorityEnd = rest.Length;
+        }
+
+        var at = authorityEnd > 0 ? rest.LastIndexOf('@', authorityEnd - 1) : -1;
+        if (at >= 0)
+        {
+            rest = rest[(at + 1)..];
+        }
+
+        var cut = rest.IndexOfAny(['?', '#']);
+        return cut >= 0 ? rest[..cut] : rest;
+    }
+
     /// <summary>
     ///     Matches an HTTP status code embedded in a NuGet SDK exception message, e.g.
     ///     <c>"Response status code does not indicate success: 401 (Unauthorized)."</c>
@@ -83,6 +220,12 @@ internal static class AuthFailureClassifier
         string source,
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
     {
+        if (exception is OperationCanceledException and not CredentialDispatcher.AuthChallengeUnsatisfiedException
+            && CredentialDispatcher.FindAmbientUnsatisfiedChallenge(source) is { } recorded)
+        {
+            exception = new CredentialDispatcher.AuthChallengeUnsatisfiedException(recorded);
+        }
+
         if (!TryGetHttpStatusCode(exception, out var statusCode))
         {
             message = null;
@@ -91,11 +234,29 @@ internal static class AuthFailureClassifier
 
         var statusText = statusCode == 403 ? "403 (Forbidden)" : "401 (Unauthorized)";
         message =
-            $"{sourceName} ({source}): HTTP {statusText} - the source requires authentication or the " +
+            $"{RedactSourceName(sourceName)} ({RedactUrl(source)}): HTTP {statusText} - the source requires authentication or the " +
             $"configured credentials were rejected. Check packageSourceCredentials in nuget.config, or " +
-            $"any configured NuGet credential provider, for this source. ({exception.Message})";
+            $"any configured NuGet credential provider, for this source. ({RedactEmbeddedUrls(exception.Message)})";
         return true;
     }
+
+    private static readonly Regex EmbeddedUrlPattern =
+        new(@"(?<scheme>https?://)(?<rest>[^\s""'<>]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+
+    /// <summary>
+    ///     Removes the user info, query string and fragment from every absolute HTTP(S) URL embedded in
+    ///     <paramref name="text"/>, since SDK exception messages quote the requested URL.
+    /// </summary>
+    /// <remarks>
+    ///     User info is removed through the last <c>@</c> of the authority region (the text before the
+    ///     first <c>/</c>, or the whole URL text when there is no path), so unencoded
+    ///     <c>@</c>, <c>?</c> or <c>#</c> characters inside a password are removed too. The trade-off
+    ///     is that a query-only URL without a path whose query contains <c>@</c> may lose its host; that
+    ///     errs on the side of over-redaction.
+    /// </remarks>
+    internal static string RedactEmbeddedUrls(string text) =>
+        EmbeddedUrlPattern.Replace(text, match =>
+            match.Groups["scheme"].Value + StripUserInfoAndSuffix(match.Groups["rest"].Value));
 
     /// <summary>
     ///     Walks <paramref name="exception"/> and its <see cref="Exception.InnerException"/> chain
@@ -118,6 +279,13 @@ internal static class AuthFailureClassifier
     {
         for (var current = exception; current != null; current = current.InnerException)
         {
+            // The dispatcher's fail-fast exception stands for an unsatisfied 401 challenge
+            if (current is CredentialDispatcher.AuthChallengeUnsatisfiedException)
+            {
+                statusCode = 401;
+                return true;
+            }
+
 #if !NETSTANDARD2_0
             if (current is HttpRequestException { StatusCode: not null } httpRequestException)
             {

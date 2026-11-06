@@ -28,7 +28,10 @@ internal sealed record AuthFailureInfo(string SourceName, string SourceUrl);
 ```
 
 A structured, machine-readable description of a detected authentication failure: the configured
-source name and the URL of the endpoint that rejected the request. `PackageSourceResolver` and
+source name and the URL of the endpoint that rejected the request. Both are redacted when the record
+is created (`SourceName` through `RedactSourceName`, `SourceUrl` through `RedactUrl`, which drops user
+info, query string and fragment), so nothing derived from the record can leak a secret.
+`PackageSourceResolver` and
 `PackageDownloader` attach it to their results (as `AuthFailure`) beside the human-readable
 diagnostic message, so `NuGetCache` can raise `NuGetAuthenticationException` and decide whether
 credentials can be requested without parsing message text. The classifier itself only defines
@@ -67,6 +70,22 @@ private static bool TryGetHttpStatusCode(Exception? exception, out int statusCod
 ```
 
 Walks the exception and its `InnerException` chain looking for an HTTP 401 or 403 status code.
+
+#### RedactEmbeddedUrls Method
+
+```csharp
+internal static string RedactEmbeddedUrls(string text)
+```
+
+Rewrites every absolute `http(s)://` URL quoted in a message (SDK exception messages quote the
+requested URL). For each URL, the user info is removed through the last `@` of the authority region
+(the text before the first `/`, or the whole URL text when it has no path — so a `?` or `#` inside
+the password never ends the authority early), which also handles unencoded `@`, `?` and `#`
+characters inside a password, percent-encoded user info, and URLs without a path or query. The
+remainder is then cut at the first `?` or `#`, leaving scheme, host, port and path. `RedactUrl` uses
+the same textual stripping before URI normalization whenever the URL contains `@`. The trade-off is
+over-redaction in the safe direction: a path-less URL whose query contains `@` may lose its host.
+Satisfies `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
 
 ### Design Decisions
 
