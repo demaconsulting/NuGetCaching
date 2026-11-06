@@ -708,6 +708,101 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
+    ///     Tests that a 401 from an explicit source whose URL carries a query-string secret never
+    ///     puts that secret in the exception message or source name (NuGet defaults the source name
+    ///     to the URL).
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_ExplicitSourceWithQueryString_AuthFailureRedactsSecret()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterUnauthorizedForAllRequests();
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+            var options = new NuGetCacheOptions { Sources = [server.IndexUrl + "?sig=TopSecretToken"] };
+
+            // Act - net481's HTTP stack does not surface the 401 text for this v2-style URL, so there the
+            // failure is a plain InvalidOperationException; the secret must be absent either way
+            var exception = await Assert.ThrowsAnyAsync<InvalidOperationException>(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "Secret.Package", "1.0.0", settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
+
+            // Assert
+#if !NETFRAMEWORK
+            Assert.IsType<NuGetAuthenticationException>(exception);
+#endif
+            Assert.DoesNotContain("TopSecretToken", exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("TopSecretToken", exception.Source ?? string.Empty, StringComparison.Ordinal);
+            Assert.DoesNotContain("TopSecretToken", exception.ToString(), StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>
+    ///     Tests that a classifier-built message redacts a URL-valued source name.
+    /// </summary>
+    [Fact]
+    public void AuthFailureClassifier_TryDescribeAuthFailure_UrlSourceNameWithQuery_RedactsName()
+    {
+        // Arrange
+        var url = "https://host/index.json?sig=TopSecretToken";
+        var exception = new global::NuGet.Protocol.Core.Types.FatalProtocolException("Response status code does not indicate success: 401 (Unauthorized).");
+
+        // Act
+        var result = AuthFailureClassifier.TryDescribeAuthFailure(exception, url, url, out var message);
+
+        // Assert
+        Assert.True(result);
+        Assert.DoesNotContain("TopSecretToken", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("TopSecretToken", new AuthFailureInfo(url, url).SourceName, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: concurrent challenges for the same URL and request type
+    ///     await the single in-flight callback and share its credential instead of treating it as declined.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ConcurrentSameKey_AwaitsSingleCallback()
+    {
+        // Arrange
+        var calls = 0;
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<NuGetCredential?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                started.TrySetResult(true);
+                return release.Task;
+            },
+        };
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+
+        // Act - the first request is in flight when the second arrives
+        var first = dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+        await started.Task;
+        var second = dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        Assert.False(second.IsCompleted, "The concurrent request must wait for the running callback.");
+        release.SetResult(new NuGetCredential("u", "p"));
+
+        // Assert
+        var firstCredentials = await first;
+        var secondCredentials = await second;
+        Assert.Equal(1, calls);
+        Assert.NotNull(firstCredentials);
+        Assert.NotNull(secondCredentials);
+    }
+
+    /// <summary>
     ///     Tests that <c>GetVersionsAsync</c> and <c>ListVersionsAsync</c> also fail promptly with
     ///     <see cref="NuGetAuthenticationException"/> when no credentials are available.
     /// </summary>

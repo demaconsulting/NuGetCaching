@@ -146,7 +146,7 @@ internal static class PackageSourceResolver
                 // Capture the first error message using the failing candidate's own URL (which may
                 // be the v2 fallback, not the originally configured source); try the next candidate
                 // if available
-                protocolErrorMessage ??= $"{AuthFailureClassifier.RedactUrl(candidate.PackageSource.Source)}: Failed to load package source. ({ex.Message})";
+                protocolErrorMessage ??= $"{AuthFailureClassifier.RedactUrl(candidate.PackageSource.Source)}: Failed to load package source. ({AuthFailureClassifier.RedactEmbeddedUrls(ex.Message)})";
             }
         }
 

@@ -732,7 +732,7 @@ public static class NuGetCache
                 }
                 else
                 {
-                    sourceErrors.Add($"{AuthFailureClassifier.RedactUrl(packageSource.Source)}: Error retrieving versions. ({ex.Message})");
+                    sourceErrors.Add($"{AuthFailureClassifier.RedactUrl(packageSource.Source)}: Error retrieving versions. ({AuthFailureClassifier.RedactEmbeddedUrls(ex.Message)})");
                 }
 
                 continue;

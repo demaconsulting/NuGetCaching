@@ -144,8 +144,11 @@ public methods of `NuGetCache`:
 - **Scope with a callback**: for non-proxy requests the last-known-good credential cache is bypassed
   (so credentials cached by another call cannot take precedence over the callback) and the callback is
   consulted first. A non-null
-  `NuGetCredential` becomes the response. A per-call set records each (URI, request type) pair
-  asked: the callback runs at most once per pair per call. A null answer is remembered and the
+  `NuGetCredential` becomes the response. A per-call map records, for each (URI, request type) pair
+  asked, the in-flight (then completed) callback task: the callback runs at most once per pair per
+  call. A concurrent challenge for a pair whose callback is still running awaits that same task and
+  shares its credential (or its decline) rather than seeing a premature decline. A null answer is
+  remembered and the
   providers are still consulted; a second challenge for a pair whose supplied credential was
   rejected throws the unsatisfied-challenge exception.
 - **Fail fast**: when no credential can be supplied for a non-proxy challenge (callback declined and

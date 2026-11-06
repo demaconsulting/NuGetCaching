@@ -123,9 +123,13 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback**:
   deterministic, HTTP-free: after a timeout a repeat request is canceled without invoking the
   callback again and the scope's `ThrowIfTimedOut()` throws `OperationCanceledException`.
-- **CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOncePerUriAndType** and
-  **..._AsksOnceButStillReachesProviders**: a null answer is remembered per (URI, type) so the callback
+- **NuGetCache_EnsureCachedAsync_CallbackReturnsNull_AsksOncePerUriAndType** and
+  **CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders**:
+  a null answer is remembered per (URI, type) so the callback
   runs once, while the providers are still consulted.
+- **CredentialDispatcher_GetCredentialsAsync_ConcurrentSameKey_AwaitsSingleCallback**: a concurrent
+  challenge for the same (URI, type) awaits the single in-flight callback and shares its credential
+  instead of treating it as a decline.
 - **CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge**: with no
   credential available the dispatcher throws an `OperationCanceledException`-derived exception whose
   message carries no URL (the challenged URL, which may hold secrets, is only in `ChallengeUri`).
@@ -159,7 +163,8 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails,
   NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
   CredentialDispatcher_GetCredentialsAsync_CallbackBlocksSynchronously_TimesOutPromptly,
-  CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOncePerUriAndType,
+  NuGetCache_EnsureCachedAsync_CallbackReturnsNull_AsksOncePerUriAndType,
+  CredentialDispatcher_GetCredentialsAsync_ConcurrentSameKey_AwaitsSingleCallback,
   CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders,
   NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout
 - **`Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`**:

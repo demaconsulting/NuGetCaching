@@ -65,3 +65,5 @@ sections:
         tests:
           - AuthFailureClassifier_TryDescribeAuthFailure_401InMessage_ReturnsTrueWithActionableMessage
           - AuthFailureClassifier_TryDescribeAuthFailure_MatchFound_MessageIncludesOriginalExceptionText
+          - AuthFailureClassifier_TryDescribeAuthFailure_UrlSourceNameWithQuery_RedactsName
+          - NuGetCache_EnsureCachedAsync_ExplicitSourceWithQueryString_AuthFailureRedactsSecret

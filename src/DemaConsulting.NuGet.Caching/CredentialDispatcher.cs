@@ -192,22 +192,49 @@ internal sealed class CredentialDispatcher : ICredentialService
             // looping. A repeat challenge after it declined (null) skips the callback but still falls
             // through to the credential providers.
             var key = (uri.AbsoluteUri, type);
-            if (!context.Asked.TryAdd(key, false))
+            // The in-flight task is stored before the callback runs, so a concurrent challenge for the
+            // same key awaits that single callback result instead of mistaking it for a decline.
+            var inFlight = new TaskCompletionSource<NuGetCredential?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var existing = context.Asked.GetOrAdd(key, inFlight);
+            if (!ReferenceEquals(existing, inFlight))
             {
-                if (context.Asked.TryGetValue(key, out var supplied) && supplied)
+                if (!existing.Task.IsCompleted)
+                {
+                    // Concurrent challenge: share the outcome of the callback that is still running
+                    context.Logger?.LogDebug("Credential callback is already answering a challenge for this request; awaiting its result.");
+                    var shared = await AwaitSharedAsync(existing.Task, cancellationToken);
+                    if (shared != null)
+                    {
+                        return new NetworkCredential(shared.UserName, shared.Secret);
+                    }
+                }
+                else if (existing.Task.Status == TaskStatus.RanToCompletion && existing.Task.Result != null)
                 {
                     context.Logger?.LogDebug("Credential callback already answered a challenge for this request; not asking again.");
                     throw FailChallenge(context, uri, cancellationToken);
                 }
-
-                context.Logger?.LogDebug("Credential callback already declined a challenge for this request; not asking again.");
+                else
+                {
+                    context.Logger?.LogDebug("Credential callback already declined a challenge for this request; not asking again.");
+                }
             }
             else
             {
-                var credential = await callback(uri, cancellationToken);
+                NuGetCredential? credential;
+                try
+                {
+                    credential = await callback(uri, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    inFlight.TrySetException(ex);
+                    _ = inFlight.Task.Exception; // observed here; concurrent waiters rethrow it
+                    throw;
+                }
+
+                inFlight.TrySetResult(credential);
                 if (credential != null)
                 {
-                    context.Asked[key] = true;
                     return new NetworkCredential(credential.UserName, credential.Secret);
                 }
             }
@@ -225,6 +252,22 @@ internal sealed class CredentialDispatcher : ICredentialService
         }
 
         return credentials;
+    }
+
+    private static async Task<NuGetCredential?> AwaitSharedAsync(Task<NuGetCredential?> shared, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.CanBeCanceled)
+        {
+            // A waiter must remain cancelable even if the shared callback ignores its token
+            var cancelled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registration = cancellationToken.Register(() => cancelled.TrySetResult(true));
+            if (await Task.WhenAny(shared, cancelled.Task) != shared)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+
+        return await shared;
     }
 
     private static Exception FailChallenge(CallContext context, Uri uri, CancellationToken cancellationToken)
@@ -329,9 +372,9 @@ internal sealed class CredentialDispatcher : ICredentialService
 
         internal void MarkUnsatisfied(Uri uri) => _unsatisfiedChallenges.TryAdd(uri.Authority, uri);
 
-        // Challenges the callback has been asked about; the value is true when it supplied a credential
-        // and false when it declined (returned null)
-        internal ConcurrentDictionary<(string Uri, CredentialRequestType Type), bool> Asked { get; } = new();
+        // Challenges the callback has been asked about; the value is the callback's (possibly still
+        // running) answer, which is a credential when it supplied one and null when it declined
+        internal ConcurrentDictionary<(string Uri, CredentialRequestType Type), TaskCompletionSource<NuGetCredential?>> Asked { get; } = new();
 
         internal void MarkTimedOut(TimeSpan timeout) =>
             _timeoutMessage ??= $"Authentication did not complete within {timeout.TotalSeconds:0.###} seconds.";

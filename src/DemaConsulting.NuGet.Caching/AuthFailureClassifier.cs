@@ -29,7 +29,11 @@ namespace DemaConsulting.NuGet.Caching;
 /// </summary>
 /// <param name="SourceName">The configured name of the package source.</param>
 /// <param name="SourceUrl">The URL of the endpoint that rejected the request.</param>
-internal sealed record AuthFailureInfo(string SourceName, string SourceUrl);
+internal sealed record AuthFailureInfo(string SourceName, string SourceUrl)
+{
+    /// <summary>Gets the source name with any query string, user info or fragment removed.</summary>
+    public string SourceName { get; } = AuthFailureClassifier.RedactSourceName(SourceName);
+}
 
 /// <summary>
 ///     Classifies exceptions raised while communicating with a NuGet source as an actionable HTTP
@@ -108,6 +112,17 @@ internal static class AuthFailureClassifier
     }
 
     /// <summary>
+    ///     Redacts a package-source name that may be a URL (NuGet defaults an unnamed source's name to
+    ///     its URL), so a query-string secret in it is never surfaced.
+    /// </summary>
+    /// <param name="sourceName">The source name.</param>
+    /// <returns>The name, redacted when it is URL-like or contains a query or fragment delimiter.</returns>
+    internal static string RedactSourceName(string sourceName) =>
+        sourceName.IndexOfAny(['?', '#', '@']) >= 0 || sourceName.Contains("://", StringComparison.Ordinal)
+            ? RedactUrl(sourceName)
+            : sourceName;
+
+    /// <summary>
     ///     Returns <paramref name="url"/> without its user info, query string and fragment, which may
     ///     carry secrets (for example a SAS token), so it is safe to log or surface in diagnostics.
     /// </summary>
@@ -178,11 +193,20 @@ internal static class AuthFailureClassifier
 
         var statusText = statusCode == 403 ? "403 (Forbidden)" : "401 (Unauthorized)";
         message =
-            $"{sourceName} ({RedactUrl(source)}): HTTP {statusText} - the source requires authentication or the " +
+            $"{RedactSourceName(sourceName)} ({RedactUrl(source)}): HTTP {statusText} - the source requires authentication or the " +
             $"configured credentials were rejected. Check packageSourceCredentials in nuget.config, or " +
-            $"any configured NuGet credential provider, for this source. ({exception.Message})";
+            $"any configured NuGet credential provider, for this source. ({RedactEmbeddedUrls(exception.Message)})";
         return true;
     }
+
+    private static readonly Regex EmbeddedUrlQueryPattern =
+        new(@"(https?://[^\s""'<>?#]*)[?#][^\s""'<>]*", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+
+    /// <summary>
+    ///     Removes the query string and fragment from every absolute HTTP(S) URL embedded in
+    ///     <paramref name="text"/>, since SDK exception messages quote the requested URL.
+    /// </summary>
+    internal static string RedactEmbeddedUrls(string text) => EmbeddedUrlQueryPattern.Replace(text, "$1");
 
     /// <summary>
     ///     Walks <paramref name="exception"/> and its <see cref="Exception.InnerException"/> chain

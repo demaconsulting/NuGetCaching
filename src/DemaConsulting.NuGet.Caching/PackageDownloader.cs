@@ -131,7 +131,7 @@ internal static class PackageDownloader
             // Protocol error during the download itself - surface a diagnostic message
             // so the caller can include it in the final not-found exception
             return new TryDownloadResult(null,
-                $"{AuthFailureClassifier.RedactUrl(source)}: Protocol error downloading package. ({ex.Message})");
+                $"{AuthFailureClassifier.RedactUrl(source)}: Protocol error downloading package. ({AuthFailureClassifier.RedactEmbeddedUrls(ex.Message)})");
         }
         catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
         {
@@ -199,7 +199,7 @@ internal static class PackageDownloader
             // A signature failure is a security failure, not an availability problem, so it is never
             // skipped to the next source: it is reported with a clear message and the NuGet detail
             throw new InvalidOperationException(
-                $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{AuthFailureClassifier.RedactUrl(source)}' failed signature verification: {ex.Message}",
+                $"Package '{packageId}' version '{version.ToNormalizedString()}' from source '{AuthFailureClassifier.RedactUrl(source)}' failed signature verification: {AuthFailureClassifier.RedactEmbeddedUrls(ex.Message)}",
                 ex);
         }
 
