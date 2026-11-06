@@ -193,6 +193,7 @@ sections:
           - Caching-AuthFailureClassifier-DetectInInnerChain
           - Caching-AuthFailureClassifier-NoFalsePositive
           - Caching-AuthFailureClassifier-ActionableMessage
+          - Caching-AuthFailureClassifier-RedactEmbeddedUserInfo
           - Caching-PackageDownloader-AuthDiagnostic
         tests:
           - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
@@ -232,6 +233,7 @@ sections:
           - Caching-CredentialServiceRegistrar-CallbackFirst
           - Caching-CredentialServiceRegistrar-LoopGuard
           - Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge
+          - Caching-CredentialServiceRegistrar-StoredFaultRethrown
         tests:
           - NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source
           - NuGetCache_GetVersionsAsync_CallbackSuppliesCredentials_ReturnsVersions
@@ -242,16 +244,26 @@ sections:
         title: >-
           Every operation shall throw NuGetAuthenticationException, identifying the source
           and URI, when the operation fails and a source rejected a request with 401 or 403,
-          whether or not options were supplied.
+          whether or not options were supplied. The URI shall never include user info, query
+          string or fragment, and the failure shall name only the source that issued the
+          challenge, even when other sources share its host.
         justification: |
           Callers need to distinguish an authentication failure from other failures
           programmatically instead of parsing a message. The exception derives from
           InvalidOperationException, so handlers that catch InvalidOperationException keep
-          working.
+          working. User info and query strings may carry secrets (for example SAS tokens),
+          and a failure of one source must not be blamed on another source on the same host.
         children:
           - Caching-PackageDownloader-AuthFailureInfo
+          - Caching-CredentialServiceRegistrar-PerSourceChallenge
         tests:
           - NuGetAuthenticationException_Properties_AreExposed
+          - NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment
+          - NuGetAuthenticationException_Constructor_NullOrCleanUri_IsPreserved
+          - NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted
+          - NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource
+          - NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource
+          - NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource
           - NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException
           - NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic
           - NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException

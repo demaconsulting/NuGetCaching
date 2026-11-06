@@ -98,6 +98,10 @@ internal static class PackageDownloader
         var source = sourceRepository.PackageSource.Source;
         var sourceName = sourceRepository.PackageSource.Name;
 
+        // Attribute any unsatisfied challenge raised while downloading to this source only; set inline
+        // so it flows to the credential service through the awaited NuGet calls
+        using var sourceScope = CredentialDispatcher.BeginSource(source);
+
         // Stream the .nupkg bytes into memory; returns false when the package is absent from
         // this source, and throws on transient or permanent protocol errors
         using var packageStream = new MemoryStream();

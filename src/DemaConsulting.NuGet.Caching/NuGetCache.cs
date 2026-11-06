@@ -703,6 +703,10 @@ public static class NuGetCache
             }
 
             var effectiveSource = resolution.Repository.PackageSource;
+
+            // Attribute any unsatisfied challenge raised while listing versions to this source only; set
+            // inline so it flows to the credential service through the awaited NuGet calls
+            using var sourceScope = CredentialDispatcher.BeginSource(effectiveSource.Source);
             IReadOnlyList<NuGetPackageVersion> sourceVersions;
             try
             {
@@ -854,6 +858,7 @@ public static class NuGetCache
             return new InvalidOperationException(message);
         }
 
+        // The record's SourceUrl is already redacted (no user info, query string or fragment)
         Uri.TryCreate(authFailure.SourceUrl, UriKind.Absolute, out var uri);
         return new NuGetAuthenticationException(message, authFailure.SourceName, uri);
     }

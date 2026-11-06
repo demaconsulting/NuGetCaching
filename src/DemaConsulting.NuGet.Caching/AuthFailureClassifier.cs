@@ -33,6 +33,9 @@ internal sealed record AuthFailureInfo(string SourceName, string SourceUrl)
 {
     /// <summary>Gets the source name with any query string, user info or fragment removed.</summary>
     public string SourceName { get; } = AuthFailureClassifier.RedactSourceName(SourceName);
+
+    /// <summary>Gets the endpoint URL with any user info, query string and fragment removed.</summary>
+    public string SourceUrl { get; } = AuthFailureClassifier.RedactUrl(SourceUrl);
 }
 
 /// <summary>
@@ -199,14 +202,45 @@ internal static class AuthFailureClassifier
         return true;
     }
 
-    private static readonly Regex EmbeddedUrlQueryPattern =
-        new(@"(https?://[^\s""'<>?#]*)[?#][^\s""'<>]*", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+    private static readonly Regex EmbeddedUrlPattern =
+        new(@"(?<scheme>https?://)(?<rest>[^\s""'<>]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
 
     /// <summary>
-    ///     Removes the query string and fragment from every absolute HTTP(S) URL embedded in
+    ///     Removes the user info, query string and fragment from every absolute HTTP(S) URL embedded in
     ///     <paramref name="text"/>, since SDK exception messages quote the requested URL.
     /// </summary>
-    internal static string RedactEmbeddedUrls(string text) => EmbeddedUrlQueryPattern.Replace(text, "$1");
+    /// <remarks>
+    ///     User info is removed through the last <c>@</c> of the authority region (the text before the
+    ///     first <c>/</c>, or before the first <c>?</c> or <c>#</c> when there is no path), so unencoded
+    ///     <c>@</c>, <c>?</c> or <c>#</c> characters inside a password are removed too. The trade-off
+    ///     is that a query-only URL without a path whose query contains <c>@</c> may lose its host; that
+    ///     errs on the side of over-redaction.
+    /// </remarks>
+    internal static string RedactEmbeddedUrls(string text) =>
+        EmbeddedUrlPattern.Replace(text, match =>
+        {
+            var rest = match.Groups["rest"].Value;
+            var slash = rest.IndexOf('/');
+            var authorityEnd = slash >= 0 ? slash : rest.IndexOfAny(['?', '#']);
+            if (authorityEnd < 0)
+            {
+                authorityEnd = rest.Length;
+            }
+
+            var at = rest.LastIndexOf('@', Math.Max(authorityEnd - 1, 0), authorityEnd);
+            if (at >= 0)
+            {
+                rest = rest[(at + 1)..];
+            }
+
+            var cut = rest.IndexOfAny(['?', '#']);
+            if (cut >= 0)
+            {
+                rest = rest[..cut];
+            }
+
+            return match.Groups["scheme"].Value + rest;
+        });
 
     /// <summary>
     ///     Walks <paramref name="exception"/> and its <see cref="Exception.InnerException"/> chain

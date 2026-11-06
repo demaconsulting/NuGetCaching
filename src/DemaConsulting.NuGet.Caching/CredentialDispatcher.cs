@@ -49,6 +49,9 @@ internal sealed class CredentialDispatcher : ICredentialService
 {
     private static readonly AsyncLocal<CallContext?> Ambient = new();
 
+    // The package source (as a redacted key) the current code path is operating on, if marked
+    private static readonly AsyncLocal<string?> CurrentSource = new();
+
     private static readonly Lazy<ICredentialService> InteractiveService = new(
         CreateInteractiveService,
         LazyThreadSafetyMode.ExecutionAndPublication);
@@ -77,11 +80,11 @@ internal sealed class CredentialDispatcher : ICredentialService
 
     /// <summary>
     ///     Gets the URL of the first authentication challenge that could not be satisfied during the
-    ///     current ambient call for the same host as <paramref name="source"/>, or
-    ///     <see langword="null"/> when there was none.
+    ///     current ambient call while operating on the same package source as
+    ///     <paramref name="source"/>, or <see langword="null"/> when there was none.
     /// </summary>
     /// <param name="source">The package source URL the caller is operating on.</param>
-    /// <returns>The recorded challenge URL for the source's host, or <see langword="null"/>.</returns>
+    /// <returns>The recorded challenge URL for the source, or <see langword="null"/>.</returns>
     internal static Uri? FindAmbientUnsatisfiedChallenge(string source)
     {
         var context = Ambient.Value;
@@ -90,8 +93,29 @@ internal sealed class CredentialDispatcher : ICredentialService
             return null;
         }
 
-        return context.FindUnsatisfied(sourceUri);
+        return context.FindUnsatisfied(SourceKey(source), sourceUri);
     }
+
+    /// <summary>
+    ///     Marks the package source the current code path is operating on, so an unsatisfied
+    ///     authentication challenge raised while the returned scope is open is attributed to that
+    ///     source only (and not to another source on the same host).
+    /// </summary>
+    /// <remarks>
+    ///     The caller must invoke this inline in the async method that awaits the NuGet calls and dispose
+    ///     the result before moving on to the next source; it flows to the credential service through
+    ///     the execution context like the call scope does.
+    /// </remarks>
+    /// <param name="sourceUrl">The URL of the package source.</param>
+    /// <returns>A disposable that restores the previously marked source.</returns>
+    internal static IDisposable BeginSource(string sourceUrl)
+    {
+        var previous = CurrentSource.Value;
+        CurrentSource.Value = SourceKey(sourceUrl);
+        return new SourceScope(previous);
+    }
+
+    private static string SourceKey(string sourceUrl) => AuthFailureClassifier.RedactUrl(sourceUrl);
 
     /// <inheritdoc />
     public bool HandlesDefaultCredentials => _defaultService.HandlesDefaultCredentials;
@@ -208,7 +232,14 @@ internal sealed class CredentialDispatcher : ICredentialService
                         return new NetworkCredential(shared.UserName, shared.Secret);
                     }
                 }
-                else if (existing.Task.Status == TaskStatus.RanToCompletion && existing.Task.Result != null)
+                else if (existing.Task.Status != TaskStatus.RanToCompletion)
+                {
+                    // The callback threw (or was canceled) on an earlier challenge: surface that original
+                    // exception again instead of treating it as a decline
+                    context.Logger?.LogDebug("Credential callback previously failed for this request; throwing its exception again.");
+                    await existing.Task;
+                }
+                else if (existing.Task.Result != null)
                 {
                     context.Logger?.LogDebug("Credential callback already answered a challenge for this request; not asking again.");
                     throw FailChallenge(context, uri, cancellationToken);
@@ -274,7 +305,7 @@ internal sealed class CredentialDispatcher : ICredentialService
     {
         // Caller cancellation must propagate as a normal cancellation, never become an authentication failure
         cancellationToken.ThrowIfCancellationRequested();
-        context.MarkUnsatisfied(uri);
+        context.MarkUnsatisfied(uri, CurrentSource.Value);
         return new AuthChallengeUnsatisfiedException(uri);
     }
 
@@ -363,17 +394,29 @@ internal sealed class CredentialDispatcher : ICredentialService
         // Set when a challenge could not be satisfied; NuGet's own retry loops can swallow the fail-fast
         // exception (reporting "not found" instead), so the owning call checks this to still report the
         // authentication failure
-        // Keyed by authority (host and port) so a challenge is only attributed to the source it came from
+        // Keyed by the package source the challenge was raised for (see BeginSource), so two sources on
+        // the same host are never conflated; a challenge raised outside any marked source is keyed by
+        // its authority (host and port) instead
         private readonly ConcurrentDictionary<string, Uri> _unsatisfiedChallenges =
             new(StringComparer.OrdinalIgnoreCase);
 
-        internal Uri? FindUnsatisfied(Uri source) =>
-            _unsatisfiedChallenges.TryGetValue(source.Authority, out var challenge) ? challenge : null;
+        internal Uri? FindUnsatisfied(string sourceKey, Uri source)
+        {
+            if (_unsatisfiedChallenges.TryGetValue(sourceKey, out var challenge))
+            {
+                return challenge;
+            }
 
-        internal void MarkUnsatisfied(Uri uri) => _unsatisfiedChallenges.TryAdd(uri.Authority, uri);
+            // Authority keys exist only for challenges that were raised outside any marked source
+            return _unsatisfiedChallenges.TryGetValue(source.Authority, out challenge) ? challenge : null;
+        }
+
+        internal void MarkUnsatisfied(Uri uri, string? sourceKey) =>
+            _unsatisfiedChallenges.TryAdd(sourceKey ?? uri.Authority, uri);
 
         // Challenges the callback has been asked about; the value is the callback's (possibly still
-        // running) answer, which is a credential when it supplied one and null when it declined
+        // running) answer: a credential when it supplied one, null when it declined, or a faulted or
+        // canceled task when it threw
         internal ConcurrentDictionary<(string Uri, CredentialRequestType Type), TaskCompletionSource<NuGetCredential?>> Asked { get; } = new();
 
         internal void MarkTimedOut(TimeSpan timeout) =>
@@ -411,6 +454,15 @@ internal sealed class CredentialDispatcher : ICredentialService
 
         /// <inheritdoc />
         public void Dispose() => Ambient.Value = _previous;
+    }
+
+    private sealed class SourceScope : IDisposable
+    {
+        private readonly string? _previous;
+
+        internal SourceScope(string? previous) => _previous = previous;
+
+        public void Dispose() => CurrentSource.Value = _previous;
     }
 
     /// <summary>

@@ -184,7 +184,7 @@ namespace DemaConsulting.NuGet.Caching;
 ///         }
 ///         catch (NuGetAuthenticationException ex)
 ///         {
-///             // 401 or 403: supply credentials (see below)
+///             // 401 or 403: supply credentials (see below); Uri never includes user info, query or fragment
 ///             Console.WriteLine($"Authentication failed for {ex.Source} ({ex.Uri})");
 ///         }
 ///         catch (InvalidOperationException ex)

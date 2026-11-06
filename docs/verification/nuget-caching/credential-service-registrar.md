@@ -137,11 +137,30 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   token is canceled the dispatcher throws a plain cancellation and records no challenge.
 - **AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure**: a plain
   cancellation after a recorded challenge is an authentication failure only while the caller's token is
-  not canceled and only for a source on the challenged host; the dispatcher's own exception is always one.
+  not canceled and only for a source whose challenge was recorded (same marked source, or same host and port
+  when no source was marked); the dispatcher's own exception is always one.
 - **NuGetCache_EnsureCachedAsync_NoCredentials_FailsFastWithoutRetries**,
   **NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries** and
   **NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout**: end-to-end
   fail-fast and prompt-timeout behavior.
+- **CredentialDispatcher_GetCredentialsAsync_CallbackThrew_RepeatChallengeRethrowsOriginal**,
+  **CredentialDispatcher_GetCredentialsAsync_CallbackCanceled_RepeatChallengeStaysPlainCancellation**,
+  **CredentialDispatcher_GetCredentialsAsync_ConcurrentWaiterCallbackFaults_WaiterGetsOriginalException** and
+  **CredentialDispatcher_GetCredentialsAsync_CallbackThrewWithTimeout_RepeatChallengeRethrowsOriginal**:
+  a callback that threw (or was canceled) has its original exception instance rethrown on a repeat
+  challenge and to a concurrent waiter (with and without a timeout), the callback runs once, and the
+  failure is never reported as an authentication failure.
+- **CredentialDispatcher_GetCredentialsAsync_ChallengeInMarkedSource_AttributedToThatSourceOnly**: a
+  challenge raised for a resource outside the source's path is attributed to the marked source only; a
+  second source on the same host does not see it.
+- **CredentialDispatcher_GetCredentialsAsync_UnmarkedAndTimeoutHop_AttributionBehaves**: with no marked
+  source the host-and-port fallback applies, and the source tag survives the timeout's `Task.Run` hop.
+- **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**,
+  **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource** and
+  **NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**: with two
+  sources on one host and port (one always 401, one public), in either order, a package missing from the
+  public source yields an authentication failure naming only the protected source, and a package held by
+  the public source is still downloaded.
 - **NuGetCache_ConcurrentCalls_DifferentOptions_AreIsolated**: concurrent calls with and without a
   callback do not see each other's options.
 - **CredentialDispatcher_TryGetLastKnownGoodCredentialsFromCache_HonorsCallbackAndLoggerRouting**: a
@@ -172,6 +191,16 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation,
   AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure,
   NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries
+- **`Caching-CredentialServiceRegistrar-StoredFaultRethrown`**:
+  CredentialDispatcher_GetCredentialsAsync_CallbackThrew_RepeatChallengeRethrowsOriginal,
+  CredentialDispatcher_GetCredentialsAsync_CallbackCanceled_RepeatChallengeStaysPlainCancellation,
+  CredentialDispatcher_GetCredentialsAsync_ConcurrentWaiterCallbackFaults_WaiterGetsOriginalException,
+  CredentialDispatcher_GetCredentialsAsync_CallbackThrewWithTimeout_RepeatChallengeRethrowsOriginal
+- **`Caching-CredentialServiceRegistrar-PerSourceChallenge`**:
+  CredentialDispatcher_GetCredentialsAsync_ChallengeInMarkedSource_AttributedToThatSourceOnly,
+  CredentialDispatcher_GetCredentialsAsync_UnmarkedAndTimeoutHop_AttributionBehaves,
+  NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource,
+  NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource
 - **`Caching-CredentialServiceRegistrar-RegisterOnce`**:
   CredentialServiceRegistrar_EnsureRegistered_RepeatedCalls_RegistersExactlyOnce,
   NuGetCache_EnsureCachedAsync_AnySource_InvokesCredentialServiceRegistrar,

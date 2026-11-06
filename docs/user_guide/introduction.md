@@ -121,7 +121,10 @@ The absolute path to the cached package folder inside the global packages folder
   of `options.Sources` is invalid.
 
 - `NuGetAuthenticationException` (derived from `InvalidOperationException`): Thrown when a source
-  answered HTTP 401 or 403 and the package could not be obtained. It carries `Source` and `Uri`.
+  answered HTTP 401 or 403 and the package could not be obtained. It carries `Source` and `Uri`; `Uri`
+  holds only the scheme, host, port and path of the rejecting endpoint (user info, query string and
+  fragment are always removed because they may carry secrets). When several sources share a host, an
+  authentication failure is attributed only to the source that actually issued the challenge.
 
 - `InvalidOperationException`: Thrown when the package cannot be found in any configured
   NuGet source, or when `RequireSignedPackages` rejects the package.

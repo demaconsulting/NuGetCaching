@@ -887,6 +887,342 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
+    ///     Deterministic, HTTP-free test: when the callback threw on the first challenge, a repeat challenge for the
+    ///     same URL and request type rethrows that original exception instance (not wrapped, not an
+    ///     authentication failure) without invoking the callback again.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_CallbackThrew_RepeatChallengeRethrowsOriginal()
+    {
+        // Arrange
+        var calls = 0;
+        var original = new InvalidOperationException("boom");
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                throw original;
+            },
+        };
+        var dispatcher = new CredentialDispatcher(new SuppliedCredentialService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+
+        // Act
+        var first = await Record.ExceptionAsync(async () => await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        var second = await Record.ExceptionAsync(async () => await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+
+        // Assert - the very same exception both times, the callback ran once, nothing was recorded as unsatisfied
+        Assert.Same(original, first);
+        Assert.Same(original, second);
+        Assert.Equal(1, calls);
+        Assert.Null(CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri));
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: a callback that threw <see cref="OperationCanceledException"/> makes a
+    ///     repeat challenge fail with a plain cancellation, never with an authentication failure.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_CallbackCanceled_RepeatChallengeStaysPlainCancellation()
+    {
+        // Arrange
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) => throw new OperationCanceledException("callback canceled"),
+        };
+        var dispatcher = new CredentialDispatcher(new SuppliedCredentialService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+
+        // Act
+        var first = await Record.ExceptionAsync(async () => await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        var second = await Record.ExceptionAsync(async () => await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+
+        // Assert
+        Assert.IsType<OperationCanceledException>(first);
+        Assert.IsType<OperationCanceledException>(second);
+        Assert.Equal("callback canceled", second.Message);
+        Assert.False(AuthFailureClassifier.IsUnsatisfiedChallenge(second, uri.AbsoluteUri, CancellationToken.None));
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: a concurrent waiter that shares an in-flight callback which then faults
+    ///     receives the original exception.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ConcurrentWaiterCallbackFaults_WaiterGetsOriginalException()
+    {
+        // Arrange
+        var original = new InvalidOperationException("boom");
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<NuGetCredential?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) =>
+            {
+                started.TrySetResult(true);
+                return release.Task;
+            },
+        };
+        var dispatcher = new CredentialDispatcher(new SuppliedCredentialService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+
+        // Act
+        var first = dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+        await started.Task;
+        var second = dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        release.SetException(original);
+
+        // Assert
+        Assert.Same(original, await Record.ExceptionAsync(async () => await first));
+        Assert.Same(original, await Record.ExceptionAsync(async () => await second));
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: with an authentication timeout configured, a callback that throws is
+    ///     reported once and the repeat challenge rethrows the same exception (the timeout was not hit).
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_CallbackThrewWithTimeout_RepeatChallengeRethrowsOriginal()
+    {
+        // Arrange
+        var original = new InvalidOperationException("boom");
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) => throw original,
+            AuthenticationTimeout = TimeSpan.FromSeconds(30),
+        };
+        var dispatcher = new CredentialDispatcher(new SuppliedCredentialService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+
+        // Act
+        var first = await Record.ExceptionAsync(async () => await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        var second = await Record.ExceptionAsync(async () => await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+
+        // Assert
+        Assert.Same(original, first);
+        Assert.Same(original, second);
+        scope.ThrowIfTimedOut();
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: an unsatisfied challenge is attributed only to the source marked with
+    ///     <c>BeginSource</c>, even when the challenged resource lives at another path of the same host, and a
+    ///     different source on that host does not see it.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ChallengeInMarkedSource_AttributedToThatSourceOnly()
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        const string authed = "http://localhost:5000/authed/index.json";
+        const string open = "http://localhost:5000/open/index.json";
+        var challenged = new Uri("http://localhost:5000/flat/pkg/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+
+        // Act
+        using (CredentialDispatcher.BeginSource(authed))
+        {
+            await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+                await dispatcher.GetCredentialsAsync(
+                    challenged, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        }
+
+        // Assert
+        Assert.Equal(challenged, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(authed));
+        Assert.Null(CredentialDispatcher.FindAmbientUnsatisfiedChallenge(open));
+        Assert.False(AuthFailureClassifier.IsUnsatisfiedChallenge(new TaskCanceledException(), open, CancellationToken.None));
+        Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(new TaskCanceledException(), authed, CancellationToken.None));
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: with no source marked, a challenge is still attributed by host and port,
+    ///     and the marked-source tag reaches the dispatcher through the authentication-timeout task hop.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_UnmarkedAndTimeoutHop_AttributionBehaves()
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost:5000/feed/index.json");
+
+        // Act / Assert - no marked source: attributed by authority
+        using (var scope = CredentialDispatcher.BeginScope(null, null))
+        {
+            await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+                await dispatcher.GetCredentialsAsync(
+                    uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+            Assert.NotNull(CredentialDispatcher.FindAmbientUnsatisfiedChallenge("http://localhost:5000/other/index.json"));
+        }
+
+        // Act / Assert - marked source with a timeout configured (the work runs through Task.Run)
+        using (var scope = CredentialDispatcher.BeginScope(
+            new NuGetCacheOptions { AuthenticationTimeout = TimeSpan.FromSeconds(30) }, null))
+        using (CredentialDispatcher.BeginSource("http://localhost:5000/authed/index.json"))
+        {
+            await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+                await dispatcher.GetCredentialsAsync(
+                    uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+            Assert.NotNull(CredentialDispatcher.FindAmbientUnsatisfiedChallenge("http://localhost:5000/authed/index.json"));
+            Assert.Null(CredentialDispatcher.FindAmbientUnsatisfiedChallenge("http://localhost:5000/open/index.json"));
+        }
+    }
+
+    /// <summary>
+    ///     Tests that with two sources on the same host where only one needs authentication, a package missing
+    ///     from the public source is reported as an authentication failure of the protected source only, in
+    ///     either source order, and a package present in the public source is still downloaded.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange - the public source does not carry the requested package
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterAuthedAndOpenSourcesOnSameHost("Other.Package", "1.0.0", []);
+
+            // Act / Assert - authed source first, then public; and the reverse order
+            foreach (var (first, second) in new[]
+                     {
+                         (server.AuthedIndexUrl, server.OpenIndexUrl),
+                         (server.OpenIndexUrl, server.AuthedIndexUrl),
+                     })
+            {
+                var settings = server.CreateSettings(folder.Path, first, second);
+                var exception = await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                    await NuGetCache.EnsureCachedAsync(
+                        "Missing.Package", "1.0.0", settings, null, new CredentialServiceRegistrar(), CancellationToken.None));
+
+                var authedName = first == server.AuthedIndexUrl ? "test-source-primary" : "test-source-secondary";
+                var openName = first == server.AuthedIndexUrl ? "test-source-secondary" : "test-source-primary";
+                Assert.Equal(authedName, exception.Source);
+                Assert.Equal(server.AuthedIndexUrl, exception.Uri?.AbsoluteUri);
+                Assert.DoesNotContain(openName, exception.Message, StringComparison.Ordinal);
+            }
+        });
+    }
+
+    /// <summary>
+    ///     Tests that two sources on the same host where only one needs authentication still yield a package
+    ///     held by the public source without any credentials.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterAuthedAndOpenSourcesOnSameHost(
+                "Open.Package", "1.0.0", NuGetPackageBuilder.CreateMinimalPackage("Open.Package", "1.0.0"));
+            var settings = server.CreateSettings(folder.Path, server.AuthedIndexUrl, server.OpenIndexUrl);
+
+            // Act
+            var path = await NuGetCache.EnsureCachedAsync(
+                "Open.Package", "1.0.0", settings, null, new CredentialServiceRegistrar(), CancellationToken.None);
+
+            // Assert
+            Assert.True(Directory.Exists(path));
+        });
+    }
+
+    /// <summary>
+    ///     Tests that version discovery over two sources on the same host, one needing authentication and
+    ///     the public one lacking the package, reports the authentication failure for the protected source only.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterAuthedAndOpenSourcesOnSameHost("Other.Package", "1.0.0", []);
+            var settings = server.CreateSettings(folder.Path, server.AuthedIndexUrl, server.OpenIndexUrl);
+
+            // Act
+            var exception = await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.GetVersionsAsync(
+                    "Missing.Package", false, settings, null, new CredentialServiceRegistrar(), CancellationToken.None));
+
+            // Assert
+            Assert.Equal("test-source-primary", exception.Source);
+            Assert.DoesNotContain("test-source-secondary", exception.Message, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>
+    ///     Tests that <see cref="NuGetAuthenticationException.Uri"/> never carries user info, query or fragment
+    ///     of an explicit source, for both package retrieval and version discovery.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterUnauthorizedForAllRequests();
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+
+            // Act / Assert
+            foreach (var secretSource in new[]
+                     {
+                         server.IndexUrl + "?sig=TopSecretToken#frag",
+                         server.IndexUrl.Replace("http://", "http://user:TopSecretToken@"),
+                     })
+            {
+                var options = new NuGetCacheOptions { Sources = [secretSource] };
+                var ensure = await Record.ExceptionAsync(async () =>
+                    await NuGetCache.EnsureCachedAsync(
+                        "Secret.Package", "1.0.0", settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
+                var versions = await Record.ExceptionAsync(async () =>
+                    await NuGetCache.GetVersionsAsync(
+                        "Secret.Package", false, settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
+
+                foreach (var exception in new[] { ensure, versions })
+                {
+                    Assert.NotNull(exception);
+                    Assert.DoesNotContain("TopSecretToken", exception.ToString(), StringComparison.Ordinal);
+                    if (exception is NuGetAuthenticationException auth && auth.Uri != null)
+                    {
+                        Assert.Equal(string.Empty, auth.Uri.Query);
+                        Assert.Equal(string.Empty, auth.Uri.UserInfo);
+                        Assert.Equal(string.Empty, auth.Uri.Fragment);
+                    }
+                }
+
+#if !NETFRAMEWORK
+                Assert.IsType<NuGetAuthenticationException>(ensure);
+                Assert.IsType<NuGetAuthenticationException>(versions);
+#endif
+            }
+        });
+    }
+
+    /// <summary>
     ///     A credential service that always supplies a credential and counts its requests.
     /// </summary>
     private sealed class SuppliedCredentialService : global::NuGet.Configuration.ICredentialService

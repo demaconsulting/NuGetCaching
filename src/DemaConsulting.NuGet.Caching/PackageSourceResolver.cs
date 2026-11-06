@@ -91,6 +91,9 @@ internal static class PackageSourceResolver
 
         foreach (var candidate in candidates)
         {
+            // Attribute any unsatisfied challenge raised by this candidate to its own source; set inline
+            // (not in a helper) so it flows to the credential service through the awaited NuGet calls
+            using var sourceScope = CredentialDispatcher.BeginSource(candidate.PackageSource.Source);
             try
             {
                 var resource = await candidate.GetResourceAsync<FindPackageByIdResource>(cancellationToken);

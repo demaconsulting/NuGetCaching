@@ -344,7 +344,14 @@ When a call runs, `NuGetCache`:
 4. Logs a warning when `Interactive`, `CredentialCallback`, or `AuthenticationTimeout` was supplied
    but a host application had already registered its own credential service (the host's service wins).
 5. Records an authentication failure against the effective repository (which may be the v2 fallback)
-   so `NuGetAuthenticationException.Uri` identifies the endpoint that rejected the request.
+   so `NuGetAuthenticationException.Uri` identifies the endpoint that rejected the request. The URI
+   is redacted (scheme, host, port and path only): `AuthFailureInfo.SourceUrl` is redacted when the
+   record is created and the exception constructor redacts again, so user info, query string and
+   fragment never reach the caller.
+6. Marks the package source being operated on (`CredentialDispatcher.BeginSource`) around each
+   source's resolve, download and version-listing calls (in `PackageSourceResolver`,
+   `PackageDownloader` and the version-listing loop), so an unsatisfied challenge is attributed only
+   to that source.
 
 Limitations: the credential service is process-wide, so a host-registered service bypasses the
 callback, timeout, and interactive mode. `AuthenticationTimeout` cancels the wait and the token

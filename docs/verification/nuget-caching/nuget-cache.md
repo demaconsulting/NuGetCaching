@@ -482,6 +482,15 @@ process-wide credential service can be isolated and restored.
   metadata fallback; recorded as a source failure and thrown because nothing was found).
 - **NuGetAuthenticationException_Properties_AreExposed**: `Source`, `Uri`, and message are
   preserved. Covers `AuthenticationException`.
+- **NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment**,
+  **NuGetAuthenticationException_Constructor_NullOrCleanUri_IsPreserved** and
+  **NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted**: `Uri` never carries user
+  info, query or fragment (direct construction, and end to end for `EnsureCachedAsync` and
+  `GetVersionsAsync` with query and user-info sources); `null` and clean URIs are preserved.
+- **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**,
+  **NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource** and
+  **NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource**: with two
+  sources on one host (one 401, one public) the failure names only the protected source.
 - **NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled**: a
   callback that never completes, with a 500 ms timeout, ends in `OperationCanceledException` (not
   `NuGetAuthenticationException`); the `GetVersionsAsync` variant and a deterministic dispatcher-level
@@ -591,6 +600,12 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails
 - **`Caching-NuGetCache-AuthenticationException`**:
   NuGetAuthenticationException_Properties_AreExposed,
+  NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment,
+  NuGetAuthenticationException_Constructor_NullOrCleanUri_IsPreserved,
+  NuGetCache_AuthFailure_ExplicitSourceWithSecrets_ExceptionUriIsRedacted,
+  NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource,
+  NuGetCache_EnsureCachedAsync_TwoSourcesSameHostOneAuthed_DownloadsFromOpenSource,
+  NuGetCache_GetVersionsAsync_TwoSourcesSameHostOneAuthed_FailureNamesOnlyAuthedSource,
   NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException,
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic,
   NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException,

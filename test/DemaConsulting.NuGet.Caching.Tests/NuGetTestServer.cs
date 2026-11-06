@@ -134,6 +134,68 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Gets the v3 service index URL of the source that always answers HTTP 401, registered by
+    ///     <see cref="RegisterAuthedAndOpenSourcesOnSameHost"/>.
+    /// </summary>
+    internal string AuthedIndexUrl => $"{BaseUrl}/authed/index.json";
+
+    /// <summary>
+    ///     Gets the v3 service index URL of the public source registered by
+    ///     <see cref="RegisterAuthedAndOpenSourcesOnSameHost"/>.
+    /// </summary>
+    internal string OpenIndexUrl => $"{BaseUrl}/open/index.json";
+
+    /// <summary>
+    ///     Registers two package sources on this one host and port: <see cref="AuthedIndexUrl"/> answers
+    ///     every request with HTTP 401, while <see cref="OpenIndexUrl"/> is public and serves its flat
+    ///     container from a path outside the source's own path (as many real feeds do).
+    /// </summary>
+    /// <param name="packageId">The package served by the open source, or <see langword="null"/> for none.</param>
+    /// <param name="version">The version served by the open source.</param>
+    /// <param name="nupkgBytes">The .nupkg bytes served by the open source.</param>
+    internal void RegisterAuthedAndOpenSourcesOnSameHost(string? packageId, string version, byte[] nupkgBytes)
+    {
+        _server
+            .Given(Request.Create().WithPath("/authed/*").UsingAnyMethod())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(401)
+                .WithHeader("WWW-Authenticate", "Basic realm=\"test-realm\""));
+
+        _server
+            .Given(Request.Create().WithPath("/open/index.json").UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody($$"""
+                    {"version":"3.0.0","resources":[{"@id":"{{BaseUrl}}/open-flat/","@type":"PackageBaseAddress/3.0.0"}]}
+                    """)
+                .WithHeader("Content-Type", "application/json"));
+
+        if (packageId == null)
+        {
+            return;
+        }
+
+        var id = packageId.ToLowerInvariant();
+        var ver = version.ToLowerInvariant();
+        _server
+            .Given(Request.Create().WithPath($"/open-flat/{id}/index.json").UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody($"{{\"versions\":[\"{ver}\"]}}")
+                .WithHeader("Content-Type", "application/json"));
+        _server
+            .Given(Request.Create().WithPath($"/open-flat/{id}/{ver}/{id}.{ver}.nupkg").UsingGet())
+            .AtPriority(1)
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBody(nupkgBytes)
+                .WithHeader("Content-Type", "application/zip"));
+    }
+
+    /// <summary>
     ///     Registers the v3 flat-container endpoints for a package whose service index and version list are
     ///     public, while the .nupkg download endpoint rejects every request with HTTP 401.
     /// </summary>

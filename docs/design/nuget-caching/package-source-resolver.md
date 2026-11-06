@@ -114,6 +114,10 @@ v2-only feed.
 - **Other network errors**: `HttpRequestException` that does not represent a 401/403 response
   (transient network error, connection refused, DNS failure, timeout) is still silently
   swallowed — network outages on individual feeds remain non-actionable.
+- **Per-source challenge attribution**: each candidate loop iteration calls
+  `CredentialDispatcher.BeginSource(candidate.PackageSource.Source)` inline, so credential challenges
+  are attributed to the candidate source (including the v2 fallback candidate) instead of to every
+  source sharing the host.
 
 #### Resolution-Time Failures Are Not Always Observable
 
