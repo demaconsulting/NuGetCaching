@@ -3,7 +3,7 @@
   "isRoot": true,
   "tools": {
     "dotnet-sonarscanner": {
-      "version": "12.0.0",
+      "version": "12.1.0",
       "commands": [
         "dotnet-sonarscanner"
       ]
@@ -69,7 +69,7 @@
       ]
     },
     "demaconsulting.canvasnet.tool": {
-      "version": "0.2.0-beta.5",
+      "version": "0.2.0-beta.6",
       "commands": [
         "canvasnet"
       ],

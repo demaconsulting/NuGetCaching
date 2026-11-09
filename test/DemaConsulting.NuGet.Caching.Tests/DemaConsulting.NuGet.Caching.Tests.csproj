@@ -42,7 +42,7 @@
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.2" />
     <!-- WireMock.Net provides an in-process HTTP mock server used by the LocalIntegration tests
          to simulate NuGet v3 and v2 feeds without hitting the network. -->
-    <PackageReference Include="WireMock.Net" Version="2.21.0" />
+    <PackageReference Include="WireMock.Net" Version="2.30.0" />
     <PackageReference Include="xunit.v3" Version="4.0.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
       <PrivateAssets>all</PrivateAssets>
@@ -57,7 +57,7 @@
          known moderate-severity vulnerabilities (GHSA-6q7j-xr26-3h2c, GHSA-q6rr-fm2g-g5x8). Scriban is
          only used by NSwag's Swagger/OpenAPI template rendering, which this project never exercises,
          but the vulnerable version still trips NuGetAudit (NU1902) as an error. -->
-    <PackageReference Include="Scriban.Signed" Version="7.5.3" PrivateAssets="all" />
+    <PackageReference Include="Scriban.Signed" Version="7.6.1" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- Code Analysis Dependencies -->
