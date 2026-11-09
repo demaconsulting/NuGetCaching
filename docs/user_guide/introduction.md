@@ -6,6 +6,10 @@ This document is the user guide for DemaConsulting NuGet Caching, a library for 
 NuGet packages are available in the local global packages cache and for discovering the
 versions of a package that are available from the configured NuGet sources.
 
+The figure below shows how the pieces fit together: your application calls `NuGetCache`, optionally passing
+`NuGetCacheOptions`, and `NuGetCache` reads `nuget.config`, talks to the NuGet feeds, and installs packages into the
+global packages folder.
+
 ![NuGetCaching architecture: your application calling NuGetCache with optional NuGetCacheOptions, plus nuget.config,
 NuGet feeds and the global packages folder](architecture.svg)
 
@@ -32,7 +36,7 @@ compliance evidence is generated automatically on every CI run.
 
 - **Requirements Traceability**: Every requirement is linked to passing tests, and a trace matrix is
   auto-generated on each release
-- **Linting Enforcement**: markdownlint, cspell, and yamllint are enforced before any build proceeds
+- **Linting Enforcement**: markdownlint, TextLint, and yamllint are enforced before any build proceeds
 - **Automated Audit Documentation**: Each release ships with generated requirements, justifications,
   trace matrix, and quality reports
 - **CodeQL and SonarCloud**: Security and quality analysis run on every build

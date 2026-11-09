@@ -360,7 +360,7 @@ callback, timeout, and interactive mode. `AuthenticationTimeout` cancels the wai
 given to the callback or provider. Plugin lifetime was verified by decompiling NuGet.Protocol 7.3.1 and
 re-checked against the 7.9.0 source: the
 shared `PluginManager` (a static `Lazy` instance) starts a plugin with `CancellationToken.None`, so
-cancelling or timing out a request does not terminate the plugin process; it exits on NuGet's idle timeout
+canceling or timing out a request does not terminate the plugin process; it exits on NuGet's idle timeout
 (30 minutes by default, `NUGET_PLUGIN_IDLE_TIMEOUT_IN_SECONDS`), when it detects that the parent exited, or
 when the process ends. The library does not dispose the shared manager, because that would affect other users
 of NuGet in the same process and the SDK has no reset hook. Versions are returned as NuGet-normalized strings
