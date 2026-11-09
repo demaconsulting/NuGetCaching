@@ -1,4 +1,6 @@
 package NuGetCaching {
+    private import SoftwareItemMetadata::*;
+
     import OtsDependencies::*;
 
     doc
@@ -13,10 +15,13 @@ package NuGetCaching {
     part def NuGetCachingSystem {
         doc /* The NuGet Caching library as a whole: package caching and version discovery. */
 
-        comment testRef /* Test: test/DemaConsulting.NuGet.Caching.Tests/NuGetCachingTests.cs */
-        comment designRef /* Design: docs/design/nuget-caching.md */
-        comment verificationRef /* Verification: docs/verification/nuget-caching.md */
-        comment reqRef /* Requirements: docs/reqstream/nuget-caching.yaml */
+        metadata info : SoftwareInfo {
+            description = "The NuGet Caching library as a whole: package caching and version discovery.";
+            testFiles = ("test/DemaConsulting.NuGet.Caching.Tests/NuGetCachingTests.cs");
+            designFiles = ("docs/design/nuget-caching.md");
+            verificationFiles = ("docs/verification/nuget-caching.md");
+            requirementFiles = ("docs/reqstream/nuget-caching.yaml");
+        }
 
         part nuGetCache : NuGetCache;
         part pathHelpers : PathHelpers;
