@@ -16,7 +16,6 @@ package NuGetCaching {
         doc /* The NuGet Caching library as a whole: package caching and version discovery. */
 
         metadata info : SoftwareInfo {
-            description = "The NuGet Caching library as a whole: package caching and version discovery.";
             testFiles = ("test/DemaConsulting.NuGet.Caching.Tests/NuGetCachingTests.cs");
             designFiles = ("docs/design/nuget-caching.md");
             verificationFiles = ("docs/verification/nuget-caching.md");
