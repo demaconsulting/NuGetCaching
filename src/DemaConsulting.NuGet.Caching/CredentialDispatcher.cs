@@ -43,7 +43,8 @@ namespace DemaConsulting.NuGet.Caching;
 ///     <see cref="AsyncLocal{T}"/> scope opened by <see cref="BeginScope"/>. With no ambient scope
 ///     (no options supplied) every request is delegated unchanged to the default
 ///     non-interactive service. Inside a scope: a <see cref="NuGetCacheOptions.CredentialCallback"/>
-///     is consulted first for 401/403 challenges; when it yields nothing the request goes to the
+///     is consulted first for 401 challenges (a 403 fails before any callback or provider runs, since
+///     no credential can grant a missing permission); when it yields nothing the request goes to the
 ///     interactive or non-interactive provider-based service according to
 ///     <see cref="NuGetCacheOptions.Interactive"/>; for a call with a callback that service (and with
 ///     it NuGet's retry cache) is created per call so one call's success never turns a later call's
@@ -615,7 +616,7 @@ internal sealed class CredentialDispatcher : ICredentialService
         ///     server's reason.</param>
         internal AuthChallengeUnsatisfiedException(UnsatisfiedChallenge challenge)
             : base(challenge.StatusCode == 403
-                ? "Response status code does not indicate success: 403 (Forbidden). No credentials are available for the forbidden request."
+                ? "Response status code does not indicate success: 403 (Forbidden). No credential can satisfy the forbidden request."
                 : "Response status code does not indicate success: 401 (Unauthorized). No credentials are available for the challenged request.")
         {
             Challenge = challenge;
