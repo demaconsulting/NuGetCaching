@@ -22,7 +22,7 @@ discovering the available versions of a package.
 - 🗺️ **Source Mapping** - Honors NuGet package source mapping
 - 🚨 **Clear Errors** - Reports authentication and protocol failures with actionable messages
 - 🔐 **Credential Options** - Credential callback, interactive mode, logger, and authentication timeout
-- 🔄 **Multi-Target** - Supports .NET Standard 2.0, .NET 8, 9, and 10
+- 🔄 **Multi-Target** - Supports .NET Standard 2.0, .NET 8, 9, 10, and 11
 - 🖥️ **Cross-Platform** - Runs on Windows, Linux, and macOS
 - ✅ **Continuous Compliance** - Requirements traceability and compliance evidence on every CI run
 

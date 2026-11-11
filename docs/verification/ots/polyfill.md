@@ -23,9 +23,9 @@ On `net5.0` and later both APIs are provided by the BCL and Polyfill is a no-op.
 Polyfill is verified by the project's unit test suite. The library project targets
 `netstandard2.0`; the `net481` test-project target (Windows-only) consumes the `netstandard2.0`
 library binary, making it the target on which both polyfilled APIs are active. On Windows builds
-the test suite runs on four targets: `net481`, `net8.0`, `net9.0`, and `net10.0`; on non-Windows
-builds it runs on three targets: `net8.0`, `net9.0`, and `net10.0`. The CI pipeline includes a
-Windows runner, so polyfill coverage is obtained on every CI build.
+the test suite runs on five targets: `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`; on
+non-Windows builds it runs on four targets: `net8.0`, `net9.0`, `net10.0`, and `net11.0`. The CI
+pipeline includes a Windows runner, so polyfill coverage is obtained on every CI build.
 
 All 12 `PathHelpersTests` scenarios exercise one or both polyfilled APIs on `net481`:
 

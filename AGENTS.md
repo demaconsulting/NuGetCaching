@@ -4,7 +4,7 @@
 - **organization**: DEMA Consulting
 - **description**: A library for caching NuGet packages on the local PC
 - **languages**: C#
-- **technologies**: .NET (netstandard2.0, net8.0, net9.0, net10.0), NuGet.Protocol, NuGet.Configuration
+- **technologies**: .NET (netstandard2.0, net8.0, net9.0, net10.0, net11.0), NuGet.Protocol, NuGet.Configuration
 
 # Project Structure
 

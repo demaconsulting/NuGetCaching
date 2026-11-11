@@ -26,8 +26,8 @@ server, file system, or configuration dependency.
 
 ### Acceptance Criteria
 
-All test scenarios below pass on every test target framework (net8.0, net9.0, and net10.0, plus
-net481 on Windows, which exercises the netstandard2.0 library binary): 401/403 inputs return `true`
+All test scenarios below pass on every test target framework (net8.0, net9.0, net10.0, and net11.0,
+plus net481 on Windows, which exercises the netstandard2.0 library binary): 401/403 inputs return `true`
 with an actionable message, and every non-matching input returns `false` with a `null` message.
 
 ### Test Scenarios

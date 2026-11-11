@@ -113,8 +113,8 @@ or whose `InnerException`'s message — simply embeds the reason-phrase text.
 `TryGetHttpStatusCode` checks the strongly typed `HttpRequestException.StatusCode` property where
 available (`#if !NETSTANDARD2_0`) and falls back to matching that text across the whole exception
 chain (`InnerException` by `InnerException`) so detection is consistent on every target framework
-(`netstandard2.0`, `net8.0`, `net9.0`, `net10.0`) regardless of which exception shape the SDK
-happens to surface at a given call site.
+(`netstandard2.0`, `net8.0`, `net9.0`, `net10.0`, `net11.0`) regardless of which exception shape
+the SDK happens to surface at a given call site.
 
 #### Actionable Diagnostic Message Format
 

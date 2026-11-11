@@ -48,7 +48,7 @@ compliance evidence is generated automatically on every CI run.
 The library targets the following platforms and runtimes:
 
 - **Platforms**: Windows, Linux, and macOS
-- **Runtimes**: .NET Standard 2.0, .NET 8, .NET 9, and .NET 10
+- **Runtimes**: .NET Standard 2.0, .NET 8, .NET 9, .NET 10, and .NET 11
 
 ## Installing the Package
 

@@ -162,7 +162,7 @@ sources have been exhausted without a successful download.
 ## Design Constraints
 
 - The library targets .NET Standard 2.0 for maximum compatibility, plus .NET 8.0,
-  9.0, and 10.0 for modern runtime support, with additional security validation
+  9.0, 10.0, and 11.0 for modern runtime support, with additional security validation
   enabled on builds targeting .NET 5.0 or later frameworks
 - The system reads from the same NuGet configuration hierarchy as the `dotnet` CLI
   and Visual Studio, ensuring consistent behavior
@@ -173,4 +173,4 @@ sources have been exhausted without a successful download.
 Satisfies requirements `Caching-Sys-PackageCaching`, `Caching-Sys-VersionDiscovery`,
 `Caching-Sys-NullValidation`,
 `Caching-PLT-Windows`, `Caching-PLT-Linux`, `Caching-PLT-MacOS`, `Caching-PLT-Net8`,
-`Caching-PLT-Net9`, `Caching-PLT-Net10`, and `Caching-PLT-NetStd20`.
+`Caching-PLT-Net9`, `Caching-PLT-Net10`, `Caching-PLT-Net11`, and `Caching-PLT-NetStd20`.
