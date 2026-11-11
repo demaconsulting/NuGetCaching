@@ -260,6 +260,39 @@ public class AuthFailureClassifierTests
     }
 
     /// <summary>
+    ///     Tests that a 403 surfacing as a raw <see cref="HttpRequestException"/> (not the dispatcher's own
+    ///     exception) still carries the reason the capture handler recorded for the source, while a 401 never
+    ///     picks up a recorded reason.
+    /// </summary>
+    [Fact]
+    public void AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestException403_UsesRecordedReasonForSource()
+    {
+        // Arrange
+        var source = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var marked = CredentialDispatcher.BeginSource(source.AbsoluteUri);
+        CredentialDispatcher.RecordForbiddenReason(source, "You need 'ReadPackages'.");
+        var forbidden = new HttpRequestException("Response status code does not indicate success: 403 (Forbidden).", null, HttpStatusCode.Forbidden);
+        var unauthorized = new HttpRequestException("Response status code does not indicate success: 401 (Unauthorized).", null, HttpStatusCode.Unauthorized);
+
+        // Act
+        var forbiddenResult = AuthFailureClassifier.TryDescribeAuthFailure(
+            forbidden, "test-source", source.AbsoluteUri, out var forbiddenMessage, out var forbiddenFailure);
+        var unauthorizedResult = AuthFailureClassifier.TryDescribeAuthFailure(
+            unauthorized, "test-source", source.AbsoluteUri, out var unauthorizedMessage, out var unauthorizedFailure);
+
+        // Assert
+        Assert.True(forbiddenResult);
+        Assert.Equal(403, forbiddenFailure!.StatusCode);
+        Assert.Equal("You need 'ReadPackages'.", forbiddenFailure.Reason);
+        Assert.Contains("Server said: \"You need 'ReadPackages'.\"", forbiddenMessage, StringComparison.Ordinal);
+        Assert.True(unauthorizedResult);
+        Assert.Equal(401, unauthorizedFailure!.StatusCode);
+        Assert.Null(unauthorizedFailure.Reason);
+        Assert.DoesNotContain("Server said", unauthorizedMessage, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Tests that <c>TryDescribeAuthFailure</c> returns <see langword="false"/> when an
     ///     <see cref="HttpRequestException"/> carries an unrelated status code (e.g. 500), which
     ///     is neither a 401 nor a 403 and should be treated as a non-actionable transient failure.

@@ -256,6 +256,13 @@ internal static class AuthFailureClassifier
             return false;
         }
 
+        // A 403 that surfaced as a raw HTTP exception (not the dispatcher's own) still has the reason the
+        // handler recorded for this source during the call
+        if (statusCode == 403 && reason == null)
+        {
+            reason = CredentialDispatcher.FindAmbientForbiddenReason(source);
+        }
+
         failure = new AuthFailureInfo(sourceName, source, statusCode, reason);
         var where = $"{RedactSourceName(sourceName)} ({RedactUrl(source)})";
         var original = RedactEmbeddedUrls(exception.Message);

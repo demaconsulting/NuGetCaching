@@ -95,3 +95,4 @@ sections:
         tests:
           - AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden
           - CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason
+          - AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestException403_UsesRecordedReasonForSource

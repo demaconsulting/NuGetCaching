@@ -175,8 +175,14 @@ public methods of `NuGetCache`:
   is reduced to one line of at most 300 characters (control characters and runs of spaces collapsed, double quotes
   replaced by single quotes, URL user info, query and fragment removed) and recorded per call under the marked
   source (or the authority), and `FailChallenge` attaches it. The handler never changes the response and
-  ignores failures to read the body. If NuGet's handler chain has a different shape the handler is simply not
-  installed and a 403 is reported without a reason. The 403 still fails fast, like a 401.
+  ignores failures to read the body: a body larger than the limit, or one that cannot be read, falls back to the
+  reason phrase instead of losing the reason. If NuGet's handler chain has a different shape the handler is simply
+  not installed and a 403 is reported without a reason. The 403 fails fast, like a 401, and immediately: a
+  `Forbidden` request is answered at the start of `AcquireAsync`, before the host credential callback or any
+  credential provider is consulted, because no credential can help (the callback is never asked to prompt for a
+  403, and a provider cannot supply credentials that would make NuGet retry). The dispatcher also exposes the
+  reason recorded for a source (`FindAmbientForbiddenReason`) so the classifier can attach it to a 403 that
+  surfaces as a raw HTTP exception.
 - **Per-source attribution**: the record is keyed by the package source being operated on, not by the
   challenged host. Callers mark the source with `CredentialDispatcher.BeginSource(sourceUrl)`, which
   sets a second `AsyncLocal` (a non-secret key: `src:` plus the first 16 hex characters of the SHA-256

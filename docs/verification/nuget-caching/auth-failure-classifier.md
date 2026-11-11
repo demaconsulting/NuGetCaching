@@ -62,6 +62,16 @@ with an actionable message, and every non-matching input returns `false` with a 
 
 **Requirement coverage**: `Caching-AuthFailureClassifier-ForbiddenReason`.
 
+#### AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestException403_UsesRecordedReasonForSource
+
+**Scenario**: A reason is recorded for a marked source inside a call scope, then `TryDescribeAuthFailure` is
+called with a raw `HttpRequestException` for that source: once with a 403 and once with a 401.
+
+**Expected**: The 403 failure has status 403, carries the recorded reason, and the message quotes it
+(`Server said: ...`); the 401 failure has status 401 and no reason.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-ForbiddenReason`.
+
 #### AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInMessage_ReturnsFalse
 
 **Scenario**: `TryDescribeAuthFailure` is called with a generic transient-failure exception
@@ -218,4 +228,5 @@ verified by `Caching-PackageDownloader-AuthFailureInfo` (downloader unit) and, e
   AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery
 - **`Caching-AuthFailureClassifier-ForbiddenReason`**:
   AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden,
-  CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason
+  CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason,
+  AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestException403_UsesRecordedReasonForSource

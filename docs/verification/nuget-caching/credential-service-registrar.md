@@ -150,6 +150,12 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   in the end-to-end `NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries`, which
   also asserts a prompt failure, and the JSON `message` is used in
   `NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason`).
+- **CredentialDispatcher_GetCredentialsAsync_ForbiddenWithCallback_DoesNotInvokeCallback**: with a host
+  credential callback configured, a forbidden (403) request fails with status 403 and the recorded reason without
+  invoking the callback; a 401 answered by the callback followed by a 403 for the same request leaves the callback
+  invoked exactly once (for the 401).
+- **ForbiddenReasonHandler_OversizedBody_FallsBackToReasonPhrase**: a 403 body larger than the read limit does not
+  lose the reason; the handler falls back to the descriptive reason phrase.
 - **CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation**: when the caller's
   token is canceled the dispatcher throws a plain cancellation and records no challenge.
 - **AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure**: a plain
@@ -216,7 +222,9 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries
 - **`Caching-CredentialServiceRegistrar-ForbiddenReason`**:
   CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason,
+  CredentialDispatcher_GetCredentialsAsync_ForbiddenWithCallback_DoesNotInvokeCallback,
   ForbiddenReasonHandler_Forbidden_RecordsSanitizedReasonInPriorityOrder,
+  ForbiddenReasonHandler_OversizedBody_FallsBackToReasonPhrase,
   NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries,
   NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason
 - **`Caching-CredentialServiceRegistrar-StoredFaultRethrown`**:

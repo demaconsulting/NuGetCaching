@@ -934,6 +934,73 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
+    ///     Tests that a forbidden (403) challenge fails fast with the recorded reason and never invokes the
+    ///     host credential callback, and that a 401 followed by a 403 for the same request invokes the
+    ///     callback exactly once (for the 401).
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ForbiddenWithCallback_DoesNotInvokeCallback()
+    {
+        // Arrange
+        var calls = 0;
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.FromResult<NuGetCredential?>(new NuGetCredential("user", "secret"));
+            },
+        };
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+        using var source = CredentialDispatcher.BeginSource(uri.AbsoluteUri);
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+
+        // Act - a 403 alone
+        var forbidden = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert
+        Assert.Equal(0, calls);
+        Assert.Equal(403, forbidden.Challenge.StatusCode);
+        Assert.Equal("You need 'ReadPackages'.", forbidden.Challenge.Reason);
+
+        // Act - a 401 answered by the callback, then a 403 for the same request
+        var credentials = await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+        await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert - the callback ran once, for the 401
+        Assert.NotNull(credentials);
+        Assert.Equal(1, calls);
+    }
+
+    /// <summary>
+    ///     Tests that a body larger than the read limit does not lose the reason: the handler falls back to
+    ///     the reason phrase.
+    /// </summary>
+    [Fact]
+    public async Task ForbiddenReasonHandler_OversizedBody_FallsBackToReasonPhrase()
+    {
+        // Arrange
+        const string phrase = "Forbidden - You need 'ReadPackages'.";
+
+        // Act
+        var reason = await CredentialDispatcherReasonAsync(() => new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden)
+        {
+            ReasonPhrase = phrase,
+            Content = new StringContent("{\"message\":\"" + new string('x', 64 * 1024) + "\"}"),
+        });
+
+        // Assert
+        Assert.Equal(phrase, reason);
+    }
+
+    /// <summary>
     ///     Deterministic, HTTP-free test of <c>ForbiddenReasonHandler</c>: the reason comes from the
     ///     <c>X-TFS-ServiceError</c> header first, then a JSON body, then a descriptive reason phrase; it is
     ///     reduced to one short line without URL secrets, and the response passes through unchanged.

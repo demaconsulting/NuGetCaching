@@ -109,7 +109,10 @@ standalone numbers elsewhere in a message (e.g. a port number) as an authenticat
 The pattern requires the status code to be followed by the start of its reason phrase, not the closing
 parenthesis, because servers put an explanation in the phrase (Azure DevOps Server sends
 `403 (Forbidden - User ... lacks permission ...)`). The dispatcher's fail-fast exception carries its own status
-code (401 or 403) and, for a 403, the server's reason, which `TryGetHttpStatusCode` returns. For a 403 the
+code (401 or 403) and, for a 403, the server's reason, which `TryGetHttpStatusCode` returns. A 403 that surfaces
+as a raw `HttpRequestException` or protocol exception (so without that reason) gets the reason the handler recorded
+for the same source during the current call, looked up through `CredentialDispatcher.FindAmbientForbiddenReason`;
+a 401 never carries a reason. For a 403 the
 message says the source refused access, that signing in again will not help, to ask the source's administrator for
 read permission, what the server said (when known) and the original text; for a 401 it keeps the credentials hint.
 Satisfies `Caching-AuthFailureClassifier-ForbiddenReason`.

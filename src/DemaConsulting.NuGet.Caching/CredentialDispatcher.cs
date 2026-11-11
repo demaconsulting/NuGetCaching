@@ -102,6 +102,23 @@ internal sealed class CredentialDispatcher : ICredentialService
     }
 
     /// <summary>
+    ///     Gets the reason the server gave for an HTTP 403 during the current ambient call while operating on
+    ///     the same package source as <paramref name="source"/>, or <see langword="null"/> when none was seen.
+    /// </summary>
+    /// <param name="source">The package source URL the caller is operating on.</param>
+    /// <returns>The recorded sanitized reason for the source, or <see langword="null"/>.</returns>
+    internal static string? FindAmbientForbiddenReason(string source)
+    {
+        var context = Ambient.Value;
+        if (context == null || !Uri.TryCreate(source, UriKind.Absolute, out var sourceUri))
+        {
+            return null;
+        }
+
+        return context.FindForbiddenReason(SourceKey(source), sourceUri);
+    }
+
+    /// <summary>
     ///     Remembers the reason a server gave for an HTTP 403 response, for the current ambient call, so
     ///     the unsatisfied challenge that follows can carry it.
     /// </summary>
@@ -261,6 +278,15 @@ internal sealed class CredentialDispatcher : ICredentialService
         string message,
         CancellationToken cancellationToken)
     {
+        // A forbidden response (HTTP 403) means the server knows who the caller is and still refuses access,
+        // so no credential the host callback or a provider could supply helps; asking would only prompt
+        // for nothing or make NuGet retry. Fail fast with the reason the server gave.
+        if (type == CredentialRequestType.Forbidden)
+        {
+            context.Logger?.LogDebug("The server refused access (HTTP 403); not asking for credentials and failing the request.");
+            throw FailChallenge(context, uri, type, cancellationToken);
+        }
+
         var callback = context.Options.CredentialCallback;
         if (callback != null && type != CredentialRequestType.Proxy)
         {
@@ -331,9 +357,7 @@ internal sealed class CredentialDispatcher : ICredentialService
         // about a second per retry) by canceling the request; callers report it as an authentication failure
         if (credentials == null && type != CredentialRequestType.Proxy)
         {
-            context.Logger?.LogDebug(type == CredentialRequestType.Forbidden
-                ? "No credentials are available for the forbidden (HTTP 403) response; failing the request."
-                : "No credentials are available for the authentication challenge; failing the request.");
+            context.Logger?.LogDebug("No credentials are available for the authentication challenge; failing the request.");
             throw FailChallenge(context, uri, type, cancellationToken);
         }
 
@@ -510,6 +534,9 @@ internal sealed class CredentialDispatcher : ICredentialService
 
         internal string? FindForbiddenReason(string key) =>
             _forbiddenReasons.TryGetValue(key, out var reason) ? reason : null;
+
+        internal string? FindForbiddenReason(string sourceKey, Uri source) =>
+            FindForbiddenReason(sourceKey) ?? FindForbiddenReason(source.Authority);
 
         // Challenges the callback has been asked about; the value is the callback's (possibly still
         // running) answer: a credential when it supplied one, null when it declined, or a faulted or
@@ -731,10 +758,7 @@ internal sealed class CredentialDispatcher : ICredentialService
 
             if (response.Content != null)
             {
-                await response.Content.LoadIntoBufferAsync(MaxBodyBytes, cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-                var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                var fromBody = Sanitize(ExtractJsonMessage(body));
+                var fromBody = await TryReadBodyReasonAsync(response.Content, cancellationToken);
                 if (fromBody != null)
                 {
                     return fromBody;
@@ -745,6 +769,34 @@ internal sealed class CredentialDispatcher : ICredentialService
             return phrase != null && !string.Equals(phrase, "Forbidden", StringComparison.OrdinalIgnoreCase)
                 ? phrase
                 : null;
+        }
+
+        /// <summary>
+        ///     Reads the <c>message</c> of a JSON body, tolerating a body that is too large or cannot be read so
+        ///     that the caller can still fall back to the reason phrase.
+        /// </summary>
+        /// <remarks>
+        ///     The cancellation-token overloads used here are provided on <c>netstandard2.0</c> by the Polyfill
+        ///     package, so no conditional compilation is needed.
+        /// </remarks>
+        /// <param name="content">The response content.</param>
+        /// <param name="cancellationToken">Cancels reading the body.</param>
+        /// <returns>The sanitized message, or <see langword="null"/> when there is none or it could not be read.</returns>
+        private static async Task<string?> TryReadBodyReasonAsync(HttpContent content, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await content.LoadIntoBufferAsync(MaxBodyBytes, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                var body = await content.ReadAsStringAsync(cancellationToken);
+                return Sanitize(ExtractJsonMessage(body));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // An oversized or unreadable body is not a short explanation; the caller falls back to the
+                // reason phrase
+                return null;
+            }
         }
 
         /// <summary>
