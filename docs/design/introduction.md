@@ -53,6 +53,15 @@ source code.
 
 ![Software Structure](SoftwareStructureView.svg)
 
+The diagram below complements the structure view by showing the library in its run-time
+context: the calling application invokes the public `NuGetCache` entry points, optionally
+passing `NuGetCacheOptions`, and the library reads `nuget.config`, queries the NuGet feeds,
+and installs packages into the global packages folder.
+
+![NuGetCaching architecture: the calling application invokes NuGetCache with optional
+NuGetCacheOptions, and NuGetCache reads nuget.config, queries NuGet feeds, and installs
+packages into the global packages folder](architecture.svg)
+
 ## Folder Layout
 
 - **src/** - source files and projects
