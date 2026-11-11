@@ -123,6 +123,14 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback**:
   deterministic, HTTP-free: after a timeout a repeat request is canceled without invoking the
   callback again and the scope's `ThrowIfTimedOut()` throws `OperationCanceledException`.
+- **CredentialDispatcher_GetCredentialsAsync_CallbackSet_RetryStateIsScopedToOneCall**: deterministic,
+  HTTP-free: with a callback and a substituted provider that declines retries (like the integrated
+  authentication provider), a repeat request within one call is not satisfied, while the same URL in a
+  second call is answered again.
+- **NuGetCache_GetVersionsAsync_CallbackDeclinesTwice_ProviderServesEveryCall**: end-to-end regression
+  test: two sequential `GetVersionsAsync` calls for one 401-challenging source, each with a callback that
+  returns `null` and a retry-declining substituted provider, both succeed. Before the per-call service
+  the second call failed with an authentication error.
 - **NuGetCache_EnsureCachedAsync_CallbackReturnsNull_AsksOncePerUriAndType** and
   **CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders**:
   a null answer is remembered per (URI, type) so the callback
@@ -189,6 +197,9 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   CredentialDispatcher_GetCredentialsAsync_ConcurrentSameKey_AwaitsSingleCallback,
   CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders,
   NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout
+- **`Caching-CredentialServiceRegistrar-PerCallProviderState`**:
+  CredentialDispatcher_GetCredentialsAsync_CallbackSet_RetryStateIsScopedToOneCall,
+  NuGetCache_GetVersionsAsync_CallbackDeclinesTwice_ProviderServesEveryCall
 - **`Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`**:
   CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge,
   CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation,

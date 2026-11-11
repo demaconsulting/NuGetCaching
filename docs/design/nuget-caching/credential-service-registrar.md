@@ -175,6 +175,24 @@ public methods of `NuGetCache`:
   used. A challenge raised with no marked source falls back to a host-and-port key, which a lookup
   consults only after the source key. The tag reaches the credential service through the execution
   context, including the `Task.Run` hop of the authentication timeout.
+- **Per-call provider state**: for a non-proxy request of a call with a callback, the provider-based
+  `CredentialService` (interactive or not, according to the options) is created per call and held on
+  that call's context (`GetOrCreatePerCallService`, shared by all concurrent requests of the call).
+  NuGet's `CredentialService` records a success in a retry cache keyed by provider, request type and
+  URL and passes `isRetry = true` for a later request for the same key; the default network
+  credentials provider (Windows integrated authentication) answers `ProviderNotApplicable` on a retry.
+  With a process-wide service every call after the first for a URL was therefore denied integrated
+  authentication and failed with a spurious 401 (the last-known-good cache that would otherwise rescue
+  it is bypassed whenever a callback is set). A per-call service keeps the retry cache's purpose (a
+  credential rejected within one call is still a retry, so no loop) without carrying it to later calls.
+  Cost: creating the service is a few object allocations (about 0.02 ms measured); the plugin
+  providers are built lazily on the first request that reaches the service (about 5-9 ms per call with
+  no plugins installed, once the process is warm) and only when the callback declined, because plugin
+  processes are owned by NuGet's shared `PluginManager`. This was judged small next to the network
+  exchange it precedes, so plugin discovery is not cached separately. Proxy requests and calls
+  without a callback keep the shared services, whose last-known-good cache works as NuGet intends.
+  `DefaultProviderFactory` (internal, replaceable) supplies the default network credentials provider
+  so tests can substitute one with the same retry behavior without needing a domain.
 - **Scope with a logger, non-interactive**: a lazily created non-interactive `CredentialService` whose
   plugin logger forwards to the ambient call's logger, so provider diagnostics reach the caller. Without
   a logger the original default service is used unchanged.
@@ -217,7 +235,8 @@ Limitations (stated honestly rather than hidden):
   failure, even if a challenge was recorded earlier in the call; it propagates as a cancellation.
 
 Satisfies requirements `Caching-CredentialServiceRegistrar-DispatchPerCall`,
-`Caching-CredentialServiceRegistrar-CallbackFirst`, `Caching-CredentialServiceRegistrar-LoopGuard`, and
+`Caching-CredentialServiceRegistrar-CallbackFirst`, `Caching-CredentialServiceRegistrar-LoopGuard`,
+`Caching-CredentialServiceRegistrar-PerCallProviderState`, and
 `Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`.
 
 ### Error Handling

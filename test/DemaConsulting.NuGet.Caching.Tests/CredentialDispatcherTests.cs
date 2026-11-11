@@ -561,8 +561,8 @@ public class CredentialDispatcherTests
 
     /// <summary>
     ///     Deterministic, HTTP-free test: a callback that returned <see langword="null"/> is not asked
-    ///     again for the same URL and request type, but each request still reaches the default
-    ///     credential service.
+    ///     again for the same URL and request type, but each request still reaches the credential
+    ///     providers.
     /// </summary>
     [Fact]
     public async Task CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders()
@@ -577,8 +577,9 @@ public class CredentialDispatcherTests
                 return Task.FromResult<NuGetCredential?>(null);
             },
         };
-        var service = new SuppliedCredentialService();
-        var dispatcher = new CredentialDispatcher(service);
+        var provider = new FakeProvider(failOnRetry: false);
+        using var providers = UseDefaultProvider(provider);
+        var dispatcher = new CredentialDispatcher(new SuppliedCredentialService());
         var uri = new Uri("http://localhost/feed/index.json");
         using var scope = CredentialDispatcher.BeginScope(options, null);
 
@@ -588,11 +589,84 @@ public class CredentialDispatcherTests
         var second = await dispatcher.GetCredentialsAsync(
             uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
 
-        // Assert - the callback ran once; both requests reached the default service
+        // Assert - the callback ran once; both requests reached the credential provider
         Assert.Equal(1, calls);
-        Assert.Equal(2, service.Calls);
+        Assert.Equal(2, provider.Calls);
         Assert.NotNull(first);
         Assert.NotNull(second);
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free regression test: with a callback, the credential providers' retry
+    ///     state is scoped to one call. A repeat request within a call is a retry (the provider, like
+    ///     the integrated-authentication provider, then declines, so no loop), while a request in a later
+    ///     call for the same URL is a fresh request and reaches the provider again.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_CallbackSet_RetryStateIsScopedToOneCall()
+    {
+        // Arrange
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) => Task.FromResult<NuGetCredential?>(null),
+        };
+        var provider = new FakeProvider(failOnRetry: true);
+        using var providers = UseDefaultProvider(provider);
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        var type = global::NuGet.Configuration.CredentialRequestType.Unauthorized;
+
+        // Act / Assert - call 1: the first request succeeds, the repeat request is a retry and is not satisfied
+        using (CredentialDispatcher.BeginScope(options, null))
+        {
+            Assert.NotNull(await dispatcher.GetCredentialsAsync(uri, null, type, "m", CancellationToken.None));
+            await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+                await dispatcher.GetCredentialsAsync(uri, null, type, "m", CancellationToken.None));
+        }
+
+        // Act / Assert - call 2: the same URL is a fresh request again (this failed with process-wide state)
+        using (CredentialDispatcher.BeginScope(options, null))
+        {
+            Assert.NotNull(await dispatcher.GetCredentialsAsync(uri, null, type, "m", CancellationToken.None));
+        }
+
+        Assert.Equal(3, provider.Calls);
+    }
+
+    /// <summary>
+    ///     Regression test for Windows integrated authentication: two sequential calls for the same
+    ///     source, each with a callback that declines, must both be satisfied by a credential provider that
+    ///     (like <c>DefaultNetworkCredentialsCredentialProvider</c>) answers a first request but declines a
+    ///     retry. Before the fix the second call received a spurious 401 and failed authentication.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_CallbackDeclinesTwice_ProviderServesEveryCall()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange - a feed that answers 401 until it sees the provider's Basic credentials
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageWithBasicAuth(
+                "Repeat.Versions", "1.0.0", NuGetPackageBuilder.CreateMinimalPackage("Repeat.Versions", "1.0.0"), UserName, Password);
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+            var options = new NuGetCacheOptions
+            {
+                CredentialCallback = (_, _) => Task.FromResult<NuGetCredential?>(null),
+            };
+            using var providers = UseDefaultProvider(new FakeProvider(failOnRetry: true));
+
+            // Act
+            var first = await NuGetCache.GetVersionsAsync(
+                "Repeat.Versions", false, settings, options, new CredentialServiceRegistrar(), CancellationToken.None);
+            var second = await NuGetCache.GetVersionsAsync(
+                "Repeat.Versions", false, settings, options, new CredentialServiceRegistrar(), CancellationToken.None);
+
+            // Assert
+            Assert.Equal(["1.0.0"], first);
+            Assert.Equal(["1.0.0"], second);
+        });
     }
 
     /// <summary>
@@ -1252,15 +1326,75 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
-    ///     A credential service that always supplies a credential and counts its requests.
+    ///     Substitutes the default-network-credentials provider appended to every provider-based
+    ///     credential service, restoring the real one when the returned scope is disposed.
     /// </summary>
-    private sealed class SuppliedCredentialService : global::NuGet.Configuration.ICredentialService
+    /// <param name="provider">The provider to use.</param>
+    /// <returns>The scope that restores the original factory.</returns>
+    private static RestoreDefaultProvider UseDefaultProvider(global::NuGet.Credentials.ICredentialProvider provider)
     {
+        var restore = new RestoreDefaultProvider(CredentialDispatcher.DefaultProviderFactory);
+        CredentialDispatcher.DefaultProviderFactory = () => provider;
+        return restore;
+    }
+
+    /// <summary>
+    ///     Restores the original default-provider factory on dispose.
+    /// </summary>
+    private sealed class RestoreDefaultProvider : IDisposable
+    {
+        private readonly Func<global::NuGet.Credentials.ICredentialProvider> _original;
+
+        public RestoreDefaultProvider(Func<global::NuGet.Credentials.ICredentialProvider> original) => _original = original;
+
+        public void Dispose() => CredentialDispatcher.DefaultProviderFactory = _original;
+    }
+
+    /// <summary>
+    ///     A credential provider that supplies the test credentials and counts its requests. When
+    ///     <c>failOnRetry</c> is set it behaves like <c>DefaultNetworkCredentialsCredentialProvider</c>,
+    ///     answering <c>ProviderNotApplicable</c> whenever NuGet reports the request as a retry.
+    /// </summary>
+    private sealed class FakeProvider : global::NuGet.Credentials.ICredentialProvider
+    {
+        private readonly bool _failOnRetry;
         private int _calls;
+
+        public FakeProvider(bool failOnRetry) => _failOnRetry = failOnRetry;
 
         /// <summary>Gets the number of credential requests received.</summary>
         public int Calls => Volatile.Read(ref _calls);
 
+        /// <inheritdoc />
+        public string Id => "FakeProvider";
+
+        /// <inheritdoc />
+        public Task<global::NuGet.Credentials.CredentialResponse> GetAsync(
+            Uri uri,
+            System.Net.IWebProxy? proxy,
+            global::NuGet.Configuration.CredentialRequestType type,
+            string message,
+            bool isRetry,
+            bool nonInteractive,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            if (_failOnRetry && isRetry)
+            {
+                return Task.FromResult(new global::NuGet.Credentials.CredentialResponse(
+                    global::NuGet.Credentials.CredentialStatus.ProviderNotApplicable));
+            }
+
+            return Task.FromResult(new global::NuGet.Credentials.CredentialResponse(
+                new System.Net.NetworkCredential(UserName, Password)));
+        }
+    }
+
+    /// <summary>
+    ///     A credential service that always supplies a credential.
+    /// </summary>
+    private sealed class SuppliedCredentialService : global::NuGet.Configuration.ICredentialService
+    {
         /// <inheritdoc />
         public bool HandlesDefaultCredentials => true;
 
@@ -1272,7 +1406,6 @@ public class CredentialDispatcherTests
             string message,
             CancellationToken cancellationToken)
         {
-            Interlocked.Increment(ref _calls);
             return Task.FromResult<System.Net.ICredentials?>(new System.Net.NetworkCredential("u", "p"));
         }
 

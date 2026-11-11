@@ -227,18 +227,22 @@ sections:
           answer means "no opinion" and must not block provider-based credential
           acquisition. A repeated request for the same URI and request type indicates
           the previous credential was rejected, so the callback is not asked again, which
-          prevents an endless retry loop.
+          prevents an endless retry loop. The providers must answer a later call for the
+          same URI exactly as they answered the first, so credential-provider state that
+          NuGet keeps to detect rejected credentials is scoped to a single call.
         children:
           - Caching-CredentialServiceRegistrar-DispatchPerCall
           - Caching-CredentialServiceRegistrar-CallbackFirst
           - Caching-CredentialServiceRegistrar-LoopGuard
           - Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge
           - Caching-CredentialServiceRegistrar-StoredFaultRethrown
+          - Caching-CredentialServiceRegistrar-PerCallProviderState
         tests:
           - NuGetCache_EnsureCachedAsync_CallbackSuppliesCredentials_DownloadsFrom401Source
           - NuGetCache_GetVersionsAsync_CallbackSuppliesCredentials_ReturnsVersions
           - NuGetCache_EnsureCachedAsync_CallbackReturnsNull_FallsThroughAndFailsWithAuthenticationException
           - NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails
+          - NuGetCache_GetVersionsAsync_CallbackDeclinesTwice_ProviderServesEveryCall
 
       - id: Caching-NuGetCache-AuthenticationException
         title: >-

@@ -42,7 +42,9 @@ namespace DemaConsulting.NuGet.Caching;
 ///     non-interactive service. Inside a scope: a <see cref="NuGetCacheOptions.CredentialCallback"/>
 ///     is consulted first for 401/403 challenges; when it yields nothing the request goes to the
 ///     interactive or non-interactive provider-based service according to
-///     <see cref="NuGetCacheOptions.Interactive"/>. The optional
+///     <see cref="NuGetCacheOptions.Interactive"/>; for a call with a callback that service (and with
+///     it NuGet's retry cache) is created per call so one call's success never turns a later call's
+///     fresh request for the same URL into a retry. The optional
 ///     <see cref="NuGetCacheOptions.AuthenticationTimeout"/> bounds each exchange.
 /// </remarks>
 internal sealed class CredentialDispatcher : ICredentialService
@@ -196,11 +198,29 @@ internal sealed class CredentialDispatcher : ICredentialService
             return false;
         }
 
-        return SelectService(context).TryGetLastKnownGoodCredentialsFromCache(uri, isProxy, out credentials);
+        return SelectService(context, isProxy).TryGetLastKnownGoodCredentialsFromCache(uri, isProxy, out credentials);
     }
 
-    private ICredentialService SelectService(CallContext context)
+    private ICredentialService SelectService(CallContext context, bool isProxy)
     {
+        // A call with a callback bypasses the last-known-good cache for non-proxy requests (see
+        // TryGetLastKnownGoodCredentialsFromCache), so the only thing a process-wide service would
+        // retain for them is NuGet's retry cache (provider + request type + URL). After one successful
+        // call that cache makes every later fresh request for the same URL a "retry", and
+        // DefaultNetworkCredentialsCredentialProvider (Windows integrated authentication) returns
+        // ProviderNotApplicable on a retry - a spurious 401 for a feed integrated authentication can
+        // actually satisfy. Scoping the service, and with it that retry cache, to one call keeps a
+        // credential rejected within the call a retry (no loops) while a later call starts clean.
+        // Creating the service is cheap: the plugin providers are built lazily on the first credential
+        // request that reaches them, and the plugin processes belong to the shared PluginManager.
+        // Proxy requests and calls without a callback keep the shared services, whose last-known-good
+        // cache works as NuGet intends.
+        if (!isProxy && context.Options.CredentialCallback != null)
+        {
+            return context.GetOrCreatePerCallService(
+                () => CreateProviderService(context.Options.Interactive));
+        }
+
         if (context.Options.Interactive)
         {
             return InteractiveService.Value;
@@ -282,7 +302,7 @@ internal sealed class CredentialDispatcher : ICredentialService
             }
         }
 
-        var service = SelectService(context);
+        var service = SelectService(context, type == CredentialRequestType.Proxy);
         var credentials = await service.GetCredentialsAsync(uri, proxy, type, message, cancellationToken);
 
         // No credential is available for an HTTP challenge: stop NuGet's retry loop (which would sleep
@@ -390,14 +410,39 @@ internal sealed class CredentialDispatcher : ICredentialService
             var builder = new SecurePluginCredentialProviderBuilder(
                 PluginManager.Instance, canShowDialog: interactive, new AmbientNuGetLogger());
             list.AddRange(await builder.BuildAllAsync());
-            list.Add(new DefaultNetworkCredentialsCredentialProvider());
+            list.Add(DefaultProviderFactory());
             return list;
         });
         return new CredentialService(providers, nonInteractive: !interactive, handlesDefaultCredentials: true);
     }
 
+    /// <summary>
+    ///     Gets or sets the factory for the default-network-credentials provider appended after the
+    ///     plugin providers; a test seam that lets tests substitute a provider with the retry behavior
+    ///     of <see cref="DefaultNetworkCredentialsCredentialProvider"/> without needing a domain.
+    /// </summary>
+    internal static Func<ICredentialProvider> DefaultProviderFactory { get; set; } =
+        () => new DefaultNetworkCredentialsCredentialProvider();
+
     internal sealed record CallContext(NuGetCacheOptions Options, NuGetLoggerAdapter? Logger)
     {
+        // The call's own credential service (see SelectService); created on first use
+        private ICredentialService? _perCallService;
+
+        internal ICredentialService GetOrCreatePerCallService(Func<ICredentialService> create)
+        {
+            // Concurrent challenges of one call must share a single service (and retry cache). Creation
+            // is cheap, so a racing loser is simply discarded.
+            var existing = Volatile.Read(ref _perCallService);
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            var created = create();
+            return Interlocked.CompareExchange(ref _perCallService, created, null) ?? created;
+        }
+
         // Set when authentication exceeded AuthenticationTimeout; shared by reference with every
         // task of the call, so it is visible however NuGet surfaces or wraps the failure
         private volatile string? _timeoutMessage;
