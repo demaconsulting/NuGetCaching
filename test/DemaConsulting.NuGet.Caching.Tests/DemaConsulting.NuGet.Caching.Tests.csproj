@@ -58,6 +58,12 @@
          only used by NSwag's Swagger/OpenAPI template rendering, which this project never exercises,
          but the vulnerable version still trips NuGetAudit (NU1902) as an error. -->
     <PackageReference Include="Scriban.Signed" Version="7.6.1" PrivateAssets="all" />
+    <!-- TODO: Remove this pin once WireMock.Net bumps its own Microsoft.AspNetCore.Http dependency.
+         WireMock.Net transitively depends on Microsoft.AspNetCore.WebUtilities 2.3.0, which has a
+         known moderate-severity denial-of-service vulnerability (GHSA-6527-9fp8-r4x6, fixed in 2.3.14).
+         It is only used by the in-process mock server in tests, but the vulnerable version still trips
+         NuGetAudit (NU1902) as an error. -->
+    <PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="2.3.14" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- Code Analysis Dependencies -->
