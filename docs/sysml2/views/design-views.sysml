@@ -5,7 +5,8 @@
 // 'render' - is what scopes the rendered diagram content.
 package NuGetCaching {
     view SoftwareStructureView {
-        expose NuGetCaching;
+        expose NuGetCaching::**;
+        render asInterconnectionDiagram;
     }
 
     view NuGetCachingView {
