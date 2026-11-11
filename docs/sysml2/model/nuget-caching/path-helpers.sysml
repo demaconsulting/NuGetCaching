@@ -5,7 +5,6 @@ package NuGetCaching {
         doc /* Safe path-combination utility guarding against path traversal. */
 
         metadata info : SoftwareInfo {
-            description = "Safe path-combination utility guarding against path traversal.";
             sourceFiles = ("src/DemaConsulting.NuGet.Caching/PathHelpers.cs");
             testFiles = ("test/DemaConsulting.NuGet.Caching.Tests/PathHelpersTests.cs");
             designFiles = ("docs/design/nuget-caching/path-helpers.md");
