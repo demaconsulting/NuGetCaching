@@ -274,6 +274,27 @@ sections:
           - NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException
           - NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException
 
+      - id: Caching-NuGetCache-ForbiddenDiagnostics
+        title: >-
+          NuGetAuthenticationException shall expose the HTTP status code (401 or 403) that the
+          source answered with and, for a 403, the reason the source gave, reduced to a single
+          short line without URL secrets, so callers can tell "signed in but not permitted" from
+          "needs a sign-in". A 403 shall fail promptly without retries.
+        justification: |
+          Callers must not offer another sign-in for a 403 (it cannot help) and must be able to show
+          the user what the server said, for example that the account lacks ReadPackages on the
+          feed. Before this requirement a 403 was reported as a 401 and its explanation was lost.
+        children:
+          - Caching-CredentialServiceRegistrar-ForbiddenReason
+          - Caching-AuthFailureClassifier-ForbiddenReason
+        tests:
+          - NuGetAuthenticationException_Properties_AreExposed
+          - NuGetAuthenticationException_StatusAndReason_AreExposedAndSanitized
+          - NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries
+          - NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason
+          - NuGetCache_GetVersionsAsync_ForbiddenWithoutReason_ReportsStatusOnly
+          - NuGetCache_EnsureCachedAsync_Unauthorized_ReportsStatus401WithoutReason
+
       - id: Caching-NuGetCache-AuthenticationTimeout
         title: >-
           When AuthenticationTimeout is set, the library shall cancel the operation with

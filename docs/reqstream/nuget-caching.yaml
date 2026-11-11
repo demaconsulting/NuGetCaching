@@ -52,6 +52,7 @@ sections:
           - Caching-NuGetCache-SingleApiShape
           - Caching-NuGetCache-CredentialCallback
           - Caching-NuGetCache-AuthenticationException
+          - Caching-NuGetCache-ForbiddenDiagnostics
           - Caching-NuGetCache-AuthenticationTimeout
           - Caching-NuGetCache-OptionsIsolation
           - Caching-NuGetCache-Logging

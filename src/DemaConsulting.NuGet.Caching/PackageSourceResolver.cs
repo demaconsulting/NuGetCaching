@@ -102,7 +102,7 @@ internal static class PackageSourceResolver
                     return new PackageSourceResolution(candidate, resource, null);
                 }
             }
-            catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
+            catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage, out var authFailure))
             {
                 // An authentication failure (401/403) is actionable - it means the source requires
                 // credentials that were not supplied or were rejected, not that the source is simply
@@ -112,7 +112,7 @@ internal static class PackageSourceResolver
                 // diagnostic identifies the endpoint that actually rejected the request.
                 return new PackageSourceResolution(candidate, null, authMessage)
                 {
-                    AuthFailure = new AuthFailureInfo(sourceName, candidate.PackageSource.Source),
+                    AuthFailure = authFailure,
                 };
             }
             catch (HttpRequestException)
@@ -122,17 +122,17 @@ internal static class PackageSourceResolver
                 return new PackageSourceResolution(sourceRepository, null, protocolErrorMessage);
             }
             catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, candidate.PackageSource.Source, cancellationToken)
-                && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
+                && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage, out var authFailure))
             {
                 // The credential service had nothing to offer for the challenge and canceled the
                 // request to stop NuGet's retries; this is an authentication failure, and the v2
                 // fallback (same host, same credentials) would only repeat it
                 return new PackageSourceResolution(candidate, null, authMessage)
                 {
-                    AuthFailure = new AuthFailureInfo(sourceName, candidate.PackageSource.Source),
+                    AuthFailure = authFailure,
                 };
             }
-            catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage))
+            catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, candidate.PackageSource.Source, out var authMessage, out var authFailure))
             {
                 // Same as above, but the NuGet SDK wrapped the 401/403 as a protocol exception
                 // (e.g. while loading the v3 service index) rather than a raw HttpRequestException.
@@ -141,7 +141,7 @@ internal static class PackageSourceResolver
                 // credentials, so it would only repeat the failure after more retries.
                 return new PackageSourceResolution(candidate, null, authMessage)
                 {
-                    AuthFailure = new AuthFailureInfo(sourceName, candidate.PackageSource.Source),
+                    AuthFailure = authFailure,
                 };
             }
             catch (NuGetProtocolException ex)

@@ -165,6 +165,23 @@ public class NuGetCacheOptionsTests
         Assert.Equal("denied", exception.Message);
         Assert.Equal("my-source", exception.Source);
         Assert.Equal(uri, exception.Uri);
+        Assert.Null(exception.StatusCode);
+        Assert.Null(exception.ServerReason);
+    }
+
+    /// <summary>
+    ///     Tests that the status code and the server's reason are exposed, and that the reason is reduced to a
+    ///     single short line without URL secrets.
+    /// </summary>
+    [Fact]
+    public void NuGetAuthenticationException_StatusAndReason_AreExposedAndSanitized()
+    {
+        var exception = new NuGetAuthenticationException(
+            "denied", "my-source", new Uri("https://example.test/index.json"), 403,
+            "You need ReadPackages.\r\nSee https://user:pw@example.test/p?sig=Secret123");
+
+        Assert.Equal(403, exception.StatusCode);
+        Assert.Equal("You need ReadPackages. See https://example.test/p", exception.ServerReason);
     }
 
     /// <summary>

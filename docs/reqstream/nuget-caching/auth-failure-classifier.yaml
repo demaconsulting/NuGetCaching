@@ -81,3 +81,17 @@ sections:
           - AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted
           - AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly
           - AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery
+
+      - id: Caching-AuthFailureClassifier-ForbiddenReason
+        title: >-
+          The authentication-failure classifier shall report an HTTP 403 distinctly from a 401,
+          recognize a 403 whose reason phrase carries an explanation, and include the server's
+          reason, when the dispatcher recorded one, in the diagnostic message and the structured
+          failure.
+        justification: |
+          A 403 means the account is known but not permitted, so the diagnostic must say that
+          signing in again will not help and must carry the server's explanation (for example
+          the missing ReadPackages permission) instead of the generic credentials hint of a 401.
+        tests:
+          - AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden
+          - CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason

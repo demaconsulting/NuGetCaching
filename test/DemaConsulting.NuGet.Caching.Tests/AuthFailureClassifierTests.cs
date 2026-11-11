@@ -28,7 +28,7 @@ namespace DemaConsulting.NuGet.Caching.Tests;
 /// </summary>
 /// <remarks>
 ///     These are pure unit tests with no WireMock server or network I/O: they construct exceptions
-///     directly and call <see cref="AuthFailureClassifier.TryDescribeAuthFailure"/> to exercise every
+///     directly and call <c>AuthFailureClassifier.TryDescribeAuthFailure</c> to exercise every
 ///     detection branch (message-text matching, strongly typed status code, inner-exception chain
 ///     walking, and non-matching inputs).
 /// </remarks>
@@ -78,6 +78,29 @@ public class AuthFailureClassifierTests
         Assert.NotNull(message);
         Assert.Contains("403", message, StringComparison.Ordinal);
         Assert.Contains("Forbidden", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that a 403 whose reason phrase carries the server's explanation (as Azure DevOps Server sends
+    ///     it) is still detected as a 403.
+    /// </summary>
+    [Fact]
+    public void AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden()
+    {
+        // Arrange
+        var exception = new InvalidOperationException(
+            "Response status code does not indicate success: 403 (Forbidden - User 'alice' lacks permission to complete this action. You need to have 'ReadPackages'.).");
+
+        // Act
+        var result = AuthFailureClassifier.TryDescribeAuthFailure(
+            exception, "test-source", "https://example.test/index.json", out var message, out var failure);
+
+        // Assert
+        Assert.True(result);
+        Assert.NotNull(failure);
+        Assert.Equal(403, failure.StatusCode);
+        Assert.Contains("HTTP 403 (Forbidden)", message, StringComparison.Ordinal);
+        Assert.Contains("ReadPackages", message, StringComparison.Ordinal);
     }
 
     /// <summary>

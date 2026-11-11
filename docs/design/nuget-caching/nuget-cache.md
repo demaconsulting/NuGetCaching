@@ -337,9 +337,11 @@ When a call runs, `NuGetCache`:
    service can see this call's options and no other call's.
 2. Passes the logger (adapted from `Microsoft.Extensions.Logging.ILogger` by
    `NuGetLoggerAdapter`) to the NuGet SDK in place of the null logger.
-3. Records the first authentication failure reported by the sibling units
-   (`AuthFailureInfo`: source name and URL) and, if the operation fails, always throws
-   `NuGetAuthenticationException` (derived from `InvalidOperationException`) instead of a plain
+3. Records the first authentication failure reported by the sibling units (`AuthFailureInfo`: source
+   name, URL, status code 401/403 and, for a 403, the server's reason) and, if the operation fails,
+   always throws
+   `NuGetAuthenticationException` (derived from `InvalidOperationException`, exposing `StatusCode` and
+   `ServerReason`) instead of a plain
    `InvalidOperationException`, whether or not options were supplied.
 4. Logs a warning when `Interactive`, `CredentialCallback`, or `AuthenticationTimeout` was supplied
    but a host application had already registered its own credential service (the host's service wins).

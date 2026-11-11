@@ -163,6 +163,20 @@ public methods of `NuGetCache`:
   the exception, retries (~5 s) and reports "not found", so the dispatcher also records the
   challenge URI in a per-call record consulted by the downloader and version listing. This
   download-stage retry delay is inherent to NuGet and is not eliminated.
+- **Forbidden (HTTP 403)**: NuGet asks the credential service for a `Forbidden` request type when a server
+  answers 403 but passes only a generic message, not the response. A 403 means the server knows the caller and
+  refuses access, so the unsatisfied-challenge exception and the per-call record carry status 403 (an
+  `UnsatisfiedChallenge` record: URL, status, reason) instead of being reported as a 401. The reason is read
+  from the response by `ForbiddenReasonHandler`, a `DelegatingHandler` that `ForbiddenReasonHandlerProvider`
+  (a subclass of NuGet's `HttpHandlerResourceV3Provider`, installed by `NuGetCache` in place of the stock one)
+  places directly between NuGet's authentication handler and the network handler, so it sees the 403 before
+  the credential service is asked. It takes the first of: the `X-TFS-ServiceError` header (URL-decoded), the
+  `message` of a JSON body (at most 16 KB is read), or a reason phrase other than the bare "Forbidden"; the text
+  is reduced to one line of at most 300 characters (control characters and runs of spaces collapsed, double quotes
+  replaced by single quotes, URL user info, query and fragment removed) and recorded per call under the marked
+  source (or the authority), and `FailChallenge` attaches it. The handler never changes the response and
+  ignores failures to read the body. If NuGet's handler chain has a different shape the handler is simply not
+  installed and a 403 is reported without a reason. The 403 still fails fast, like a 401.
 - **Per-source attribution**: the record is keyed by the package source being operated on, not by the
   challenged host. Callers mark the source with `CredentialDispatcher.BeginSource(sourceUrl)`, which
   sets a second `AsyncLocal` (a non-secret key: `src:` plus the first 16 hex characters of the SHA-256
@@ -236,8 +250,9 @@ Limitations (stated honestly rather than hidden):
 
 Satisfies requirements `Caching-CredentialServiceRegistrar-DispatchPerCall`,
 `Caching-CredentialServiceRegistrar-CallbackFirst`, `Caching-CredentialServiceRegistrar-LoopGuard`,
-`Caching-CredentialServiceRegistrar-PerCallProviderState`, and
-`Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`.
+`Caching-CredentialServiceRegistrar-PerCallProviderState`,
+`Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`, and
+`Caching-CredentialServiceRegistrar-ForbiddenReason`.
 
 ### Error Handling
 

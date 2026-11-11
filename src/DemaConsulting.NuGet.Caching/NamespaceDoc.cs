@@ -184,8 +184,9 @@ namespace DemaConsulting.NuGet.Caching;
 ///         }
 ///         catch (NuGetAuthenticationException ex)
 ///         {
-///             // 401 or 403: supply credentials (see below); Uri never includes user info, query or fragment
-///             Console.WriteLine($"Authentication failed for {ex.Source} ({ex.Uri})");
+///             // 401: supply credentials (see below). 403: the account is known but not permitted, so
+///             // another sign-in cannot help; ServerReason says why. Uri never includes user info, query or fragment
+///             Console.WriteLine($"Access to {ex.Source} ({ex.Uri}) failed with {ex.StatusCode}: {ex.ServerReason}");
 ///         }
 ///         catch (InvalidOperationException ex)
 ///         {

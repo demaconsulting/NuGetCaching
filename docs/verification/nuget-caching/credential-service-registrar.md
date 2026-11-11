@@ -141,6 +141,15 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge**: with no
   credential available the dispatcher throws an `OperationCanceledException`-derived exception whose
   message carries no URL (the challenged URL, which may hold secrets, is only in `ChallengeUri`).
+- **CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason**: a
+  forbidden (403) request that no credential satisfies fails with status 403 and the reason recorded for the
+  marked source, and the classifier's message quotes it.
+- **ForbiddenReasonHandler_Forbidden_RecordsSanitizedReasonInPriorityOrder**: the handler reads the reason from
+  the reason phrase, records nothing for the bare "Forbidden" phrase, and reduces a long, multi-line,
+  URL-bearing `X-TFS-ServiceError` header to one short line without URL secrets (the header wins over the body
+  in the end-to-end `NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries`, which
+  also asserts a prompt failure, and the JSON `message` is used in
+  `NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason`).
 - **CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation**: when the caller's
   token is canceled the dispatcher throws a plain cancellation and records no challenge.
 - **AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure**: a plain
@@ -205,6 +214,11 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation,
   AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure,
   NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries
+- **`Caching-CredentialServiceRegistrar-ForbiddenReason`**:
+  CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason,
+  ForbiddenReasonHandler_Forbidden_RecordsSanitizedReasonInPriorityOrder,
+  NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries,
+  NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason
 - **`Caching-CredentialServiceRegistrar-StoredFaultRethrown`**:
   CredentialDispatcher_GetCredentialsAsync_CallbackThrew_RepeatChallengeRethrowsOriginal,
   CredentialDispatcher_GetCredentialsAsync_CallbackCanceled_RepeatChallengeStaysPlainCancellation,

@@ -52,6 +52,16 @@ with an actionable message, and every non-matching input returns `false` with a 
 
 **Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
 
+#### AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden
+
+**Scenario**: `TryDescribeAuthFailure` is called with an exception whose message carries
+`"403 (Forbidden - User ... lacks permission ...)"`, the reason phrase Azure DevOps Server sends.
+
+**Expected**: Returns `true`, the structured failure has status 403, and the message says
+`HTTP 403 (Forbidden)` and includes the original text.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-ForbiddenReason`.
+
 #### AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInMessage_ReturnsFalse
 
 **Scenario**: `TryDescribeAuthFailure` is called with a generic transient-failure exception
@@ -206,3 +216,6 @@ verified by `Caching-PackageDownloader-AuthFailureInfo` (downloader unit) and, e
   AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted,
   AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly,
   AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery
+- **`Caching-AuthFailureClassifier-ForbiddenReason`**:
+  AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden,
+  CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason

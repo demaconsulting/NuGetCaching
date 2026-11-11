@@ -20,11 +20,14 @@
 
 using System.Collections.Concurrent;
 using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.Credentials;
 using NuGet.Protocol;
+using NuGet.Protocol.Core.Types;
 using NuGet.Protocol.Plugins;
 using MelLogLevel = Microsoft.Extensions.Logging.LogLevel;
 using NuGetLogLevel = NuGet.Common.LogLevel;
@@ -87,7 +90,7 @@ internal sealed class CredentialDispatcher : ICredentialService
     /// </summary>
     /// <param name="source">The package source URL the caller is operating on.</param>
     /// <returns>The recorded challenge URL for the source, or <see langword="null"/>.</returns>
-    internal static Uri? FindAmbientUnsatisfiedChallenge(string source)
+    internal static UnsatisfiedChallenge? FindAmbientUnsatisfiedChallenge(string source)
     {
         var context = Ambient.Value;
         if (context == null || !Uri.TryCreate(source, UriKind.Absolute, out var sourceUri))
@@ -96,6 +99,25 @@ internal sealed class CredentialDispatcher : ICredentialService
         }
 
         return context.FindUnsatisfied(SourceKey(source), sourceUri);
+    }
+
+    /// <summary>
+    ///     Remembers the reason a server gave for an HTTP 403 response, for the current ambient call, so
+    ///     the unsatisfied challenge that follows can carry it.
+    /// </summary>
+    /// <remarks>
+    ///     The credential service is only told that a request was forbidden, not why; the response (with its
+    ///     headers and body) is seen only by <see cref="ForbiddenReasonHandler"/>, which calls this. The reason
+    ///     is keyed like an unsatisfied challenge: by the marked package source, otherwise by the authority.
+    /// </remarks>
+    /// <param name="requestUri">The URL that answered 403.</param>
+    /// <param name="reason">The sanitized reason, or <see langword="null"/> when the server gave none.</param>
+    internal static void RecordForbiddenReason(Uri requestUri, string? reason)
+    {
+        if (reason != null)
+        {
+            Ambient.Value?.SetForbiddenReason(CurrentSource.Value ?? requestUri.Authority, reason);
+        }
     }
 
     /// <summary>
@@ -273,7 +295,7 @@ internal sealed class CredentialDispatcher : ICredentialService
                 else if (existing.Task.Result != null)
                 {
                     context.Logger?.LogDebug("Credential callback already answered a challenge for this request; not asking again.");
-                    throw FailChallenge(context, uri, cancellationToken);
+                    throw FailChallenge(context, uri, type, cancellationToken);
                 }
                 else
                 {
@@ -309,8 +331,10 @@ internal sealed class CredentialDispatcher : ICredentialService
         // about a second per retry) by canceling the request; callers report it as an authentication failure
         if (credentials == null && type != CredentialRequestType.Proxy)
         {
-            context.Logger?.LogDebug("No credentials are available for the authentication challenge; failing the request.");
-            throw FailChallenge(context, uri, cancellationToken);
+            context.Logger?.LogDebug(type == CredentialRequestType.Forbidden
+                ? "No credentials are available for the forbidden (HTTP 403) response; failing the request."
+                : "No credentials are available for the authentication challenge; failing the request.");
+            throw FailChallenge(context, uri, type, cancellationToken);
         }
 
         return credentials;
@@ -332,12 +356,19 @@ internal sealed class CredentialDispatcher : ICredentialService
         return await shared;
     }
 
-    private static Exception FailChallenge(CallContext context, Uri uri, CancellationToken cancellationToken)
+    private static Exception FailChallenge(
+        CallContext context, Uri uri, CredentialRequestType type, CancellationToken cancellationToken)
     {
         // Caller cancellation must propagate as a normal cancellation, never become an authentication failure
         cancellationToken.ThrowIfCancellationRequested();
-        context.MarkUnsatisfied(uri, CurrentSource.Value);
-        return new AuthChallengeUnsatisfiedException(uri);
+
+        // A forbidden response means the server accepted who the caller is but refuses access, so the
+        // failure keeps its status code and the reason the server gave (when it was seen)
+        var challenge = type == CredentialRequestType.Forbidden
+            ? new UnsatisfiedChallenge(uri, 403, context.FindForbiddenReason(CurrentSource.Value ?? uri.Authority))
+            : new UnsatisfiedChallenge(uri, 401, null);
+        context.MarkUnsatisfied(challenge, CurrentSource.Value);
+        return new AuthChallengeUnsatisfiedException(challenge);
     }
 
     private static async Task<T> WithTimeoutAsync<T>(
@@ -453,10 +484,15 @@ internal sealed class CredentialDispatcher : ICredentialService
         // Keyed by the package source the challenge was raised for (see BeginSource), so two sources on
         // the same host are never conflated; a challenge raised outside any marked source is keyed by
         // its authority (host and port) instead
-        private readonly ConcurrentDictionary<string, Uri> _unsatisfiedChallenges =
+        private readonly ConcurrentDictionary<string, UnsatisfiedChallenge> _unsatisfiedChallenges =
             new(StringComparer.OrdinalIgnoreCase);
 
-        internal Uri? FindUnsatisfied(string sourceKey, Uri source)
+        // The reason a server gave for an HTTP 403, per source key (or authority), as seen by the
+        // ForbiddenReasonHandler; the latest answer wins
+        private readonly ConcurrentDictionary<string, string> _forbiddenReasons =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        internal UnsatisfiedChallenge? FindUnsatisfied(string sourceKey, Uri source)
         {
             if (_unsatisfiedChallenges.TryGetValue(sourceKey, out var challenge))
             {
@@ -467,8 +503,13 @@ internal sealed class CredentialDispatcher : ICredentialService
             return _unsatisfiedChallenges.TryGetValue(source.Authority, out challenge) ? challenge : null;
         }
 
-        internal void MarkUnsatisfied(Uri uri, string? sourceKey) =>
-            _unsatisfiedChallenges.TryAdd(sourceKey ?? uri.Authority, uri);
+        internal void MarkUnsatisfied(UnsatisfiedChallenge challenge, string? sourceKey) =>
+            _unsatisfiedChallenges.TryAdd(sourceKey ?? challenge.Uri.Authority, challenge);
+
+        internal void SetForbiddenReason(string key, string reason) => _forbiddenReasons[key] = reason;
+
+        internal string? FindForbiddenReason(string key) =>
+            _forbiddenReasons.TryGetValue(key, out var reason) ? reason : null;
 
         // Challenges the callback has been asked about; the value is the callback's (possibly still
         // running) answer: a credential when it supplied one, null when it declined, or a faulted or
@@ -532,20 +573,249 @@ internal sealed class CredentialDispatcher : ICredentialService
     internal sealed class AuthChallengeUnsatisfiedException : OperationCanceledException
     {
         /// <summary>
-        ///     Initializes a new instance for the challenged <paramref name="uri"/>.
+        ///     Initializes a new instance for the challenged <paramref name="uri"/> (an HTTP 401).
         /// </summary>
         /// <param name="uri">The URL that issued the authentication challenge.</param>
         internal AuthChallengeUnsatisfiedException(Uri uri)
-            : base("Response status code does not indicate success: 401 (Unauthorized). No credentials are available for the challenged request.")
+            : this(new UnsatisfiedChallenge(uri, 401, null))
         {
-            ChallengeUri = uri;
         }
+
+        /// <summary>
+        ///     Initializes a new instance for an unsatisfied <paramref name="challenge"/>.
+        /// </summary>
+        /// <param name="challenge">The challenge: its URL, status code (401 or 403) and, for a 403, the
+        ///     server's reason.</param>
+        internal AuthChallengeUnsatisfiedException(UnsatisfiedChallenge challenge)
+            : base(challenge.StatusCode == 403
+                ? "Response status code does not indicate success: 403 (Forbidden). No credentials are available for the forbidden request."
+                : "Response status code does not indicate success: 401 (Unauthorized). No credentials are available for the challenged request.")
+        {
+            Challenge = challenge;
+        }
+
+        /// <summary>
+        ///     Gets the challenge that could not be satisfied.
+        /// </summary>
+        internal UnsatisfiedChallenge Challenge { get; }
 
         /// <summary>
         ///     Gets the URL that issued the authentication challenge. It is deliberately not part of
         ///     <see cref="Exception.Message"/> because it may carry secrets in its query string.
         /// </summary>
-        internal Uri ChallengeUri { get; }
+        internal Uri ChallengeUri => Challenge.Uri;
+    }
+
+    /// <summary>
+    ///     An authentication challenge (or forbidden response) that no credential could satisfy.
+    /// </summary>
+    /// <param name="Uri">The URL the challenge was raised for; it may carry secrets, so it is never put in a message.</param>
+    /// <param name="StatusCode">The HTTP status code: 401 (unauthorized) or 403 (forbidden).</param>
+    /// <param name="Reason">For a 403, the sanitized reason the server gave, or <see langword="null"/> when it gave none.</param>
+    internal sealed record UnsatisfiedChallenge(Uri Uri, int StatusCode, string? Reason);
+
+    /// <summary>
+    ///     The HTTP handler provider that makes a server's reason for an HTTP 403 visible to the
+    ///     dispatcher: it is <see cref="HttpHandlerResourceV3Provider"/> with a
+    ///     <see cref="ForbiddenReasonHandler"/> placed directly above the network handler.
+    /// </summary>
+    internal sealed class ForbiddenReasonHandlerProvider : HttpHandlerResourceV3Provider
+    {
+        /// <inheritdoc />
+        public override async Task<Tuple<bool, INuGetResource?>> TryCreate(
+            SourceRepository source, CancellationToken token)
+        {
+            var created = await base.TryCreate(source, token);
+            if (created.Item1 && created.Item2 is HttpHandlerResourceV3 resource)
+            {
+                // The authentication handler is the handler whose inner handler is the network handler; the
+                // capture goes between them so it sees the response before the credential service is asked
+                for (var handler = resource.MessageHandler as DelegatingHandler;
+                     handler != null;
+                     handler = handler.InnerHandler as DelegatingHandler)
+                {
+                    if (ReferenceEquals(handler.InnerHandler, resource.ClientHandler))
+                    {
+                        handler.InnerHandler = new ForbiddenReasonHandler(resource.ClientHandler);
+                        break;
+                    }
+                }
+            }
+
+            return created;
+        }
+
+        /// <summary>
+        ///     Replaces the NuGet HTTP handler provider in <paramref name="providers"/> with this one.
+        /// </summary>
+        /// <param name="providers">The core NuGet resource providers.</param>
+        /// <returns>The providers, with the HTTP handler provider replaced.</returns>
+        internal static IEnumerable<Lazy<INuGetResourceProvider>> Install(IEnumerable<Lazy<INuGetResourceProvider>> providers) =>
+            providers.Select(p => p.Value.GetType() == typeof(HttpHandlerResourceV3Provider)
+                ? new Lazy<INuGetResourceProvider>(() => new ForbiddenReasonHandlerProvider())
+                : p).ToList();
+    }
+
+    /// <summary>
+    ///     A handler that reads the reason a server gives for an HTTP 403 response and records it for the
+    ///     current call, then passes the response on unchanged.
+    /// </summary>
+    /// <remarks>
+    ///     The NuGet authentication handler asks the credential service for credentials when a response is
+    ///     401 or 403 but does not pass the response on. Azure DevOps (and Azure Artifacts) explain a 403
+    ///     in the <c>X-TFS-ServiceError</c> header (URL-encoded), a JSON body with a <c>message</c> member,
+    ///     or the response's reason phrase.
+    /// </remarks>
+    internal sealed class ForbiddenReasonHandler : DelegatingHandler
+    {
+        // A body larger than this is not read: it is not a short explanation
+        private const long MaxBodyBytes = 16 * 1024;
+
+        // The longest reason that is kept
+        internal const int MaxReasonLength = 300;
+
+        private static readonly Regex JsonMessagePattern = new(
+            "\"message\"\\s*:\\s*\"(?<message>(?:[^\"\\\\]|\\\\.)*)\"",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase,
+            TimeSpan.FromSeconds(1));
+
+        /// <summary>
+        ///     Initializes a new instance that sends requests to <paramref name="innerHandler"/>.
+        /// </summary>
+        /// <param name="innerHandler">The handler that performs the request.</param>
+        internal ForbiddenReasonHandler(HttpMessageHandler innerHandler)
+            : base(innerHandler)
+        {
+        }
+
+        /// <inheritdoc />
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = await base.SendAsync(request, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.Forbidden && request.RequestUri != null)
+            {
+                string? reason = null;
+                try
+                {
+                    reason = await ReadReasonAsync(response, cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // The reason is a courtesy; failing to read it must not change the outcome
+                }
+
+                RecordForbiddenReason(request.RequestUri, reason);
+            }
+
+            return response;
+        }
+
+        /// <summary>
+        ///     Reads the server's reason for a 403 response: the <c>X-TFS-ServiceError</c> header, else the
+        ///     <c>message</c> of a JSON body, else a reason phrase that says more than "Forbidden".
+        /// </summary>
+        /// <param name="response">The 403 response.</param>
+        /// <param name="cancellationToken">Cancels reading the body.</param>
+        /// <returns>The sanitized reason, or <see langword="null"/> when the server gave none.</returns>
+        internal static async Task<string?> ReadReasonAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+        {
+            if (response.Headers.TryGetValues("X-TFS-ServiceError", out var serviceErrors))
+            {
+                var fromHeader = Sanitize(Decode(serviceErrors.FirstOrDefault()));
+                if (fromHeader != null)
+                {
+                    return fromHeader;
+                }
+            }
+
+            if (response.Content != null)
+            {
+                await response.Content.LoadIntoBufferAsync(MaxBodyBytes, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                var fromBody = Sanitize(ExtractJsonMessage(body));
+                if (fromBody != null)
+                {
+                    return fromBody;
+                }
+            }
+
+            var phrase = Sanitize(response.ReasonPhrase);
+            return phrase != null && !string.Equals(phrase, "Forbidden", StringComparison.OrdinalIgnoreCase)
+                ? phrase
+                : null;
+        }
+
+        /// <summary>
+        ///     Reduces a server-supplied text to a single, short line with no URL secrets.
+        /// </summary>
+        /// <param name="text">The raw text, or <see langword="null"/>.</param>
+        /// <returns>The sanitized text, or <see langword="null"/> when nothing remains.</returns>
+        internal static string? Sanitize(string? text)
+        {
+            if (text == null || string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            // Whitespace and control characters (line breaks included) become single spaces; a double quote
+            // would end the quoted reason in the failure message, so it becomes a single quote
+            var builder = new StringBuilder(text.Length);
+            foreach (var c in text)
+            {
+                builder.Append(ToLineCharacter(c));
+            }
+
+            var line = Regex.Replace(builder.ToString(), " {2,}", " ", RegexOptions.None, TimeSpan.FromSeconds(1)).Trim();
+            line = AuthFailureClassifier.RedactEmbeddedUrls(line);
+            if (line.Length > MaxReasonLength)
+            {
+                line = line[..(MaxReasonLength - 1)].TrimEnd() + "…";
+            }
+
+            return line.Length == 0 ? null : line;
+        }
+
+        private static char ToLineCharacter(char c)
+        {
+            if (char.IsControl(c) || char.IsWhiteSpace(c))
+            {
+                return ' ';
+            }
+
+            return c == '"' ? '\'' : c;
+        }
+
+        private static string? Decode(string? value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return Uri.UnescapeDataString(value.Replace('+', ' '));
+            }
+            catch (UriFormatException)
+            {
+                return value;
+            }
+        }
+
+        private static string? ExtractJsonMessage(string body)
+        {
+            try
+            {
+                var match = JsonMessagePattern.Match(body);
+                return match.Success ? Regex.Unescape(match.Groups["message"].Value) : null;
+            }
+            catch (Exception ex) when (ex is ArgumentException or RegexMatchTimeoutException)
+            {
+                return null;
+            }
+        }
     }
 
     private sealed class AmbientNuGetLogger : LoggerBase

@@ -48,11 +48,34 @@ public sealed class NuGetAuthenticationException : InvalidOperationException
     ///     and fragment are removed on construction because they may carry secrets.
     /// </param>
     public NuGetAuthenticationException(string message, string? source, Uri? uri)
+        : this(message, source, uri, null, null)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="NuGetAuthenticationException"/> class with the
+    ///     HTTP status code and the server's reason.
+    /// </summary>
+    /// <param name="message">The diagnostic message.</param>
+    /// <param name="source">
+    ///     The configured name of the package source that rejected the request (redacted as for the
+    ///     three-argument constructor).
+    /// </param>
+    /// <param name="uri">The URL of the endpoint that rejected the request, when known (redacted as for the
+    ///     three-argument constructor).</param>
+    /// <param name="statusCode">The HTTP status code the source answered with (401 or 403), when known.</param>
+    /// <param name="serverReason">
+    ///     The reason a source gave for a 403, when it gave one. It is reduced to a single line of at most
+    ///     300 characters with any URL user info, query string and fragment removed.
+    /// </param>
+    public NuGetAuthenticationException(string message, string? source, Uri? uri, int? statusCode, string? serverReason)
         : base(message)
     {
         // NuGet defaults an unnamed source's name to its URL, so redact URL-like names
         Source = source == null ? null : AuthFailureClassifier.RedactSourceName(source);
         Uri = Redact(uri);
+        StatusCode = statusCode;
+        ServerReason = CredentialDispatcher.ForbiddenReasonHandler.Sanitize(serverReason);
     }
 
     private static Uri? Redact(Uri? uri)
@@ -86,4 +109,27 @@ public sealed class NuGetAuthenticationException : InvalidOperationException
     ///     removed because they may carry secrets (for example a SAS token).
     /// </remarks>
     public Uri? Uri { get; }
+
+    /// <summary>
+    ///     Gets the HTTP status code the source answered with: 401 (Unauthorized) or 403 (Forbidden), or
+    ///     <see langword="null"/> when it is not known.
+    /// </summary>
+    /// <remarks>
+    ///     A 403 means the source accepted who the caller is but refuses access (for example the account lacks
+    ///     the permission to read the feed), so supplying other credentials of the same account cannot help;
+    ///     a 401 means the source needs credentials, or rejected the ones supplied.
+    /// </remarks>
+    public int? StatusCode { get; }
+
+    /// <summary>
+    ///     Gets the reason the source gave for a 403 (from its <c>X-TFS-ServiceError</c> header, a JSON
+    ///     <c>message</c>, or its reason phrase), or <see langword="null"/> when it gave none or the status
+    ///     was not 403.
+    /// </summary>
+    /// <remarks>
+    ///     The text comes from the server: it is a single line of at most 300 characters and any URL user info,
+    ///     query string and fragment are removed, but callers that show it should still apply their own
+    ///     secret redaction.
+    /// </remarks>
+    public string? ServerReason { get; }
 }

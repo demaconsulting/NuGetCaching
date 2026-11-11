@@ -117,18 +117,18 @@ internal static class PackageDownloader
                 cancellationToken);
         }
         catch (OperationCanceledException ex) when (AuthFailureClassifier.IsUnsatisfiedChallenge(ex, source, cancellationToken)
-            && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
+            && AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage, out var authFailure))
         {
             // The credential service had no credentials for the challenge and canceled the request
             // to stop NuGet's retries; report it exactly like the 401 failure it stands for
-            return new TryDownloadResult(null, authMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) };
+            return new TryDownloadResult(null, authMessage) { AuthFailure = authFailure };
         }
-        catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
+        catch (NuGetProtocolException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage, out var authFailure))
         {
             // An authentication failure (401/403) is actionable during download too - the source
             // exists and the package identity is valid, but the request was rejected for lack of
             // (or incorrect) credentials. Surface this rather than treating it as "package absent".
-            return new TryDownloadResult(null, authMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) };
+            return new TryDownloadResult(null, authMessage) { AuthFailure = authFailure };
         }
         catch (NuGetProtocolException ex)
         {
@@ -137,11 +137,11 @@ internal static class PackageDownloader
             return new TryDownloadResult(null,
                 $"{AuthFailureClassifier.RedactUrl(source)}: Protocol error downloading package. ({AuthFailureClassifier.RedactEmbeddedUrls(ex.Message)})");
         }
-        catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage))
+        catch (HttpRequestException ex) when (AuthFailureClassifier.TryDescribeAuthFailure(ex, sourceName, source, out var authMessage, out var authFailure))
         {
             // Same as above, but surfaced as a raw HttpRequestException rather than a NuGet
             // protocol exception (observed for direct v3 flat-container content downloads)
-            return new TryDownloadResult(null, authMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) };
+            return new TryDownloadResult(null, authMessage) { AuthFailure = authFailure };
         }
         catch (HttpRequestException)
         {
@@ -153,8 +153,8 @@ internal static class PackageDownloader
         // request that the dispatcher canceled for an unsatisfied authentication challenge
         if (!found)
         {
-            return AuthFailureClassifier.TryDescribeRecordedChallenge(sourceName, source, out var recordedMessage)
-                ? new TryDownloadResult(null, recordedMessage) { AuthFailure = new AuthFailureInfo(sourceName, source) }
+            return AuthFailureClassifier.TryDescribeRecordedChallenge(sourceName, source, out var recordedMessage, out var recordedFailure)
+                ? new TryDownloadResult(null, recordedMessage) { AuthFailure = recordedFailure }
                 : default;
         }
 

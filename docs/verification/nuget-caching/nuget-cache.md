@@ -505,6 +505,14 @@ process-wide credential service can be isolated and restored.
 - **NuGetCache_EnsureCachedAsync_NoCredentials_FailsFastWithoutRetries** and
   **NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries**: a server returning 401 to every
   request ends in `NuGetAuthenticationException` quickly with few requests (no retry/V2 fallback).
+- **NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries**: a server answering 403
+  with a URL-encoded `X-TFS-ServiceError` header and a JSON body ends in `NuGetAuthenticationException` with
+  `StatusCode` 403 and `ServerReason` equal to the decoded header (preferred over the body), quickly and with few
+  requests, even with a declining callback. **NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason**
+  takes the reason from the JSON `message` (quotes replaced); **NuGetCache_GetVersionsAsync_ForbiddenWithoutReason_ReportsStatusOnly**
+  has no reason; **NuGetCache_EnsureCachedAsync_Unauthorized_ReportsStatus401WithoutReason** keeps the 401 wording and status.
+  **NuGetAuthenticationException_StatusAndReason_AreExposedAndSanitized** checks the reason is one short line without
+  URL secrets. Cover `ForbiddenDiagnostics`.
 - **NuGetCache_Sources_QueryStringJsonUrl_LogsV2Warning** and
   **NuGetCache_ListVersionsAsync_NoRegistrationResource_FallsBackToFlatList**: the query-string source
   warning, and a service index without a registration resource falling back to the flat list without error.
@@ -613,6 +621,13 @@ and use `NuGetTestServer` (WireMock) or local folder sources.
   NuGetCache_EnsureCachedAsync_AuthenticatedSourceWithoutCredentials_ThrowsWithActionableDiagnostic,
   NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException,
   NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException
+- **`Caching-NuGetCache-ForbiddenDiagnostics`**:
+  NuGetAuthenticationException_Properties_AreExposed,
+  NuGetAuthenticationException_StatusAndReason_AreExposedAndSanitized,
+  NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries,
+  NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason,
+  NuGetCache_GetVersionsAsync_ForbiddenWithoutReason_ReportsStatusOnly,
+  NuGetCache_EnsureCachedAsync_Unauthorized_ReportsStatus401WithoutReason
 - **`Caching-NuGetCache-AuthenticationTimeout`**:
   NuGetCache_EnsureCachedAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,
   NuGetCache_GetVersionsAsync_CallbackNeverCompletes_TimesOutWithOperationCanceled,

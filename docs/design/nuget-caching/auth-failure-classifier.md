@@ -24,11 +24,12 @@ arguments and results.
 #### AuthFailureInfo Record
 
 ```csharp
-internal sealed record AuthFailureInfo(string SourceName, string SourceUrl);
+internal sealed record AuthFailureInfo(string SourceName, string SourceUrl, int StatusCode = 401, string? Reason = null);
 ```
 
 A structured, machine-readable description of a detected authentication failure: the configured
-source name and the URL of the endpoint that rejected the request. Both are redacted when the record
+source name, the URL of the endpoint that rejected the request, the HTTP status code (401 or 403)
+and, for a 403, the sanitized reason the server gave. The name and URL are redacted when the record
 is created (`SourceName` through `RedactSourceName`, `SourceUrl` through `RedactUrl`, which drops user
 info, query string and fragment), so nothing derived from the record can leak a secret.
 `PackageSourceResolver` and
@@ -41,7 +42,7 @@ the record; callers construct it when `TryDescribeAuthFailure` returns `true`.
 
 ```csharp
 private static readonly Regex HttpStatusCodePattern =
-    new(@"\b(401)\s*\(Unauthorized\)|\b(403)\s*\(Forbidden\)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+    new(@"\b(401)\s*\(Unauthorized|\b(403)\s*\(Forbidden", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 ```
 
 A compiled regular expression matching an HTTP status code embedded in a NuGet SDK exception
@@ -56,7 +57,7 @@ internal static bool TryDescribeAuthFailure(
     Exception exception,
     string sourceName,
     string source,
-    out string? message)
+    out string? message)                  // and an overload adding: out AuthFailureInfo? failure
 ```
 
 Determines whether the exception (or any exception in its `InnerException` chain) represents an
@@ -66,7 +67,7 @@ source and the authentication failure.
 #### TryGetHttpStatusCode Method
 
 ```csharp
-private static bool TryGetHttpStatusCode(Exception? exception, out int statusCode)
+private static bool TryGetHttpStatusCode(Exception? exception, out int statusCode, out string? reason)
 ```
 
 Walks the exception and its `InnerException` chain looking for an HTTP 401 or 403 status code.
@@ -102,6 +103,16 @@ phrase in parentheses (e.g. `401 (Unauthorized)` / `403 (Forbidden)`) — the ex
 emitted for a failed `HttpRequestException` and surfaced through NuGet's wrapped protocol
 exceptions — rather than a bare `\b(401|403)\b` match, which could misclassify unrelated
 standalone numbers elsewhere in a message (e.g. a port number) as an authentication failure.
+
+#### Forbidden (403) Is Reported Distinctly
+
+The pattern requires the status code to be followed by the start of its reason phrase, not the closing
+parenthesis, because servers put an explanation in the phrase (Azure DevOps Server sends
+`403 (Forbidden - User ... lacks permission ...)`). The dispatcher's fail-fast exception carries its own status
+code (401 or 403) and, for a 403, the server's reason, which `TryGetHttpStatusCode` returns. For a 403 the
+message says the source refused access, that signing in again will not help, to ask the source's administrator for
+read permission, what the server said (when known) and the original text; for a 401 it keeps the credentials hint.
+Satisfies `Caching-AuthFailureClassifier-ForbiddenReason`.
 
 #### Exception-Chain Walking
 
