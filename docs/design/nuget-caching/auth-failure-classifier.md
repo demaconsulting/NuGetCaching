@@ -88,6 +88,11 @@ characters inside a password, percent-encoded user info, and URLs without a path
 remainder is then cut at the first `?` or `#`, leaving scheme, host, port and path. `RedactUrl` uses
 the same textual stripping before URI normalization whenever the URL contains `@`. The trade-off is
 over-redaction in the safe direction: a path-less URL whose query contains `@` may lose its host.
+A URL ends at whitespace, `"`, `<`, `>` or an apostrophe, except that an apostrophe followed by an `@`
+before the authority ends is user info (a valid user info character) and stays part of the URL, so
+`https://user:p'wd@host.example/p?sig=x` is fully redacted while a URL quoted in single quotes in
+prose still ends at its closing quote. `CredentialDispatcher`'s reason sanitizer calls this method
+rather than keeping its own pattern.
 Satisfies `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
 
 ### Design Decisions

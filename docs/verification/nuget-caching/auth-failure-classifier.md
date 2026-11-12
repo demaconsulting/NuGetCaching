@@ -164,9 +164,11 @@ addition to the summarized actionable framing.
 **Scenario**: `RedactEmbeddedUrls` is called with URLs that carry `user:pass@`, user-only info,
 `@`, `?` or `#` inside the password, percent-encoded user info, a query and fragment, URLs with no
 path or no query, and URLs of other schemes (`ftp://` with user info and query, a custom
-`scheme+x.y-z://`, upper-case `HTTP://`, and a message mixing http and ftp URLs).
+`scheme+x.y-z://`, upper-case `HTTP://`, and a message mixing http and ftp URLs), and URLs whose
+user info contains an apostrophe (`user:p'wd@host`), alongside URLs quoted in single quotes in prose.
 
-**Expected**: Only scheme, host, port and path remain in every case, whatever the scheme.
+**Expected**: Only scheme, host, port and path remain in every case, whatever the scheme; an apostrophe
+inside user info does not stop redaction, and a URL quoted in single quotes still ends at its closing quote.
 
 **Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
 

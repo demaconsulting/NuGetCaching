@@ -539,8 +539,15 @@ internal sealed class CredentialDispatcher : ICredentialService
             return _unsatisfiedChallenges.TryGetValue(source.Authority, out challenge) ? challenge : null;
         }
 
+        // The latest challenge for a source wins, so a later 403 never leaves an earlier 403's (now stale)
+        // reason in place; the one exception is a 401 arriving after a 403 for the same source: the 403
+        // means the server accepted who the caller is but refuses access, which is the more specific
+        // outcome, so it is kept
         internal void MarkUnsatisfied(UnsatisfiedChallenge challenge, string? sourceKey) =>
-            _unsatisfiedChallenges.TryAdd(sourceKey ?? challenge.Uri.Authority, challenge);
+            _unsatisfiedChallenges.AddOrUpdate(
+                sourceKey ?? challenge.Uri.Authority,
+                challenge,
+                (_, existing) => challenge.StatusCode == 401 && existing.StatusCode == 403 ? existing : challenge);
 
         // A null reason removes the entry (the latest 403 had none)
         internal void SetForbiddenReason(string key, string? reason)
@@ -700,10 +707,19 @@ internal sealed class CredentialDispatcher : ICredentialService
         /// </summary>
         /// <param name="providers">The core NuGet resource providers.</param>
         /// <returns>The providers, with the HTTP handler provider replaced.</returns>
+        /// <remarks>
+        ///     Each returned provider is a new <see cref="Lazy{T}"/> that reads the original provider's value
+        ///     only when it is itself read, so the laziness of <c>Repository.Provider.GetCoreV3()</c> is kept:
+        ///     <c>Install</c> constructs no provider, and only a provider that NuGet actually uses is created.
+        /// </remarks>
         internal static IEnumerable<Lazy<INuGetResourceProvider>> Install(IEnumerable<Lazy<INuGetResourceProvider>> providers) =>
-            providers.Select(p => p.Value.GetType() == typeof(HttpHandlerResourceV3Provider)
-                ? new Lazy<INuGetResourceProvider>(() => new ForbiddenReasonHandlerProvider())
-                : p).ToList();
+            providers.Select(p => new Lazy<INuGetResourceProvider>(() =>
+            {
+                var provider = p.Value;
+                return provider.GetType() == typeof(HttpHandlerResourceV3Provider)
+                    ? new ForbiddenReasonHandlerProvider()
+                    : provider;
+            })).ToList();
     }
 
     /// <summary>

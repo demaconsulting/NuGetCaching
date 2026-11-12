@@ -176,7 +176,12 @@ public methods of `NuGetCache`:
   replaced by single quotes, URL user info, query and fragment removed) and recorded per call under the marked
   source (or the authority), and `FailChallenge` attaches it. A 403 that gives no usable reason clears the entry for
   that source and authority, so a reason recorded from an earlier response is never attached to a later one. The
-  handler never changes the response and
+  per-call unsatisfied-challenge record likewise keeps the latest challenge for a source, so a later 403 replaces an
+  earlier one (and its reason); the one exception is a 401 arriving after a 403 for the same source, which does not
+  displace the 403 because that is the more specific outcome. `ForbiddenReasonHandlerProvider.Install` wraps each
+  core provider in a new `Lazy<INuGetResourceProvider>` and reads the original provider only inside that wrapper,
+  so it constructs no provider itself (the stock HTTP handler provider is replaced when the wrapper is read, and every
+  other provider stays lazy as `Repository.Provider.GetCoreV3()` provides). The handler never changes the response and
   ignores failures to read the body: a body larger than the limit, or one that cannot be read, falls back to the
   reason phrase instead of losing the reason. If NuGet's handler chain has a different shape the handler is simply
   not installed and a 403 is reported without a reason. The 403 fails fast, like a 401, and immediately: a

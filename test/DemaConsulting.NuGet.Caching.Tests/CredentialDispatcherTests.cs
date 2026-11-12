@@ -23,6 +23,7 @@ using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using NuGet.Configuration;
 using NuGet.Protocol;
+using NuGet.Protocol.Core.Types;
 
 namespace DemaConsulting.NuGet.Caching.Tests;
 
@@ -965,6 +966,127 @@ public class CredentialDispatcherTests
         Assert.Null(failure.Reason);
         Assert.DoesNotContain("ReadPackages", message, StringComparison.Ordinal);
         Assert.DoesNotContain("Server said", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that, within one call, a 403 with a reason that failed (and was recorded as the unsatisfied
+    ///     challenge) followed by a bare 403 for the same source replaces the recorded challenge, so the call's
+    ///     final failure and its classification carry no stale reason.
+    /// </summary>
+    /// <param name="marked">Whether the package source is marked for the call.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ReasonedForbiddenThenBareForbiddenChallenge_ReplacesRecordedChallenge(bool marked)
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var source = marked ? CredentialDispatcher.BeginSource(uri.AbsoluteUri) : null;
+
+        // Act - a reasoned 403 fails and is recorded
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+        var first = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+        Assert.Equal("You need 'ReadPackages'.", first.Challenge.Reason);
+        Assert.Equal("You need 'ReadPackages'.", CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri)?.Reason);
+
+        // Act - a later bare 403 for the same source fails and replaces it
+        CredentialDispatcher.RecordForbiddenReason(uri, null);
+        var second = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert
+        Assert.Null(second.Challenge.Reason);
+        var recorded = CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri);
+        Assert.NotNull(recorded);
+        Assert.Equal(403, recorded.StatusCode);
+        Assert.Null(recorded.Reason);
+        Assert.True(AuthFailureClassifier.TryDescribeRecordedChallenge("src", uri.AbsoluteUri, out var message, out var failure));
+        Assert.Equal(403, failure.StatusCode);
+        Assert.Null(failure.Reason);
+        Assert.DoesNotContain("ReadPackages", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Server said", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that a later 401 for the same source does not replace a recorded 403 (the more specific
+    ///     outcome), while a later 403 does replace a recorded 401.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ChallengeStatusOrdering_KeepsForbiddenOverUnauthorized()
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var source = CredentialDispatcher.BeginSource(uri.AbsoluteUri);
+
+        // Act / Assert - a 401 followed by a 403: the 403 is recorded
+        await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        Assert.Equal(401, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri)?.StatusCode);
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+        await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+        Assert.Equal(403, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri)?.StatusCode);
+
+        // Act / Assert - a later 401 does not displace the 403
+        await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        var recorded = CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri);
+        Assert.Equal(403, recorded?.StatusCode);
+        Assert.Equal("You need 'ReadPackages'.", recorded?.Reason);
+    }
+
+    /// <summary>
+    ///     Tests that <c>Install</c> constructs no provider itself: the stock HTTP handler provider is replaced
+    ///     only when the installed provider is read, and every other provider is not created until read.
+    /// </summary>
+    [Fact]
+    public void ForbiddenReasonHandlerProvider_Install_DoesNotConstructProvidersUntilRead()
+    {
+        // Arrange
+        var httpCreated = 0;
+        var otherCreated = 0;
+        var other = new ServiceIndexResourceV3Provider();
+        var providers = new List<Lazy<INuGetResourceProvider>>
+        {
+            new(() =>
+            {
+                httpCreated++;
+                return new HttpHandlerResourceV3Provider();
+            }),
+            new(() =>
+            {
+                otherCreated++;
+                return other;
+            }),
+        };
+
+        // Act
+        var installed = CredentialDispatcher.ForbiddenReasonHandlerProvider.Install(providers);
+
+        // Assert - nothing was constructed by Install
+        Assert.Equal(2, installed.Count());
+        Assert.Equal(0, httpCreated);
+        Assert.Equal(0, otherCreated);
+
+        // Act / Assert - reading the HTTP handler entry replaces it with the reason-capturing provider
+        Assert.IsType<CredentialDispatcher.ForbiddenReasonHandlerProvider>(installed.ElementAt(0).Value);
+        Assert.Equal(1, httpCreated);
+        Assert.Equal(0, otherCreated);
+
+        // Act / Assert - reading another entry yields the original provider, constructed once
+        Assert.Same(other, installed.ElementAt(1).Value);
+        Assert.Same(other, installed.ElementAt(1).Value);
+        Assert.Equal(1, otherCreated);
     }
 
     /// <summary>

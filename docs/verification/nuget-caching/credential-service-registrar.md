@@ -147,6 +147,15 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason**: within one call
   (with a marked source and without), a 403 with a reason followed by a 403 with none clears the recorded reason,
   so the failure carries no `Reason` and its message does not quote the earlier one.
+- **CredentialDispatcher_GetCredentialsAsync_ReasonedForbiddenThenBareForbiddenChallenge_ReplacesRecordedChallenge**:
+  within one call (with a marked source and without), a reasoned 403 that fails and is recorded, followed by a bare
+  403 that fails, replaces the recorded challenge, so the final recorded failure and its classifier message carry no
+  stale reason.
+- **CredentialDispatcher_GetCredentialsAsync_ChallengeStatusOrdering_KeepsForbiddenOverUnauthorized**: a 403 replaces
+  a recorded 401 for the same source, but a later 401 does not displace the recorded 403 (and its reason).
+- **ForbiddenReasonHandlerProvider_Install_DoesNotConstructProvidersUntilRead**: `Install` constructs no provider;
+  the HTTP handler entry becomes the reason-capturing provider only when read, and other providers stay lazy and are
+  constructed once when read.
 - **ForbiddenReasonHandler_Forbidden_RecordsSanitizedReasonInPriorityOrder**: the handler reads the reason from
   the reason phrase, records nothing for the bare "Forbidden" phrase, and reduces a long, multi-line,
   URL-bearing `X-TFS-ServiceError` header to one short line without URL secrets (the header wins over the body
@@ -226,6 +235,9 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **`Caching-CredentialServiceRegistrar-ForbiddenReason`**:
   CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason,
   CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason,
+  CredentialDispatcher_GetCredentialsAsync_ReasonedForbiddenThenBareForbiddenChallenge_ReplacesRecordedChallenge,
+  CredentialDispatcher_GetCredentialsAsync_ChallengeStatusOrdering_KeepsForbiddenOverUnauthorized,
+  ForbiddenReasonHandlerProvider_Install_DoesNotConstructProvidersUntilRead,
   CredentialDispatcher_GetCredentialsAsync_ForbiddenWithCallback_DoesNotInvokeCallback,
   ForbiddenReasonHandler_Forbidden_RecordsSanitizedReasonInPriorityOrder,
   ForbiddenReasonHandler_OversizedBody_FallsBackToReasonPhrase,

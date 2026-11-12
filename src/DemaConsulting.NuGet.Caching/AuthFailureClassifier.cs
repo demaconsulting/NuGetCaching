@@ -285,8 +285,10 @@ internal static class AuthFailureClassifier
         return true;
     }
 
+    // An apostrophe is part of the URL only when an '@' follows it before the authority ends (a '/' or
+    // whitespace), i.e. when it is inside the user info; otherwise it closes a URL quoted in prose
     private static readonly Regex EmbeddedUrlPattern =
-        new(@"(?<scheme>[A-Za-z][A-Za-z0-9+.\-]*://)(?<rest>[^\s""'<>]+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+        new(@"(?<scheme>[A-Za-z][A-Za-z0-9+.\-]*://)(?<rest>(?:[^\s""'<>]|'(?=[^\s""<>/]*@))+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
     ///     Removes the user info, query string and fragment from every absolute URL of any scheme (RFC 3986
@@ -298,7 +300,10 @@ internal static class AuthFailureClassifier
     ///     first <c>/</c>, or the whole URL text when there is no path), so unencoded
     ///     <c>@</c>, <c>?</c> or <c>#</c> characters inside a password are removed too. The trade-off
     ///     is that a query-only URL without a path whose query contains <c>@</c> may lose its host; that
-    ///     errs on the side of over-redaction.
+    ///     errs on the side of over-redaction. A URL ends at whitespace, a double quote, <c>&lt;</c> or
+    ///     <c>&gt;</c>, or at an apostrophe, except that an apostrophe followed by an <c>@</c> before the
+    ///     authority ends is user info (a valid user info character) and stays part of the URL; a URL quoted
+    ///     in single quotes in prose therefore still ends at its closing quote.
     /// </remarks>
     internal static string RedactEmbeddedUrls(string text) =>
         EmbeddedUrlPattern.Replace(text, match =>
