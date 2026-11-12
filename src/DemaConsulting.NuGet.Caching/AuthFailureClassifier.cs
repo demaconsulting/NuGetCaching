@@ -286,11 +286,12 @@ internal static class AuthFailureClassifier
     }
 
     private static readonly Regex EmbeddedUrlPattern =
-        new(@"(?<scheme>https?://)(?<rest>[^\s""'<>]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        new(@"(?<scheme>[A-Za-z][A-Za-z0-9+.\-]*://)(?<rest>[^\s""'<>]+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
-    ///     Removes the user info, query string and fragment from every absolute HTTP(S) URL embedded in
-    ///     <paramref name="text"/>, since SDK exception messages quote the requested URL.
+    ///     Removes the user info, query string and fragment from every absolute URL of any scheme (RFC 3986
+    ///     <c>scheme://</c>, such as <c>http</c>, <c>https</c> or <c>ftp</c>) embedded in
+    ///     <paramref name="text"/>, since SDK exception messages and server-supplied text quote URLs.
     /// </summary>
     /// <remarks>
     ///     User info is removed through the last <c>@</c> of the authority region (the text before the

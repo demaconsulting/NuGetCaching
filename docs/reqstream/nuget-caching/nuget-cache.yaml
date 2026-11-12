@@ -290,6 +290,8 @@ sections:
         tests:
           - NuGetAuthenticationException_Properties_AreExposed
           - NuGetAuthenticationException_StatusAndReason_AreExposedAndSanitized
+          - NuGetAuthenticationException_Reason_NonHttpUrls_AreRedacted
+          - NuGetAuthenticationException_ReasonWithNon403Status_IsNotKept
           - NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries
           - NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason
           - NuGetCache_GetVersionsAsync_ForbiddenWithoutReason_ReportsStatusOnly

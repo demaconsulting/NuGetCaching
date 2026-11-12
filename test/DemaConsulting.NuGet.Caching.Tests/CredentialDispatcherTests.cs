@@ -934,6 +934,40 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
+    ///     Tests that, within one call, a 403 with a reason followed by a bare 403 for the same source fails
+    ///     without the stale reason, both for a marked source and for an unmarked (authority-keyed) request.
+    /// </summary>
+    /// <param name="marked">Whether the package source is marked for the call.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason(bool marked)
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var source = marked ? CredentialDispatcher.BeginSource(uri.AbsoluteUri) : null;
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+        CredentialDispatcher.RecordForbiddenReason(uri, null);
+
+        // Act
+        var forbidden = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert
+        Assert.Equal(403, forbidden.Challenge.StatusCode);
+        Assert.Null(forbidden.Challenge.Reason);
+        Assert.Null(CredentialDispatcher.FindAmbientForbiddenReason(uri.AbsoluteUri));
+        Assert.True(AuthFailureClassifier.TryDescribeAuthFailure(forbidden, "src", uri.AbsoluteUri, out var message, out var failure));
+        Assert.NotNull(failure);
+        Assert.Null(failure.Reason);
+        Assert.DoesNotContain("ReadPackages", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Server said", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Tests that a forbidden (403) challenge fails fast with the recorded reason and never invokes the
     ///     host credential callback, and that a 401 followed by a 403 for the same request invokes the
     ///     callback exactly once (for the 401).

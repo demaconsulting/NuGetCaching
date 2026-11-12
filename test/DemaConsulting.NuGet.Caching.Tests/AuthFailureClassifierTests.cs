@@ -376,6 +376,11 @@ public class AuthFailureClassifierTests
     [InlineData("https://user:p#ss@host.example", "https://host.example")]
     [InlineData("see https://user:p?ss@host.example.", "see https://host.example.")]
     [InlineData("\"https://user:p#ss@host.example\" failed", "\"https://host.example\" failed")]
+    [InlineData("see ftp://user:pw@host.example/p?sig=Secret123 now", "see ftp://host.example/p now")]
+    [InlineData("ftp://user:pw@host.example/p#frag", "ftp://host.example/p")]
+    [InlineData("custom+scheme.v1-x://user:pw@host.example/p?token=abc", "custom+scheme.v1-x://host.example/p")]
+    [InlineData("HTTP://user:pw@host.example/p?sig=abc", "HTTP://host.example/p")]
+    [InlineData("a http://u:p@h1.example/x?s=1 and ftp://v:q@h2.example/y?t=2", "a http://h1.example/x and ftp://h2.example/y")]
     public void AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved(string input, string expected)
     {
         // Arrange / Act

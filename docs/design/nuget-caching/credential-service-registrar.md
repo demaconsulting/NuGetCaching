@@ -174,7 +174,9 @@ public methods of `NuGetCache`:
   `message` of a JSON body (at most 16 KB is read), or a reason phrase other than the bare "Forbidden"; the text
   is reduced to one line of at most 300 characters (control characters and runs of spaces collapsed, double quotes
   replaced by single quotes, URL user info, query and fragment removed) and recorded per call under the marked
-  source (or the authority), and `FailChallenge` attaches it. The handler never changes the response and
+  source (or the authority), and `FailChallenge` attaches it. A 403 that gives no usable reason clears the entry for
+  that source and authority, so a reason recorded from an earlier response is never attached to a later one. The
+  handler never changes the response and
   ignores failures to read the body: a body larger than the limit, or one that cannot be read, falls back to the
   reason phrase instead of losing the reason. If NuGet's handler chain has a different shape the handler is simply
   not installed and a 403 is reported without a reason. The 403 fails fast, like a 401, and immediately: a

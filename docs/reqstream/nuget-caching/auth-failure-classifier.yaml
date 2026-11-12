@@ -71,7 +71,8 @@ sections:
       - id: Caching-AuthFailureClassifier-RedactEmbeddedUserInfo
         title: >-
           The authentication-failure classifier shall remove user info, query string
-          and fragment from every HTTP(S) URL quoted in a diagnostic message.
+          and fragment from every absolute URL of any scheme (such as HTTP, HTTPS or FTP)
+          quoted in a diagnostic message.
         justification: |
           SDK exception messages quote the requested URL, which may carry credentials
           as user info (including unencoded or percent-encoded special characters in
@@ -95,4 +96,5 @@ sections:
         tests:
           - AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden
           - CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason
+          - CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason
           - AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestException403_UsesRecordedReasonForSource

@@ -127,14 +127,25 @@ internal sealed class CredentialDispatcher : ICredentialService
     ///     The credential service is only told that a request was forbidden, not why; the response (with its
     ///     headers and body) is seen only by <see cref="ForbiddenReasonHandler"/>, which calls this. The reason
     ///     is keyed like an unsatisfied challenge: by the marked package source, otherwise by the authority.
+    ///     A 403 with no reason clears the reasons recorded for that key and authority.
     /// </remarks>
     /// <param name="requestUri">The URL that answered 403.</param>
     /// <param name="reason">The sanitized reason, or <see langword="null"/> when the server gave none.</param>
     internal static void RecordForbiddenReason(Uri requestUri, string? reason)
     {
-        if (reason != null)
+        // A 403 with no usable reason clears what an earlier 403 recorded, so a failure never reports a
+        // reason that came from a different response
+        var context = Ambient.Value;
+        if (context == null)
         {
-            Ambient.Value?.SetForbiddenReason(CurrentSource.Value ?? requestUri.Authority, reason);
+            return;
+        }
+
+        context.SetForbiddenReason(CurrentSource.Value ?? requestUri.Authority, reason);
+        if (reason == null)
+        {
+            // The authority is the fallback key for lookups, so it must not keep a stale reason either
+            context.SetForbiddenReason(requestUri.Authority, null);
         }
     }
 
@@ -531,7 +542,18 @@ internal sealed class CredentialDispatcher : ICredentialService
         internal void MarkUnsatisfied(UnsatisfiedChallenge challenge, string? sourceKey) =>
             _unsatisfiedChallenges.TryAdd(sourceKey ?? challenge.Uri.Authority, challenge);
 
-        internal void SetForbiddenReason(string key, string reason) => _forbiddenReasons[key] = reason;
+        // A null reason removes the entry (the latest 403 had none)
+        internal void SetForbiddenReason(string key, string? reason)
+        {
+            if (reason == null)
+            {
+                _forbiddenReasons.TryRemove(key, out _);
+            }
+            else
+            {
+                _forbiddenReasons[key] = reason;
+            }
+        }
 
         internal string? FindForbiddenReason(string key) =>
             _forbiddenReasons.TryGetValue(key, out var reason) ? reason : null;

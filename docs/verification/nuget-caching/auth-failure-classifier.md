@@ -162,10 +162,11 @@ addition to the summarized actionable framing.
 #### AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved
 
 **Scenario**: `RedactEmbeddedUrls` is called with URLs that carry `user:pass@`, user-only info,
-`@`, `?` or `#` inside the password, percent-encoded user info, a query and fragment, and URLs with no
-path or no query.
+`@`, `?` or `#` inside the password, percent-encoded user info, a query and fragment, URLs with no
+path or no query, and URLs of other schemes (`ftp://` with user info and query, a custom
+`scheme+x.y-z://`, upper-case `HTTP://`, and a message mixing http and ftp URLs).
 
-**Expected**: Only scheme, host, port and path remain in every case.
+**Expected**: Only scheme, host, port and path remain in every case, whatever the scheme.
 
 **Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
 
@@ -229,4 +230,4 @@ verified by `Caching-PackageDownloader-AuthFailureInfo` (downloader unit) and, e
 - **`Caching-AuthFailureClassifier-ForbiddenReason`**:
   AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden,
   CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason,
-  AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestException403_UsesRecordedReasonForSource
+  CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason,

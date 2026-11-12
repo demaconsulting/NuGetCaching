@@ -75,7 +75,9 @@ public sealed class NuGetAuthenticationException : InvalidOperationException
         Source = source == null ? null : AuthFailureClassifier.RedactSourceName(source);
         Uri = Redact(uri);
         StatusCode = statusCode;
-        ServerReason = CredentialDispatcher.ForbiddenReasonHandler.Sanitize(serverReason);
+        ServerReason = statusCode == 403
+            ? CredentialDispatcher.ForbiddenReasonHandler.Sanitize(serverReason)
+            : null;
     }
 
     private static Uri? Redact(Uri? uri)

@@ -78,8 +78,10 @@ Walks the exception and its `InnerException` chain looking for an HTTP 401 or 40
 internal static string RedactEmbeddedUrls(string text)
 ```
 
-Rewrites every absolute `http(s)://` URL quoted in a message (SDK exception messages quote the
-requested URL). For each URL, the user info is removed through the last `@` of the authority region
+Rewrites every absolute `scheme://` URL (any RFC 3986 scheme: `[A-Za-z][A-Za-z0-9+.-]*://`, so `http`,
+`https`, `ftp` and custom schemes alike) quoted in a message (SDK exception messages quote the
+requested URL, and server-supplied reasons may quote any URL). For each URL, the user info is removed
+through the last `@` of the authority region
 (the text before the first `/`, or the whole URL text when it has no path — so a `?` or `#` inside
 the password never ends the authority early), which also handles unencoded `@`, `?` and `#`
 characters inside a password, percent-encoded user info, and URLs without a path or query. The
