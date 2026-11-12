@@ -29,7 +29,9 @@ namespace DemaConsulting.NuGet.Caching;
 /// </summary>
 /// <param name="SourceName">The configured name of the package source.</param>
 /// <param name="SourceUrl">The URL of the endpoint that rejected the request.</param>
-internal sealed record AuthFailureInfo(string SourceName, string SourceUrl)
+/// <param name="StatusCode">The HTTP status code that rejected the request: 401 or 403.</param>
+/// <param name="Reason">For a 403, the sanitized reason the server gave, or <see langword="null"/>.</param>
+internal sealed record AuthFailureInfo(string SourceName, string SourceUrl, int StatusCode = 401, string? Reason = null)
 {
     /// <summary>Gets the source name with any query string, user info or fragment removed.</summary>
     public string SourceName { get; } = AuthFailureClassifier.RedactSourceName(SourceName);
@@ -98,19 +100,22 @@ internal static class AuthFailureClassifier
     /// <param name="sourceName">The configured name of the package source.</param>
     /// <param name="source">The URL of the package source.</param>
     /// <param name="message">The actionable diagnostic message when this method returns <see langword="true"/>.</param>
+    /// <param name="failure">The source, status code and (for a 403) reason when this method returns <see langword="true"/>.</param>
     /// <returns><see langword="true"/> when an unsatisfied challenge for the source's host was recorded.</returns>
     internal static bool TryDescribeRecordedChallenge(
         string sourceName,
         string source,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AuthFailureInfo? failure)
     {
         if (CredentialDispatcher.FindAmbientUnsatisfiedChallenge(source) is { } challenge)
         {
             return TryDescribeAuthFailure(
-                new CredentialDispatcher.AuthChallengeUnsatisfiedException(challenge), sourceName, source, out message);
+                new CredentialDispatcher.AuthChallengeUnsatisfiedException(challenge), sourceName, source, out message, out failure);
         }
 
         message = null;
+        failure = null;
         return false;
     }
 
@@ -194,7 +199,7 @@ internal static class AuthFailureClassifier
     ///     number) as an authentication failure.
     /// </remarks>
     private static readonly Regex HttpStatusCodePattern =
-        new(@"\b(401)\s*\(Unauthorized\)|\b(403)\s*\(Forbidden\)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+        new(@"\b(401)\s*\(Unauthorized|\b(403)\s*\(Forbidden", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
     ///     Determines whether <paramref name="exception"/> (or any exception in its
@@ -218,7 +223,25 @@ internal static class AuthFailureClassifier
         Exception exception,
         string sourceName,
         string source,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message)
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message) =>
+        TryDescribeAuthFailure(exception, sourceName, source, out message, out _);
+
+    /// <summary>
+    ///     Like <see cref="TryDescribeAuthFailure(Exception, string, string, out string?)"/>, and also returns
+    ///     the failure's source, status code and (for a 403) the server's reason.
+    /// </summary>
+    /// <param name="exception">The exception thrown while communicating with the source.</param>
+    /// <param name="sourceName">The configured name of the package source (from <c>nuget.config</c>).</param>
+    /// <param name="source">The URL of the package source.</param>
+    /// <param name="message">The actionable diagnostic message when this method returns <see langword="true"/>.</param>
+    /// <param name="failure">The source, status code and reason when this method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when a 401 or 403 status code was detected anywhere in the exception chain.</returns>
+    internal static bool TryDescribeAuthFailure(
+        Exception exception,
+        string sourceName,
+        string source,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? message,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AuthFailureInfo? failure)
     {
         if (exception is OperationCanceledException and not CredentialDispatcher.AuthChallengeUnsatisfiedException
             && CredentialDispatcher.FindAmbientUnsatisfiedChallenge(source) is { } recorded)
@@ -226,33 +249,61 @@ internal static class AuthFailureClassifier
             exception = new CredentialDispatcher.AuthChallengeUnsatisfiedException(recorded);
         }
 
-        if (!TryGetHttpStatusCode(exception, out var statusCode))
+        if (!TryGetHttpStatusCode(exception, out var statusCode, out var reason))
         {
             message = null;
+            failure = null;
             return false;
         }
 
-        var statusText = statusCode == 403 ? "403 (Forbidden)" : "401 (Unauthorized)";
-        message =
-            $"{RedactSourceName(sourceName)} ({RedactUrl(source)}): HTTP {statusText} - the source requires authentication or the " +
-            $"configured credentials were rejected. Check packageSourceCredentials in nuget.config, or " +
-            $"any configured NuGet credential provider, for this source. ({RedactEmbeddedUrls(exception.Message)})";
+        // A 403 that surfaced as a raw HTTP exception (not the dispatcher's own) still has the reason the
+        // handler recorded for this source during the call
+        if (statusCode == 403 && reason == null)
+        {
+            reason = CredentialDispatcher.FindAmbientForbiddenReason(source);
+        }
+
+        failure = new AuthFailureInfo(sourceName, source, statusCode, reason);
+        var where = $"{RedactSourceName(sourceName)} ({RedactUrl(source)})";
+        var original = RedactEmbeddedUrls(exception.Message);
+        if (statusCode == 403)
+        {
+            var serverSaid = reason == null ? string.Empty : $"Server said: \"{reason}\". ";
+            message =
+                $"{where}: HTTP 403 (Forbidden) - the source refused access: the request was understood and the account or " +
+                "credentials in use are not permitted to read it, so signing in again will not help; ask the source's " +
+                $"administrator for read permission. {serverSaid}({original})";
+        }
+        else
+        {
+            message =
+                $"{where}: HTTP 401 (Unauthorized) - the source requires authentication or the " +
+                $"configured credentials were rejected. Check packageSourceCredentials in nuget.config, or " +
+                $"any configured NuGet credential provider, for this source. ({original})";
+        }
+
         return true;
     }
 
+    // An apostrophe is part of the URL only when an '@' follows it before the authority ends (a '/' or
+    // whitespace), i.e. when it is inside the user info; otherwise it closes a URL quoted in prose
     private static readonly Regex EmbeddedUrlPattern =
-        new(@"(?<scheme>https?://)(?<rest>[^\s""'<>]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        new(@"(?<scheme>[A-Za-z][A-Za-z0-9+.\-]*://)(?<rest>(?:[^\s""'<>]|'(?=[^\s""<>/]*@))+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
-    ///     Removes the user info, query string and fragment from every absolute HTTP(S) URL embedded in
-    ///     <paramref name="text"/>, since SDK exception messages quote the requested URL.
+    ///     Removes the user info, query string and fragment from every absolute URL of any scheme (RFC 3986
+    ///     <c>scheme://</c>, such as <c>http</c>, <c>https</c> or <c>ftp</c>) embedded in
+    ///     <paramref name="text"/>, since SDK exception messages and server-supplied text quote URLs.
     /// </summary>
     /// <remarks>
     ///     User info is removed through the last <c>@</c> of the authority region (the text before the
     ///     first <c>/</c>, or the whole URL text when there is no path), so unencoded
     ///     <c>@</c>, <c>?</c> or <c>#</c> characters inside a password are removed too. The trade-off
     ///     is that a query-only URL without a path whose query contains <c>@</c> may lose its host; that
-    ///     errs on the side of over-redaction.
+    ///     errs on the side of over-redaction. A URL ends at whitespace, a double quote, <c>&lt;</c> or
+    ///     <c>&gt;</c>, or at an apostrophe, except that an apostrophe followed by an <c>@</c> before the
+    ///     authority ends is user info (a valid user info character) and stays part of the URL; a URL quoted
+    ///     in single quotes in prose therefore still ends at its closing quote.
     /// </remarks>
     internal static string RedactEmbeddedUrls(string text) =>
         EmbeddedUrlPattern.Replace(text, match =>
@@ -264,6 +315,7 @@ internal static class AuthFailureClassifier
     /// </summary>
     /// <param name="exception">The exception to inspect.</param>
     /// <param name="statusCode">When found, the detected status code (401 or 403).</param>
+    /// <param name="reason">When found, the server's reason for a 403 that the dispatcher recorded; otherwise <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when a 401 or 403 status code was found.</returns>
     /// <remarks>
     ///     The NuGet SDK does not consistently expose the failing HTTP status code as a strongly
@@ -275,14 +327,16 @@ internal static class AuthFailureClassifier
     ///     checks the strongly typed property where available and falls back to matching that text
     ///     across the whole exception chain so detection is consistent on every target framework.
     /// </remarks>
-    private static bool TryGetHttpStatusCode(Exception? exception, out int statusCode)
+    private static bool TryGetHttpStatusCode(Exception? exception, out int statusCode, out string? reason)
     {
+        reason = null;
         for (var current = exception; current != null; current = current.InnerException)
         {
-            // The dispatcher's fail-fast exception stands for an unsatisfied 401 challenge
-            if (current is CredentialDispatcher.AuthChallengeUnsatisfiedException)
+            // The dispatcher's fail-fast exception stands for an unsatisfied 401 or 403 (with the server's reason)
+            if (current is CredentialDispatcher.AuthChallengeUnsatisfiedException unsatisfied)
             {
-                statusCode = 401;
+                statusCode = unsatisfied.Challenge.StatusCode;
+                reason = unsatisfied.Challenge.Reason;
                 return true;
             }
 

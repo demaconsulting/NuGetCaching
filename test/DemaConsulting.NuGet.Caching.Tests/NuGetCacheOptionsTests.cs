@@ -165,6 +165,51 @@ public class NuGetCacheOptionsTests
         Assert.Equal("denied", exception.Message);
         Assert.Equal("my-source", exception.Source);
         Assert.Equal(uri, exception.Uri);
+        Assert.Null(exception.StatusCode);
+        Assert.Null(exception.ServerReason);
+    }
+
+    /// <summary>
+    ///     Tests that the status code and the server's reason are exposed, and that the reason is reduced to a
+    ///     single short line without URL secrets.
+    /// </summary>
+    [Fact]
+    public void NuGetAuthenticationException_StatusAndReason_AreExposedAndSanitized()
+    {
+        var exception = new NuGetAuthenticationException(
+            "denied", "my-source", new Uri("https://example.test/index.json"), 403,
+            "You need ReadPackages.\r\nSee https://user:pw@example.test/p?sig=Secret123");
+
+        Assert.Equal(403, exception.StatusCode);
+        Assert.Equal("You need ReadPackages. See https://example.test/p", exception.ServerReason);
+    }
+
+    /// <summary>
+    ///     Tests that URLs of any scheme in the reason lose their user info, query string and fragment.
+    /// </summary>
+    [Fact]
+    public void NuGetAuthenticationException_Reason_NonHttpUrls_AreRedacted()
+    {
+        var exception = new NuGetAuthenticationException(
+            "denied", "my-source", new Uri("https://example.test/index.json"), 403,
+            "Moved to ftp://user:pw@host.example/p?sig=Secret123 or custom+x://u:p@h.example/q#frag");
+
+        Assert.Equal("Moved to ftp://host.example/p or custom+x://h.example/q", exception.ServerReason);
+    }
+
+    /// <summary>
+    ///     Tests that a reason supplied with a status other than 403 is not kept.
+    /// </summary>
+    [Theory]
+    [InlineData(401)]
+    [InlineData(null)]
+    public void NuGetAuthenticationException_ReasonWithNon403Status_IsNotKept(int? statusCode)
+    {
+        var exception = new NuGetAuthenticationException(
+            "denied", "my-source", new Uri("https://example.test/index.json"), statusCode, "You need ReadPackages.");
+
+        Assert.Equal(statusCode, exception.StatusCode);
+        Assert.Null(exception.ServerReason);
     }
 
     /// <summary>

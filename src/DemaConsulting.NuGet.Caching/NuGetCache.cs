@@ -465,7 +465,7 @@ public static class NuGetCache
         WarnWhenOptionsCannotApply(options, logger);
 
         // Get the core V3 providers needed to communicate with NuGet v3 and v2 feeds
-        var providers = Repository.Provider.GetCoreV3();
+        var providers = CredentialDispatcher.ForbiddenReasonHandlerProvider.Install(Repository.Provider.GetCoreV3());
 
         // Determine the sources permitted for this package (explicit sources, or enabled configured
         // sources honoring source mapping); local sources are always consulted when downloading
@@ -664,7 +664,7 @@ public static class NuGetCache
         credentialRegistrar.EnsureRegistered();
         WarnWhenOptionsCannotApply(options, logger);
 
-        var providers = Repository.Provider.GetCoreV3();
+        var providers = CredentialDispatcher.ForbiddenReasonHandlerProvider.Install(Repository.Provider.GetCoreV3());
         var allowedSources = ResolveSources(settings, packageId, options);
         WarnOnQueryStringSources(allowedSources, logger);
         var explicitSources = options?.Sources != null;
@@ -728,10 +728,10 @@ public static class NuGetCache
                 scope.ThrowIfTimedOut();
 
                 // Record the failure and try the next source; reported only if nothing is found
-                if (AuthFailureClassifier.TryDescribeAuthFailure(ex, effectiveSource.Name, effectiveSource.Source, out var authMessage)
-                    || AuthFailureClassifier.TryDescribeRecordedChallenge(effectiveSource.Name, effectiveSource.Source, out authMessage))
+                if (AuthFailureClassifier.TryDescribeAuthFailure(ex, effectiveSource.Name, effectiveSource.Source, out var authMessage, out var failure)
+                    || AuthFailureClassifier.TryDescribeRecordedChallenge(effectiveSource.Name, effectiveSource.Source, out authMessage, out failure))
                 {
-                    authFailure ??= new AuthFailureInfo(effectiveSource.Name, effectiveSource.Source);
+                    authFailure ??= failure;
                     sourceErrors.Add(authMessage);
                 }
                 else
@@ -745,9 +745,9 @@ public static class NuGetCache
             // NuGet may swallow the request the dispatcher canceled for an unsatisfied challenge and
             // report an empty list instead; that is still an authentication failure
             if (sourceVersions.Count == 0
-                && AuthFailureClassifier.TryDescribeRecordedChallenge(effectiveSource.Name, effectiveSource.Source, out var recordedMessage))
+                && AuthFailureClassifier.TryDescribeRecordedChallenge(effectiveSource.Name, effectiveSource.Source, out var recordedMessage, out var recordedFailure))
             {
-                authFailure ??= new AuthFailureInfo(effectiveSource.Name, effectiveSource.Source);
+                authFailure ??= recordedFailure;
                 sourceErrors.Add(recordedMessage);
                 continue;
             }
@@ -860,7 +860,7 @@ public static class NuGetCache
 
         // The record's SourceUrl is already redacted (no user info, query string or fragment)
         Uri.TryCreate(authFailure.SourceUrl, UriKind.Absolute, out var uri);
-        return new NuGetAuthenticationException(message, authFailure.SourceName, uri);
+        return new NuGetAuthenticationException(message, authFailure.SourceName, uri, authFailure.StatusCode, authFailure.Reason);
     }
 
     /// <summary>

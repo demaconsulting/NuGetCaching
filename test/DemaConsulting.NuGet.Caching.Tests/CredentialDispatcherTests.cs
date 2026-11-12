@@ -19,9 +19,11 @@
 // SOFTWARE.
 
 using System.Collections.Concurrent;
+using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using NuGet.Configuration;
 using NuGet.Protocol;
+using NuGet.Protocol.Core.Types;
 
 namespace DemaConsulting.NuGet.Caching.Tests;
 
@@ -561,8 +563,8 @@ public class CredentialDispatcherTests
 
     /// <summary>
     ///     Deterministic, HTTP-free test: a callback that returned <see langword="null"/> is not asked
-    ///     again for the same URL and request type, but each request still reaches the default
-    ///     credential service.
+    ///     again for the same URL and request type, but each request still reaches the credential
+    ///     providers.
     /// </summary>
     [Fact]
     public async Task CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders()
@@ -577,8 +579,9 @@ public class CredentialDispatcherTests
                 return Task.FromResult<NuGetCredential?>(null);
             },
         };
-        var service = new SuppliedCredentialService();
-        var dispatcher = new CredentialDispatcher(service);
+        var provider = new FakeProvider(failOnRetry: false);
+        using var providers = UseDefaultProvider(provider);
+        var dispatcher = new CredentialDispatcher(new SuppliedCredentialService());
         var uri = new Uri("http://localhost/feed/index.json");
         using var scope = CredentialDispatcher.BeginScope(options, null);
 
@@ -588,11 +591,84 @@ public class CredentialDispatcherTests
         var second = await dispatcher.GetCredentialsAsync(
             uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
 
-        // Assert - the callback ran once; both requests reached the default service
+        // Assert - the callback ran once; both requests reached the credential provider
         Assert.Equal(1, calls);
-        Assert.Equal(2, service.Calls);
+        Assert.Equal(2, provider.Calls);
         Assert.NotNull(first);
         Assert.NotNull(second);
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free regression test: with a callback, the credential providers' retry
+    ///     state is scoped to one call. A repeat request within a call is a retry (the provider, like
+    ///     the integrated-authentication provider, then declines, so no loop), while a request in a later
+    ///     call for the same URL is a fresh request and reaches the provider again.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_CallbackSet_RetryStateIsScopedToOneCall()
+    {
+        // Arrange
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) => Task.FromResult<NuGetCredential?>(null),
+        };
+        var provider = new FakeProvider(failOnRetry: true);
+        using var providers = UseDefaultProvider(provider);
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        var type = global::NuGet.Configuration.CredentialRequestType.Unauthorized;
+
+        // Act / Assert - call 1: the first request succeeds, the repeat request is a retry and is not satisfied
+        using (CredentialDispatcher.BeginScope(options, null))
+        {
+            Assert.NotNull(await dispatcher.GetCredentialsAsync(uri, null, type, "m", CancellationToken.None));
+            await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+                await dispatcher.GetCredentialsAsync(uri, null, type, "m", CancellationToken.None));
+        }
+
+        // Act / Assert - call 2: the same URL is a fresh request again (this failed with process-wide state)
+        using (CredentialDispatcher.BeginScope(options, null))
+        {
+            Assert.NotNull(await dispatcher.GetCredentialsAsync(uri, null, type, "m", CancellationToken.None));
+        }
+
+        Assert.Equal(3, provider.Calls);
+    }
+
+    /// <summary>
+    ///     Regression test for Windows integrated authentication: two sequential calls for the same
+    ///     source, each with a callback that declines, must both be satisfied by a credential provider that
+    ///     (like <c>DefaultNetworkCredentialsCredentialProvider</c>) answers a first request but declines a
+    ///     retry. Before the fix the second call received a spurious 401 and failed authentication.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_CallbackDeclinesTwice_ProviderServesEveryCall()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange - a feed that answers 401 until it sees the provider's Basic credentials
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterV3PackageWithBasicAuth(
+                "Repeat.Versions", "1.0.0", NuGetPackageBuilder.CreateMinimalPackage("Repeat.Versions", "1.0.0"), UserName, Password);
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+            var options = new NuGetCacheOptions
+            {
+                CredentialCallback = (_, _) => Task.FromResult<NuGetCredential?>(null),
+            };
+            using var providers = UseDefaultProvider(new FakeProvider(failOnRetry: true));
+
+            // Act
+            var first = await NuGetCache.GetVersionsAsync(
+                "Repeat.Versions", false, settings, options, new CredentialServiceRegistrar(), CancellationToken.None);
+            var second = await NuGetCache.GetVersionsAsync(
+                "Repeat.Versions", false, settings, options, new CredentialServiceRegistrar(), CancellationToken.None);
+
+            // Assert
+            Assert.Equal(["1.0.0"], first);
+            Assert.Equal(["1.0.0"], second);
+        });
     }
 
     /// <summary>
@@ -705,6 +781,442 @@ public class CredentialDispatcherTests
             Assert.True(server.RequestPaths.Count <= 6, $"Made {server.RequestPaths.Count} requests.");
             Assert.DoesNotContain(server.RequestPaths, p => p.Contains("FindPackagesById", StringComparison.OrdinalIgnoreCase));
         });
+    }
+
+    /// <summary>
+    ///     Tests that a 403 from a source - a signed-in user who lacks the permission, as Azure DevOps
+    ///     answers - is reported as a <see cref="NuGetAuthenticationException"/> with status 403 and the
+    ///     server's reason (from <c>X-TFS-ServiceError</c>, URL-decoded), promptly, even though a callback
+    ///     and the providers had nothing to offer.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange - the header carries the reason, URL-encoded
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterForbiddenForAllRequests(
+                "VS403403%3A%20User%20%27alice%27%20lacks%20permission%20to%20complete%20this%20action.%20You%20need%20to%20have%20%27ReadPackages%27.",
+                "{\"$id\":\"1\",\"message\":\"Body message that is not preferred.\"}");
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+            var options = new NuGetCacheOptions { CredentialCallback = (_, _) => Task.FromResult<NuGetCredential?>(null) };
+
+            // Act
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var exception = await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "Forbidden.Package", "1.0.0", settings, options, new CredentialServiceRegistrar(), CancellationToken.None));
+            stopwatch.Stop();
+
+            // Assert - the 403 and the reason survive; nothing was retried
+            Assert.Equal(403, exception.StatusCode);
+            Assert.Equal(
+                "VS403403: User 'alice' lacks permission to complete this action. You need to have 'ReadPackages'.",
+                exception.ServerReason);
+            Assert.Contains("HTTP 403 (Forbidden)", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("ReadPackages", exception.Message, StringComparison.Ordinal);
+            Assert.Equal("test-source", exception.Source);
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(4), $"Took {stopwatch.Elapsed}.");
+            Assert.True(server.RequestPaths.Count <= 6, $"Made {server.RequestPaths.Count} requests.");
+        });
+    }
+
+    /// <summary>
+    ///     Tests that version listing reports a 403 with the <c>message</c> of the JSON body when the server
+    ///     sends no <c>X-TFS-ServiceError</c> header.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterForbiddenForAllRequests(null, "{\"$id\":\"1\",\"message\":\"You need \\\"ReadPackages\\\" on the feed.\",\"typeKey\":\"X\"}");
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+
+            // Act
+            var exception = await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.GetVersionsAsync(
+                    "Forbidden.Versions", false, settings, null, new CredentialServiceRegistrar(), CancellationToken.None));
+
+            // Assert - quotes are replaced so the reason stays quotable
+            Assert.Equal(403, exception.StatusCode);
+            Assert.Equal("You need 'ReadPackages' on the feed.", exception.ServerReason);
+        });
+    }
+
+    /// <summary>
+    ///     Tests that a 403 without any explanation is still reported as a 403, with no reason.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_GetVersionsAsync_ForbiddenWithoutReason_ReportsStatusOnly()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterForbiddenForAllRequests(null, null);
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+
+            // Act
+            var exception = await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.GetVersionsAsync(
+                    "Forbidden.NoReason", false, settings, null, new CredentialServiceRegistrar(), CancellationToken.None));
+
+            // Assert
+            Assert.Equal(403, exception.StatusCode);
+            Assert.Null(exception.ServerReason);
+            Assert.Contains("HTTP 403 (Forbidden)", exception.Message, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>
+    ///     Tests that a 401 is unchanged: status 401, no server reason, and the unauthorized wording.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task NuGetCache_EnsureCachedAsync_Unauthorized_ReportsStatus401WithoutReason()
+    {
+        await WithDispatcherAsync(async () =>
+        {
+            // Arrange
+            using var folder = new TempFolder();
+            await using var server = new NuGetTestServer();
+            server.RegisterUnauthorizedForAllRequests();
+            var settings = server.CreateSettings(folder.Path, server.IndexUrl);
+
+            // Act
+            var exception = await Assert.ThrowsAsync<NuGetAuthenticationException>(async () =>
+                await NuGetCache.EnsureCachedAsync(
+                    "Unauthorized.Package", "1.0.0", settings, null, new CredentialServiceRegistrar(), CancellationToken.None));
+
+            // Assert
+            Assert.Equal(401, exception.StatusCode);
+            Assert.Null(exception.ServerReason);
+            Assert.Contains("HTTP 401 (Unauthorized)", exception.Message, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test: a forbidden request that no credential can satisfy fails with the
+    ///     403 status and the reason the capture handler recorded for the marked source, while an unsatisfied
+    ///     401 keeps status 401 and carries no reason.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason()
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var source = CredentialDispatcher.BeginSource(uri.AbsoluteUri);
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+
+        // Act
+        var forbidden = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert
+        Assert.Equal(403, forbidden.Challenge.StatusCode);
+        Assert.Equal("You need 'ReadPackages'.", forbidden.Challenge.Reason);
+        Assert.True(AuthFailureClassifier.TryDescribeAuthFailure(forbidden, "src", uri.AbsoluteUri, out var message, out var failure));
+        Assert.NotNull(failure);
+        Assert.Equal(403, failure.StatusCode);
+        Assert.Contains("Server said: \"You need 'ReadPackages'.\"", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that, within one call, a 403 with a reason followed by a bare 403 for the same source fails
+    ///     without the stale reason, both for a marked source and for an unmarked (authority-keyed) request.
+    /// </summary>
+    /// <param name="marked">Whether the package source is marked for the call.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason(bool marked)
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var source = marked ? CredentialDispatcher.BeginSource(uri.AbsoluteUri) : null;
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+        CredentialDispatcher.RecordForbiddenReason(uri, null);
+
+        // Act
+        var forbidden = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert
+        Assert.Equal(403, forbidden.Challenge.StatusCode);
+        Assert.Null(forbidden.Challenge.Reason);
+        Assert.Null(CredentialDispatcher.FindAmbientForbiddenReason(uri.AbsoluteUri));
+        Assert.True(AuthFailureClassifier.TryDescribeAuthFailure(forbidden, "src", uri.AbsoluteUri, out var message, out var failure));
+        Assert.NotNull(failure);
+        Assert.Null(failure.Reason);
+        Assert.DoesNotContain("ReadPackages", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Server said", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that, within one call, a 403 with a reason that failed (and was recorded as the unsatisfied
+    ///     challenge) followed by a bare 403 for the same source replaces the recorded challenge, so the call's
+    ///     final failure and its classification carry no stale reason.
+    /// </summary>
+    /// <param name="marked">Whether the package source is marked for the call.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ReasonedForbiddenThenBareForbiddenChallenge_ReplacesRecordedChallenge(bool marked)
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var source = marked ? CredentialDispatcher.BeginSource(uri.AbsoluteUri) : null;
+
+        // Act - a reasoned 403 fails and is recorded
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+        var first = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+        Assert.Equal("You need 'ReadPackages'.", first.Challenge.Reason);
+        Assert.Equal("You need 'ReadPackages'.", CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri)?.Reason);
+
+        // Act - a later bare 403 for the same source fails and replaces it
+        CredentialDispatcher.RecordForbiddenReason(uri, null);
+        var second = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert
+        Assert.Null(second.Challenge.Reason);
+        var recorded = CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri);
+        Assert.NotNull(recorded);
+        Assert.Equal(403, recorded.StatusCode);
+        Assert.Null(recorded.Reason);
+        Assert.True(AuthFailureClassifier.TryDescribeRecordedChallenge("src", uri.AbsoluteUri, out var message, out var failure));
+        Assert.Equal(403, failure.StatusCode);
+        Assert.Null(failure.Reason);
+        Assert.DoesNotContain("ReadPackages", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Server said", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that a later 401 for the same source does not replace a recorded 403 (the more specific
+    ///     outcome), while a later 403 does replace a recorded 401.
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ChallengeStatusOrdering_KeepsForbiddenOverUnauthorized()
+    {
+        // Arrange
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var source = CredentialDispatcher.BeginSource(uri.AbsoluteUri);
+
+        // Act / Assert - a 401 followed by a 403: the 403 is recorded
+        await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        Assert.Equal(401, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri)?.StatusCode);
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+        await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+        Assert.Equal(403, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri)?.StatusCode);
+
+        // Act / Assert - a later 401 does not displace the 403
+        await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None));
+        var recorded = CredentialDispatcher.FindAmbientUnsatisfiedChallenge(uri.AbsoluteUri);
+        Assert.Equal(403, recorded?.StatusCode);
+        Assert.Equal("You need 'ReadPackages'.", recorded?.Reason);
+    }
+
+    /// <summary>
+    ///     Tests that <c>Install</c> constructs no provider itself: the stock HTTP handler provider is replaced
+    ///     only when the installed provider is read, and every other provider is not created until read.
+    /// </summary>
+    [Fact]
+    public void ForbiddenReasonHandlerProvider_Install_DoesNotConstructProvidersUntilRead()
+    {
+        // Arrange
+        var httpCreated = 0;
+        var otherCreated = 0;
+        var other = new ServiceIndexResourceV3Provider();
+        var providers = new List<Lazy<INuGetResourceProvider>>
+        {
+            new(() =>
+            {
+                httpCreated++;
+                return new HttpHandlerResourceV3Provider();
+            }),
+            new(() =>
+            {
+                otherCreated++;
+                return other;
+            }),
+        };
+
+        // Act
+        var installed = CredentialDispatcher.ForbiddenReasonHandlerProvider.Install(providers);
+
+        // Assert - nothing was constructed by Install
+        Assert.Equal(2, installed.Count());
+        Assert.Equal(0, httpCreated);
+        Assert.Equal(0, otherCreated);
+
+        // Act / Assert - reading the HTTP handler entry replaces it with the reason-capturing provider
+        Assert.IsType<CredentialDispatcher.ForbiddenReasonHandlerProvider>(installed.ElementAt(0).Value);
+        Assert.Equal(1, httpCreated);
+        Assert.Equal(0, otherCreated);
+
+        // Act / Assert - reading another entry yields the original provider, constructed once
+        Assert.Same(other, installed.ElementAt(1).Value);
+        Assert.Same(other, installed.ElementAt(1).Value);
+        Assert.Equal(1, otherCreated);
+    }
+
+    /// <summary>
+    ///     Tests that a forbidden (403) challenge fails fast with the recorded reason and never invokes the
+    ///     host credential callback, and that a 401 followed by a 403 for the same request invokes the
+    ///     callback exactly once (for the 401).
+    /// </summary>
+    [Fact]
+    public async Task CredentialDispatcher_GetCredentialsAsync_ForbiddenWithCallback_DoesNotInvokeCallback()
+    {
+        // Arrange
+        var calls = 0;
+        var options = new NuGetCacheOptions
+        {
+            CredentialCallback = (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.FromResult<NuGetCredential?>(new NuGetCredential("user", "secret"));
+            },
+        };
+        var dispatcher = new CredentialDispatcher(new CachedHitService());
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(options, null);
+        using var source = CredentialDispatcher.BeginSource(uri.AbsoluteUri);
+        CredentialDispatcher.RecordForbiddenReason(uri, "You need 'ReadPackages'.");
+
+        // Act - a 403 alone
+        var forbidden = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert
+        Assert.Equal(0, calls);
+        Assert.Equal(403, forbidden.Challenge.StatusCode);
+        Assert.Equal("You need 'ReadPackages'.", forbidden.Challenge.Reason);
+
+        // Act - a 401 answered by the callback, then a 403 for the same request
+        var credentials = await dispatcher.GetCredentialsAsync(
+            uri, null, global::NuGet.Configuration.CredentialRequestType.Unauthorized, "m", CancellationToken.None);
+        await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await dispatcher.GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+
+        // Assert - the callback ran once, for the 401
+        Assert.NotNull(credentials);
+        Assert.Equal(1, calls);
+    }
+
+    /// <summary>
+    ///     Tests that a body larger than the read limit does not lose the reason: the handler falls back to
+    ///     the reason phrase.
+    /// </summary>
+    [Fact]
+    public async Task ForbiddenReasonHandler_OversizedBody_FallsBackToReasonPhrase()
+    {
+        // Arrange
+        const string phrase = "Forbidden - You need 'ReadPackages'.";
+
+        // Act
+        var reason = await CredentialDispatcherReasonAsync(() => new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden)
+        {
+            ReasonPhrase = phrase,
+            Content = new StringContent("{\"message\":\"" + new string('x', 64 * 1024) + "\"}"),
+        });
+
+        // Assert
+        Assert.Equal(phrase, reason);
+    }
+
+    /// <summary>
+    ///     Deterministic, HTTP-free test of <c>ForbiddenReasonHandler</c>: the reason comes from the
+    ///     <c>X-TFS-ServiceError</c> header first, then a JSON body, then a descriptive reason phrase; it is
+    ///     reduced to one short line without URL secrets, and the response passes through unchanged.
+    /// </summary>
+    [Fact]
+    public async Task ForbiddenReasonHandler_Forbidden_RecordsSanitizedReasonInPriorityOrder()
+    {
+        // Arrange - a reason phrase as an on-premises Azure DevOps Server sends it
+        const string phrase = "Forbidden - User 'alice' lacks permission to complete this action. You need to have 'ReadPackages'.";
+
+        // Act / Assert - the reason phrase alone (each case uses a fresh call scope)
+        Assert.Equal(
+            phrase,
+            await CredentialDispatcherReasonAsync(() => new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden) { ReasonPhrase = phrase }));
+
+        // The standard phrase says nothing, so no reason is recorded
+        Assert.Null(await CredentialDispatcherReasonAsync(() => new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden)));
+
+        // A long, multi-line, URL-bearing header is reduced to one short line without the URL's secrets
+        var header = Uri.EscapeDataString("Line one\r\nsee http://user:pw@host/p?sig=Secret123 " + new string('x', 400));
+        var reason = await CredentialDispatcherReasonAsync(() =>
+        {
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden) { ReasonPhrase = "Forbidden" };
+            response.Headers.TryAddWithoutValidation("X-TFS-ServiceError", header);
+            return response;
+        });
+        Assert.NotNull(reason);
+        Assert.DoesNotContain("Secret123", reason, StringComparison.Ordinal);
+        Assert.DoesNotContain("user:pw", reason, StringComparison.Ordinal);
+        Assert.DoesNotContain('\n', reason);
+        Assert.StartsWith("Line one see http://host/p", reason, StringComparison.Ordinal);
+        Assert.True(reason.Length <= CredentialDispatcher.ForbiddenReasonHandler.MaxReasonLength);
+    }
+
+    private static async Task<string?> CredentialDispatcherReasonAsync(Func<HttpResponseMessage> respond)
+    {
+        var uri = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var source = CredentialDispatcher.BeginSource(uri.AbsoluteUri);
+        using var invoker = new HttpMessageInvoker(new CredentialDispatcher.ForbiddenReasonHandler(new StubHandler(respond)));
+        using var response = await invoker.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), CancellationToken.None);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.StatusCode);
+        var failure = await Assert.ThrowsAsync<CredentialDispatcher.AuthChallengeUnsatisfiedException>(async () =>
+            await new CredentialDispatcher(new CachedHitService()).GetCredentialsAsync(
+                uri, null, global::NuGet.Configuration.CredentialRequestType.Forbidden, "m", CancellationToken.None));
+        return failure.Challenge.Reason;
+    }
+
+    /// <summary>
+    ///     A handler that answers every request with a response built by a factory.
+    /// </summary>
+    private sealed class StubHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpResponseMessage> _respond;
+
+        public StubHandler(Func<HttpResponseMessage> respond) => _respond = respond;
+
+        /// <inheritdoc />
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(_respond());
     }
 
     /// <summary>
@@ -1042,7 +1554,7 @@ public class CredentialDispatcherTests
         }
 
         // Assert
-        Assert.Equal(challenged, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(authed));
+        Assert.Equal(challenged, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(authed)?.Uri);
         Assert.Null(CredentialDispatcher.FindAmbientUnsatisfiedChallenge(open));
         Assert.False(AuthFailureClassifier.IsUnsatisfiedChallenge(new TaskCanceledException(), open, CancellationToken.None));
         Assert.True(AuthFailureClassifier.IsUnsatisfiedChallenge(new TaskCanceledException(), authed, CancellationToken.None));
@@ -1071,7 +1583,7 @@ public class CredentialDispatcherTests
         }
 
         // Assert
-        Assert.Equal(challenged, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(authed));
+        Assert.Equal(challenged, CredentialDispatcher.FindAmbientUnsatisfiedChallenge(authed)?.Uri);
         Assert.Null(CredentialDispatcher.FindAmbientUnsatisfiedChallenge(open));
         Assert.NotEqual(CredentialDispatcher.SourceKey(authed), CredentialDispatcher.SourceKey(open));
         Assert.DoesNotContain("Secret", CredentialDispatcher.SourceKey(authed), StringComparison.Ordinal);
@@ -1252,15 +1764,75 @@ public class CredentialDispatcherTests
     }
 
     /// <summary>
-    ///     A credential service that always supplies a credential and counts its requests.
+    ///     Substitutes the default-network-credentials provider appended to every provider-based
+    ///     credential service, restoring the real one when the returned scope is disposed.
     /// </summary>
-    private sealed class SuppliedCredentialService : global::NuGet.Configuration.ICredentialService
+    /// <param name="provider">The provider to use.</param>
+    /// <returns>The scope that restores the original factory.</returns>
+    private static RestoreDefaultProvider UseDefaultProvider(global::NuGet.Credentials.ICredentialProvider provider)
     {
+        var restore = new RestoreDefaultProvider(CredentialDispatcher.DefaultProviderFactory);
+        CredentialDispatcher.DefaultProviderFactory = () => provider;
+        return restore;
+    }
+
+    /// <summary>
+    ///     Restores the original default-provider factory on dispose.
+    /// </summary>
+    private sealed class RestoreDefaultProvider : IDisposable
+    {
+        private readonly Func<global::NuGet.Credentials.ICredentialProvider> _original;
+
+        public RestoreDefaultProvider(Func<global::NuGet.Credentials.ICredentialProvider> original) => _original = original;
+
+        public void Dispose() => CredentialDispatcher.DefaultProviderFactory = _original;
+    }
+
+    /// <summary>
+    ///     A credential provider that supplies the test credentials and counts its requests. When
+    ///     <c>failOnRetry</c> is set it behaves like <c>DefaultNetworkCredentialsCredentialProvider</c>,
+    ///     answering <c>ProviderNotApplicable</c> whenever NuGet reports the request as a retry.
+    /// </summary>
+    private sealed class FakeProvider : global::NuGet.Credentials.ICredentialProvider
+    {
+        private readonly bool _failOnRetry;
         private int _calls;
+
+        public FakeProvider(bool failOnRetry) => _failOnRetry = failOnRetry;
 
         /// <summary>Gets the number of credential requests received.</summary>
         public int Calls => Volatile.Read(ref _calls);
 
+        /// <inheritdoc />
+        public string Id => "FakeProvider";
+
+        /// <inheritdoc />
+        public Task<global::NuGet.Credentials.CredentialResponse> GetAsync(
+            Uri uri,
+            System.Net.IWebProxy? proxy,
+            global::NuGet.Configuration.CredentialRequestType type,
+            string message,
+            bool isRetry,
+            bool nonInteractive,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            if (_failOnRetry && isRetry)
+            {
+                return Task.FromResult(new global::NuGet.Credentials.CredentialResponse(
+                    global::NuGet.Credentials.CredentialStatus.ProviderNotApplicable));
+            }
+
+            return Task.FromResult(new global::NuGet.Credentials.CredentialResponse(
+                new System.Net.NetworkCredential(UserName, Password)));
+        }
+    }
+
+    /// <summary>
+    ///     A credential service that always supplies a credential.
+    /// </summary>
+    private sealed class SuppliedCredentialService : global::NuGet.Configuration.ICredentialService
+    {
         /// <inheritdoc />
         public bool HandlesDefaultCredentials => true;
 
@@ -1272,7 +1844,6 @@ public class CredentialDispatcherTests
             string message,
             CancellationToken cancellationToken)
         {
-            Interlocked.Increment(ref _calls);
             return Task.FromResult<System.Net.ICredentials?>(new System.Net.NetworkCredential("u", "p"));
         }
 

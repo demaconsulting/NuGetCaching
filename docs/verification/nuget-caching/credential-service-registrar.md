@@ -123,6 +123,14 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_TimedOut_SubsequentRequestsCancelWithoutCallback**:
   deterministic, HTTP-free: after a timeout a repeat request is canceled without invoking the
   callback again and the scope's `ThrowIfTimedOut()` throws `OperationCanceledException`.
+- **CredentialDispatcher_GetCredentialsAsync_CallbackSet_RetryStateIsScopedToOneCall**: deterministic,
+  HTTP-free: with a callback and a substituted provider that declines retries (like the integrated
+  authentication provider), a repeat request within one call is not satisfied, while the same URL in a
+  second call is answered again.
+- **NuGetCache_GetVersionsAsync_CallbackDeclinesTwice_ProviderServesEveryCall**: end-to-end regression
+  test: two sequential `GetVersionsAsync` calls for one 401-challenging source, each with a callback that
+  returns `null` and a retry-declining substituted provider, both succeed. Before the per-call service
+  the second call failed with an authentication error.
 - **NuGetCache_EnsureCachedAsync_CallbackReturnsNull_AsksOncePerUriAndType** and
   **CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders**:
   a null answer is remembered per (URI, type) so the callback
@@ -133,6 +141,33 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
 - **CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge**: with no
   credential available the dispatcher throws an `OperationCanceledException`-derived exception whose
   message carries no URL (the challenged URL, which may hold secrets, is only in `ChallengeUri`).
+- **CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason**: a
+  forbidden (403) request that no credential satisfies fails with status 403 and the reason recorded for the
+  marked source, and the classifier's message quotes it.
+- **CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason**: within one call
+  (with a marked source and without), a 403 with a reason followed by a 403 with none clears the recorded reason,
+  so the failure carries no `Reason` and its message does not quote the earlier one.
+- **CredentialDispatcher_GetCredentialsAsync_ReasonedForbiddenThenBareForbiddenChallenge_ReplacesRecordedChallenge**:
+  within one call (with a marked source and without), a reasoned 403 that fails and is recorded, followed by a bare
+  403 that fails, replaces the recorded challenge, so the final recorded failure and its classifier message carry no
+  stale reason.
+- **CredentialDispatcher_GetCredentialsAsync_ChallengeStatusOrdering_KeepsForbiddenOverUnauthorized**: a 403 replaces
+  a recorded 401 for the same source, but a later 401 does not displace the recorded 403 (and its reason).
+- **ForbiddenReasonHandlerProvider_Install_DoesNotConstructProvidersUntilRead**: `Install` constructs no provider;
+  the HTTP handler entry becomes the reason-capturing provider only when read, and other providers stay lazy and are
+  constructed once when read.
+- **ForbiddenReasonHandler_Forbidden_RecordsSanitizedReasonInPriorityOrder**: the handler reads the reason from
+  the reason phrase, records nothing for the bare "Forbidden" phrase, and reduces a long, multi-line,
+  URL-bearing `X-TFS-ServiceError` header to one short line without URL secrets (the header wins over the body
+  in the end-to-end `NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries`, which
+  also asserts a prompt failure, and the JSON `message` is used in
+  `NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason`).
+- **CredentialDispatcher_GetCredentialsAsync_ForbiddenWithCallback_DoesNotInvokeCallback**: with a host
+  credential callback configured, a forbidden (403) request fails with status 403 and the recorded reason without
+  invoking the callback; a 401 answered by the callback followed by a 403 for the same request leaves the callback
+  invoked exactly once (for the 401).
+- **ForbiddenReasonHandler_OversizedBody_FallsBackToReasonPhrase**: a 403 body larger than the read limit does not
+  lose the reason; the handler falls back to the descriptive reason phrase.
 - **CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation**: when the caller's
   token is canceled the dispatcher throws a plain cancellation and records no challenge.
 - **AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure**: a plain
@@ -189,11 +224,25 @@ service nulled, a fresh `CredentialServiceRegistrar` registered, and the origina
   CredentialDispatcher_GetCredentialsAsync_ConcurrentSameKey_AwaitsSingleCallback,
   CredentialDispatcher_GetCredentialsAsync_CallbackReturnsNull_AsksOnceButStillReachesProviders,
   NuGetCache_AuthenticationTimeout_CallbackNeverCompletes_FailsPromptlyAfterTimeout
+- **`Caching-CredentialServiceRegistrar-PerCallProviderState`**:
+  CredentialDispatcher_GetCredentialsAsync_CallbackSet_RetryStateIsScopedToOneCall,
+  NuGetCache_GetVersionsAsync_CallbackDeclinesTwice_ProviderServesEveryCall
 - **`Caching-CredentialServiceRegistrar-FailFastOnUnsatisfiedChallenge`**:
   CredentialDispatcher_GetCredentialsAsync_NoCredentialAvailable_ThrowsUnsatisfiedChallenge,
   CredentialDispatcher_GetCredentialsAsync_CallerCanceled_ThrowsPlainCancellation,
   AuthFailureClassifier_IsUnsatisfiedChallenge_CallerCancellation_IsNotAuthFailure,
   NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries
+- **`Caching-CredentialServiceRegistrar-ForbiddenReason`**:
+  CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason,
+  CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason,
+  CredentialDispatcher_GetCredentialsAsync_ReasonedForbiddenThenBareForbiddenChallenge_ReplacesRecordedChallenge,
+  CredentialDispatcher_GetCredentialsAsync_ChallengeStatusOrdering_KeepsForbiddenOverUnauthorized,
+  ForbiddenReasonHandlerProvider_Install_DoesNotConstructProvidersUntilRead,
+  CredentialDispatcher_GetCredentialsAsync_ForbiddenWithCallback_DoesNotInvokeCallback,
+  ForbiddenReasonHandler_Forbidden_RecordsSanitizedReasonInPriorityOrder,
+  ForbiddenReasonHandler_OversizedBody_FallsBackToReasonPhrase,
+  NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries,
+  NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason
 - **`Caching-CredentialServiceRegistrar-StoredFaultRethrown`**:
   CredentialDispatcher_GetCredentialsAsync_CallbackThrew_RepeatChallengeRethrowsOriginal,
   CredentialDispatcher_GetCredentialsAsync_CallbackCanceled_RepeatChallengeStaysPlainCancellation,

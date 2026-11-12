@@ -28,7 +28,7 @@ namespace DemaConsulting.NuGet.Caching.Tests;
 /// </summary>
 /// <remarks>
 ///     These are pure unit tests with no WireMock server or network I/O: they construct exceptions
-///     directly and call <see cref="AuthFailureClassifier.TryDescribeAuthFailure"/> to exercise every
+///     directly and call <c>AuthFailureClassifier.TryDescribeAuthFailure</c> to exercise every
 ///     detection branch (message-text matching, strongly typed status code, inner-exception chain
 ///     walking, and non-matching inputs).
 /// </remarks>
@@ -78,6 +78,29 @@ public class AuthFailureClassifierTests
         Assert.NotNull(message);
         Assert.Contains("403", message, StringComparison.Ordinal);
         Assert.Contains("Forbidden", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Tests that a 403 whose reason phrase carries the server's explanation (as Azure DevOps Server sends
+    ///     it) is still detected as a 403.
+    /// </summary>
+    [Fact]
+    public void AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden()
+    {
+        // Arrange
+        var exception = new InvalidOperationException(
+            "Response status code does not indicate success: 403 (Forbidden - User 'alice' lacks permission to complete this action. You need to have 'ReadPackages'.).");
+
+        // Act
+        var result = AuthFailureClassifier.TryDescribeAuthFailure(
+            exception, "test-source", "https://example.test/index.json", out var message, out var failure);
+
+        // Assert
+        Assert.True(result);
+        Assert.NotNull(failure);
+        Assert.Equal(403, failure.StatusCode);
+        Assert.Contains("HTTP 403 (Forbidden)", message, StringComparison.Ordinal);
+        Assert.Contains("ReadPackages", message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -237,6 +260,39 @@ public class AuthFailureClassifierTests
     }
 
     /// <summary>
+    ///     Tests that a 403 surfacing as a raw <see cref="HttpRequestException"/> (not the dispatcher's own
+    ///     exception) still carries the reason the capture handler recorded for the source, while a 401 never
+    ///     picks up a recorded reason.
+    /// </summary>
+    [Fact]
+    public void AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestException403_UsesRecordedReasonForSource()
+    {
+        // Arrange
+        var source = new Uri("http://localhost/feed/index.json");
+        using var scope = CredentialDispatcher.BeginScope(null, null);
+        using var marked = CredentialDispatcher.BeginSource(source.AbsoluteUri);
+        CredentialDispatcher.RecordForbiddenReason(source, "You need 'ReadPackages'.");
+        var forbidden = new HttpRequestException("Response status code does not indicate success: 403 (Forbidden).", null, HttpStatusCode.Forbidden);
+        var unauthorized = new HttpRequestException("Response status code does not indicate success: 401 (Unauthorized).", null, HttpStatusCode.Unauthorized);
+
+        // Act
+        var forbiddenResult = AuthFailureClassifier.TryDescribeAuthFailure(
+            forbidden, "test-source", source.AbsoluteUri, out var forbiddenMessage, out var forbiddenFailure);
+        var unauthorizedResult = AuthFailureClassifier.TryDescribeAuthFailure(
+            unauthorized, "test-source", source.AbsoluteUri, out var unauthorizedMessage, out var unauthorizedFailure);
+
+        // Assert
+        Assert.True(forbiddenResult);
+        Assert.Equal(403, forbiddenFailure!.StatusCode);
+        Assert.Equal("You need 'ReadPackages'.", forbiddenFailure.Reason);
+        Assert.Contains("Server said: \"You need 'ReadPackages'.\"", forbiddenMessage, StringComparison.Ordinal);
+        Assert.True(unauthorizedResult);
+        Assert.Equal(401, unauthorizedFailure!.StatusCode);
+        Assert.Null(unauthorizedFailure.Reason);
+        Assert.DoesNotContain("Server said", unauthorizedMessage, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Tests that <c>TryDescribeAuthFailure</c> returns <see langword="false"/> when an
     ///     <see cref="HttpRequestException"/> carries an unrelated status code (e.g. 500), which
     ///     is neither a 401 nor a 403 and should be treated as a non-actionable transient failure.
@@ -320,6 +376,16 @@ public class AuthFailureClassifierTests
     [InlineData("https://user:p#ss@host.example", "https://host.example")]
     [InlineData("see https://user:p?ss@host.example.", "see https://host.example.")]
     [InlineData("\"https://user:p#ss@host.example\" failed", "\"https://host.example\" failed")]
+    [InlineData("see ftp://user:pw@host.example/p?sig=Secret123 now", "see ftp://host.example/p now")]
+    [InlineData("ftp://user:pw@host.example/p#frag", "ftp://host.example/p")]
+    [InlineData("custom+scheme.v1-x://user:pw@host.example/p?token=abc", "custom+scheme.v1-x://host.example/p")]
+    [InlineData("HTTP://user:pw@host.example/p?sig=abc", "HTTP://host.example/p")]
+    [InlineData("a http://u:p@h1.example/x?s=1 and ftp://v:q@h2.example/y?t=2", "a http://h1.example/x and ftp://h2.example/y")]
+    [InlineData("https://user:p'wd@host.example/p?sig=Secret123", "https://host.example/p")]
+    [InlineData("https://us'er:p'wd@host.example/p?sig=Secret123", "https://host.example/p")]
+    [InlineData("see 'https://user:p'wd@host.example/p?sig=Secret123' now", "see 'https://host.example/p' now")]
+    [InlineData("see 'https://host.example/x?sig=Secret123' now", "see 'https://host.example/x' now")]
+    [InlineData("see 'https://user:pw@host.example/x?sig=Secret123' now", "see 'https://host.example/x' now")]
     public void AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved(string input, string expected)
     {
         // Arrange / Act

@@ -134,6 +134,30 @@ internal sealed class NuGetTestServer : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Makes the server answer every request with HTTP 403, the way Azure DevOps answers a signed-in
+    ///     user who lacks the permission to read the feed.
+    /// </summary>
+    /// <param name="serviceError">The URL-encoded <c>X-TFS-ServiceError</c> header value, or <see langword="null"/> for none.</param>
+    /// <param name="jsonBody">The response body, or <see langword="null"/> for an empty body.</param>
+    internal void RegisterForbiddenForAllRequests(string? serviceError, string? jsonBody)
+    {
+        var response = Response.Create().WithStatusCode(403);
+        if (serviceError != null)
+        {
+            response = response.WithHeader("X-TFS-ServiceError", serviceError);
+        }
+
+        if (jsonBody != null)
+        {
+            response = response.WithBody(jsonBody).WithHeader("Content-Type", "application/json");
+        }
+
+        _server
+            .Given(Request.Create().UsingAnyMethod())
+            .RespondWith(response);
+    }
+
+    /// <summary>
     ///     Gets the v3 service index URL of the source that always answers HTTP 401, registered by
     ///     <see cref="RegisterAuthedAndOpenSourcesOnSameHost"/>.
     /// </summary>

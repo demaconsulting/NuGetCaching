@@ -52,6 +52,26 @@ with an actionable message, and every non-matching input returns `false` with a 
 
 **Requirement coverage**: `Caching-AuthFailureClassifier-DetectUnauthorized`.
 
+#### AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden
+
+**Scenario**: `TryDescribeAuthFailure` is called with an exception whose message carries
+`"403 (Forbidden - User ... lacks permission ...)"`, the reason phrase Azure DevOps Server sends.
+
+**Expected**: Returns `true`, the structured failure has status 403, and the message says
+`HTTP 403 (Forbidden)` and includes the original text.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-ForbiddenReason`.
+
+#### AuthFailureClassifier_TryDescribeAuthFailure_HttpRequestException403_UsesRecordedReasonForSource
+
+**Scenario**: A reason is recorded for a marked source inside a call scope, then `TryDescribeAuthFailure` is
+called with a raw `HttpRequestException` for that source: once with a 403 and once with a 401.
+
+**Expected**: The 403 failure has status 403, carries the recorded reason, and the message quotes it
+(`Server said: ...`); the 401 failure has status 401 and no reason.
+
+**Requirement coverage**: `Caching-AuthFailureClassifier-ForbiddenReason`.
+
 #### AuthFailureClassifier_TryDescribeAuthFailure_NoMatchInMessage_ReturnsFalse
 
 **Scenario**: `TryDescribeAuthFailure` is called with a generic transient-failure exception
@@ -142,10 +162,13 @@ addition to the summarized actionable framing.
 #### AuthFailureClassifier_RedactEmbeddedUrls_UserInfo_IsRemoved
 
 **Scenario**: `RedactEmbeddedUrls` is called with URLs that carry `user:pass@`, user-only info,
-`@`, `?` or `#` inside the password, percent-encoded user info, a query and fragment, and URLs with no
-path or no query.
+`@`, `?` or `#` inside the password, percent-encoded user info, a query and fragment, URLs with no
+path or no query, and URLs of other schemes (`ftp://` with user info and query, a custom
+`scheme+x.y-z://`, upper-case `HTTP://`, and a message mixing http and ftp URLs), and URLs whose
+user info contains an apostrophe (`user:p'wd@host`), alongside URLs quoted in single quotes in prose.
 
-**Expected**: Only scheme, host, port and path remain in every case.
+**Expected**: Only scheme, host, port and path remain in every case, whatever the scheme; an apostrophe
+inside user info does not stop redaction, and a URL quoted in single quotes still ends at its closing quote.
 
 **Requirement coverage**: `Caching-AuthFailureClassifier-RedactEmbeddedUserInfo`.
 
@@ -206,3 +229,7 @@ verified by `Caching-PackageDownloader-AuthFailureInfo` (downloader unit) and, e
   AuthFailureClassifier_RedactUrl_DelimitersInPassword_AreRedacted,
   AuthFailureClassifier_RedactEmbeddedUrls_QueryWithAtSignAndPlainText_BehavesCorrectly,
   AuthFailureClassifier_TryDescribeAuthFailure_MessageWithUserInfoUrl_RedactsUserInfoAndQuery
+- **`Caching-AuthFailureClassifier-ForbiddenReason`**:
+  AuthFailureClassifier_TryDescribeAuthFailure_403WithReasonPhrase_ReturnsTrueAndReportsForbidden,
+  CredentialDispatcher_GetCredentialsAsync_ForbiddenNoCredential_FailsWithStatus403AndRecordedReason,
+  CredentialDispatcher_GetCredentialsAsync_ReasonedThenBareForbidden_DoesNotReportStaleReason,
