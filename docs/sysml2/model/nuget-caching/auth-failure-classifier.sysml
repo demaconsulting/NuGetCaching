@@ -5,7 +5,6 @@ package NuGetCaching {
         doc /* Classifies source-communication exceptions as actionable HTTP 401/403 failures. */
 
         metadata info : SoftwareInfo {
-            description = "Classifies source-communication exceptions as actionable HTTP 401/403 failures.";
             sourceFiles = ("src/DemaConsulting.NuGet.Caching/AuthFailureClassifier.cs");
             testFiles = ("test/DemaConsulting.NuGet.Caching.Tests/AuthFailureClassifierTests.cs");
             designFiles = ("docs/design/nuget-caching/auth-failure-classifier.md");
