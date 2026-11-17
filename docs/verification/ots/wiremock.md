@@ -1,7 +1,7 @@
 ## WireMock.Net Verification
 
-This document provides the verification evidence for the WireMock.Net OTS software item.
-Requirements for this OTS item are defined in the WireMock.Net OTS Software Requirements document (`docs/reqstream/ots/wiremock.yaml`).
+This document provides the verification evidence for the WireMock.Net OTS software item. Requirements for this OTS item
+are defined in the WireMock.Net OTS Software Requirements document (`docs/reqstream/ots/wiremock.yaml`).
 
 ### Required Functionality
 

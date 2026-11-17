@@ -474,12 +474,12 @@ process-wide credential service can be isolated and restored.
   `NuGetAuthenticationException` naming `test-source`. Covers `CredentialCallback`.
 - **NuGetCache_EnsureCachedAsync_CallbackCredentialsRejected_AsksOncePerRequestAndFails**: wrong
   credentials are asked for once per URI and request type, not in a loop. Covers `CredentialCallback`.
-- **NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException**: 401 with no
-  credentials throws `NuGetAuthenticationException`, with or without options. Covers
-  `AuthenticationException`; **NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException**
-  covers the same for `ListVersionsAsync`; **NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException**
-  covers a 401 on the registration endpoint with a public flat container (not swallowed by the
-  metadata fallback; recorded as a source failure and thrown because nothing was found).
+- **NuGetCache_UnauthorizedWithoutCredentials_ThrowsNuGetAuthenticationException**: 401 with no credentials throws
+  `NuGetAuthenticationException`, with or without options. Covers `AuthenticationException`;
+  **NuGetCache_ListVersionsAsync_Unauthorized_ThrowsNuGetAuthenticationException** covers the same for
+  `ListVersionsAsync`; **NuGetCache_ListVersionsAsync_UnauthorizedRegistration_ThrowsNuGetAuthenticationException**
+  covers a 401 on the registration endpoint with a public flat container (not swallowed by the metadata fallback;
+  recorded as a source failure and thrown because nothing was found).
 - **NuGetAuthenticationException_Properties_AreExposed**: `Source`, `Uri`, and message are
   preserved. Covers `AuthenticationException`.
 - **NuGetAuthenticationException_Constructor_UriWithSecrets_RedactsUserInfoQueryAndFragment**,
@@ -505,17 +505,18 @@ process-wide credential service can be isolated and restored.
 - **NuGetCache_EnsureCachedAsync_NoCredentials_FailsFastWithoutRetries** and
   **NuGetCache_VersionListing_NoCredentials_FailsFastWithoutRetries**: a server returning 401 to every
   request ends in `NuGetAuthenticationException` quickly with few requests (no retry/V2 fallback).
-- **NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries**: a server answering 403
-  with a URL-encoded `X-TFS-ServiceError` header and a JSON body ends in `NuGetAuthenticationException` with
-  `StatusCode` 403 and `ServerReason` equal to the decoded header (preferred over the body), quickly and with few
-  requests, even with a declining callback. **NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason**
-  takes the reason from the JSON `message` (quotes replaced); **NuGetCache_GetVersionsAsync_ForbiddenWithoutReason_ReportsStatusOnly**
-  has no reason; **NuGetCache_EnsureCachedAsync_Unauthorized_ReportsStatus401WithoutReason** keeps the 401 wording and status.
+- **NuGetCache_EnsureCachedAsync_Forbidden_ReportsStatusAndServerReasonWithoutRetries**: a server answering 403 with a
+  URL-encoded `X-TFS-ServiceError` header and a JSON body ends in `NuGetAuthenticationException` with `StatusCode` 403
+  and `ServerReason` equal to the decoded header (preferred over the body), quickly and with few requests, even with a
+  declining callback. **NuGetCache_GetVersionsAsync_ForbiddenWithJsonBody_ReportsMessageAsServerReason** takes the
+  reason from the JSON `message` (quotes replaced);
+  **NuGetCache_GetVersionsAsync_ForbiddenWithoutReason_ReportsStatusOnly** has no reason;
+  **NuGetCache_EnsureCachedAsync_Unauthorized_ReportsStatus401WithoutReason** keeps the 401 wording and status.
   **NuGetAuthenticationException_StatusAndReason_AreExposedAndSanitized** checks the reason is one short line without
-  URL secrets; **NuGetAuthenticationException_Reason_NonHttpUrls_AreRedacted** checks that URLs of other schemes
-  (ftp, a custom scheme) lose user info, query and fragment too; and
-  **NuGetAuthenticationException_ReasonWithNon403Status_IsNotKept** checks a reason given with a 401 (or no status)
-  is dropped, so `ServerReason` is non-null only for a 403. Cover `ForbiddenDiagnostics`.
+  URL secrets; **NuGetAuthenticationException_Reason_NonHttpUrls_AreRedacted** checks that URLs of other schemes (ftp, a
+  custom scheme) lose user info, query and fragment too; and
+  **NuGetAuthenticationException_ReasonWithNon403Status_IsNotKept** checks a reason given with a 401 (or no status) is
+  dropped, so `ServerReason` is non-null only for a 403. Cover `ForbiddenDiagnostics`.
 - **NuGetCache_Sources_QueryStringJsonUrl_LogsV2Warning** and
   **NuGetCache_ListVersionsAsync_NoRegistrationResource_FallsBackToFlatList**: the query-string source
   warning, and a service index without a registration resource falling back to the flat list without error.
