@@ -66,6 +66,7 @@ reviews:
       - "docs/design/introduction.md"
       - "docs/design/nuget-caching.md"
       - "docs/verification/nuget-caching.md"
+      - "src/DemaConsulting.NuGet.Caching/NamespaceDoc.cs"  # namespace-level API summary
       - "test/DemaConsulting.NuGet.Caching.Tests/NuGetCachingTests.cs"
 
   - id: NuGetCaching-Design
