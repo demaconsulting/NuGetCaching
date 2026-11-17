@@ -287,7 +287,8 @@ Releases are managed by project maintainers. The process includes:
 
 ## License
 
-By contributing to DemaConsulting NuGet Caching, you agree that your contributions will be licensed under the MIT License.
+By contributing to DemaConsulting NuGet Caching, you agree that your contributions will be licensed under the MIT
+License.
 
 Thank you for contributing to DemaConsulting NuGet Caching!
 
