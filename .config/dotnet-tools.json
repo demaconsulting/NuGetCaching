@@ -63,7 +63,7 @@
       ]
     },
     "demaconsulting.lintmark": {
-      "version": "0.1.0-beta.2",
+      "version": "0.1.0-beta.3",
       "commands": [
         "lintmark"
       ],
@@ -76,7 +76,7 @@
       ]
     },
     "demaconsulting.textlint.tool": {
-      "version": "0.1.0-beta.4",
+      "version": "0.1.0-beta.5",
       "commands": [
         "textlint"
       ],
@@ -86,6 +86,13 @@
       "version": "0.2.0-beta.11",
       "commands": [
         "canvasnet"
+      ],
+      "rollForward": false
+    },
+    "demaconsulting.docdown.tool": {
+      "version": "0.3.0-beta.6",
+      "commands": [
+        "docdown"
       ],
       "rollForward": false
     }
