@@ -1,5 +1,8 @@
 # DemaConsulting NuGet Caching
 
+<!-- IMPORTANT: All links in this file must be absolute URLs.
+     This file is distributed in packages and relative links will not resolve. -->
+
 [![GitHub forks][badge-forks]][link-forks]
 [![GitHub stars][badge-stars]][link-stars]
 [![GitHub contributors][badge-contributors]][link-contributors]
@@ -8,6 +11,8 @@
 [![Quality Gate][badge-quality]][link-quality]
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
+
+![NuGetCaching banner: the NuGetCaching name with the tagline 'Every package, cached. Every version, found.' and the C# call 'var path = await NuGetCache.EnsureCachedAsync(id, v);'. A package id and version, nuget.config package sources, feed credentials, and the global packages folder flow on curved arrows into the NuGetCache .NET library, and arrows lead out to what it produces: the package cached and extracted at its path in the global packages folder, the list of available versions, their listed state and publication dates, and authentication failures classified as 401 or 403][hero]
 
 DEMA Consulting library for caching NuGet packages on the local global packages cache and
 discovering the available versions of a package.
@@ -120,5 +125,6 @@ By contributing to this project, you agree that your contributions will be licen
 [link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_NuGetCaching
 [link-nuget]: https://www.nuget.org/packages/DemaConsulting.NuGet.Caching
+[hero]: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/main/docs/images/hero.png
 [architecture]: https://raw.githubusercontent.com/demaconsulting/NuGetCaching/main/docs/images/architecture.png
 [link-contributing]: https://github.com/demaconsulting/NuGetCaching/blob/main/CONTRIBUTING.md
