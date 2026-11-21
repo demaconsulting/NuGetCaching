@@ -117,17 +117,17 @@
   <text class="word" x="52" y="176" style="font-size:70px">NuGet</text>
   <text class="word brandText" x="262" y="176" style="font-size:70px">Caching</text>
   <rect x="58" y="200" width="132" height="6" rx="3" fill="url(#brand)"/>
-  <text class="tag" x="56" y="266">Every package, cached.</text>
-  <text class="tag brandText" x="56" y="316">Every version, found.</text>
-  <text class="body" x="58" y="368">A .NET library that resolves NuGet</text>
-  <text class="body" x="58" y="402">versions and downloads packages from</text>
-  <text class="body" x="58" y="436">your feeds into the global cache.</text>
+  <text class="tag" x="56" y="266">NuGet package caching</text>
+  <text class="tag" x="56" y="314" style="fill: #a5b4fc">and version lookup.</text>
+  <text class="body" x="58" y="368">Reads the sources in nuget.config,</text>
+  <text class="body" x="58" y="402">downloads a package into the global</text>
+  <text class="body" x="58" y="436">packages folder, and returns its path.</text>
   <rect x="56" y="468" width="480" height="90" rx="12" fill="#0a1022" fill-opacity="0.8" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1.5"/>
   <text class="cmd" x="78" y="503">var path = await NuGetCache</text>
   <text class="cmd" x="108" y="539">.EnsureCachedAsync(</text>
   <text class="cmd file" x="393" y="539">id, v</text>
   <text class="cmd" x="468" y="539">);</text>
-  <text class="note" x="58" y="604">Honors nuget.config, like dotnet.</text>
+  <text class="note" x="58" y="604">.NET Standard 2.0 &#183; .NET 8 to 11</text>
 
   <!-- Input cards -->
   <g>
