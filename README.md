@@ -1,7 +1,4 @@
-# DemaConsulting NuGet Caching
-
-<!-- IMPORTANT: All links in this file must be absolute URLs.
-     This file is distributed in packages and relative links will not resolve. -->
+# ![NuGetCaching: NuGet package caching and version lookup. Reads the sources in nuget.config, downloads a package into the global packages folder, and returns its path. Shown with the C# call 'var path = await NuGetCache.EnsureCachedAsync(id, v);' and the note '.NET Standard 2.0, .NET 8 to 11'. A package id and version, nuget.config package sources, feed credentials, and the global packages folder flow into the NuGetCache .NET library, and arrows lead out to the package cached and extracted at its path in the global packages folder, the list of available versions, their listed state and publication dates, and authentication failures reported as 401 or 403][hero]
 
 [![GitHub forks][badge-forks]][link-forks]
 [![GitHub stars][badge-stars]][link-stars]
@@ -12,7 +9,8 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
-![NuGetCaching banner: the NuGetCaching name with the tagline 'Every package, cached. Every version, found.' and the C# call 'var path = await NuGetCache.EnsureCachedAsync(id, v);'. A package id and version, nuget.config package sources, feed credentials, and the global packages folder flow on curved arrows into the NuGetCache .NET library, and arrows lead out to what it produces: the package cached and extracted at its path in the global packages folder, the list of available versions, their listed state and publication dates, and authentication failures classified as 401 or 403][hero]
+<!-- IMPORTANT: All links in this file must be absolute URLs.
+     This file is distributed in packages and relative links will not resolve. -->
 
 DEMA Consulting library for caching NuGet packages on the local global packages cache and
 discovering the available versions of a package.
