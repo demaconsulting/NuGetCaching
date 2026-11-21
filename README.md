@@ -1,4 +1,4 @@
-# ![NuGetCaching: NuGet package caching and version lookup. Reads the sources in nuget.config, downloads a package into the global packages folder, and returns its path. Shown with the C# call 'var path = await NuGetCache.EnsureCachedAsync(id, v);' and the note '.NET Standard 2.0, .NET 8 to 11'. A package id and version, nuget.config package sources, feed credentials, and the global packages folder flow into the NuGetCache .NET library, and arrows lead out to the package cached and extracted at its path in the global packages folder, the list of available versions, their listed state and publication dates, and authentication failures reported as 401 or 403][hero]
+# ![NuGetCaching: NuGet package caching and version lookup][hero]
 
 [![GitHub forks][badge-forks]][link-forks]
 [![GitHub stars][badge-stars]][link-stars]
