@@ -2,6 +2,7 @@
 
 - **project-name**: DemaConsulting NuGet Caching
 - **organization**: DEMA Consulting
+- **project-tagline**: Local NuGet package caching for .NET
 - **description**: A library for caching NuGet packages on the local PC
 - **languages**: C#
 - **technologies**: .NET (netstandard2.0, net8.0, net9.0, net10.0, net11.0), NuGet.Protocol, NuGet.Configuration
@@ -157,7 +158,17 @@ requires it and the modification preserves the documented design intent:
 
 - `.reviewmark.yaml`, `.textlint.yaml`, `.editorconfig`
 - `.lintmark.yaml`, `.yamllint.yaml`
-- `requirements.yaml`, `fix.ps1`, `lint.ps1`
+- `requirements.yaml`
+
+# Project Scripts
+
+`build.ps1`, `lint.ps1`, and `fix.ps1` belong to the project: extend them as it grows. Add project-specific
+steps, update tool versions, and add optional parameters that focus a run (for example one library in a
+multi-library repository, or headless tests without GUI automation). Two rules keep them trustworthy:
+
+- Run with no arguments, each script still does its full job (CI and the agents rely on that); slow or
+  environment-dependent test tiers may be opt-in switches of `build.ps1`.
+- Never remove or weaken a check to make lint or tests pass.
 
 # Continuous Compliance Overview
 
