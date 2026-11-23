@@ -1,7 +1,12 @@
 package NuGetCaching {
     private import SoftwareItemMetadata::*;
-
-    import OtsDependencies::*;
+    private import OtsDependencies::*;
+    public import NuGetCaching_AuthFailureClassifier::*;
+    public import NuGetCaching_CredentialServiceRegistrar::*;
+    public import NuGetCaching_NuGetCache::*;
+    public import NuGetCaching_PackageDownloader::*;
+    public import NuGetCaching_PackageSourceResolver::*;
+    public import NuGetCaching_PathHelpers::*;
 
     doc
     /*

@@ -1,4 +1,4 @@
-package NuGetCaching {
+package NuGetCaching_CredentialServiceRegistrar {
     private import SoftwareItemMetadata::*;
 
     part def CredentialServiceRegistrar {

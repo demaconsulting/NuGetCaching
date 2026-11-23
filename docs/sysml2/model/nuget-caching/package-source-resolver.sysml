@@ -1,4 +1,4 @@
-package NuGetCaching {
+package NuGetCaching_PackageSourceResolver {
     private import SoftwareItemMetadata::*;
 
     part def PackageSourceResolver {
