@@ -1,4 +1,4 @@
-package NuGetCaching {
+package NuGetCaching_NuGetCache {
     private import SoftwareItemMetadata::*;
 
     part def NuGetCache {

@@ -1,4 +1,4 @@
-package NuGetCaching {
+package NuGetCaching_PathHelpers {
     private import SoftwareItemMetadata::*;
 
     part def PathHelpers {

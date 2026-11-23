@@ -1,4 +1,4 @@
-package NuGetCaching {
+package NuGetCaching_AuthFailureClassifier {
     private import SoftwareItemMetadata::*;
 
     part def AuthFailureClassifier {
