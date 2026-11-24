@@ -204,16 +204,23 @@ dotnet build --configuration Release
 dotnet test --configuration Release
 ```
 
-All tests must pass with zero warnings.
+All tests must pass with zero warnings. The script equivalent is `pwsh ./build.ps1 -All`.
 
 ### 2. Linting
 
+The scripts require a scope (run one with no arguments, or with `-Help`, to see its usage). While iterating,
+`-Changed` limits the work to what the change affects; run the `-All` forms before submitting:
+
 ```pwsh
+# While iterating: only the fixers and checks the changed files need
+pwsh ./fix.ps1 -Changed
+pwsh ./lint.ps1 -Changed
+
 # After making changes: applies dotnet format, markdown, and YAML fixes silently
-pwsh ./fix.ps1
+pwsh ./fix.ps1 -All
 
 # Before submitting a pull request: all linters must pass
-pwsh ./lint.ps1
+pwsh ./lint.ps1 -All
 ```
 
 ### 3. Code Coverage
